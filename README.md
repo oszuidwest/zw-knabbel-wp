@@ -22,12 +22,12 @@ WordPress plugin that automatically sends posts to the [Babbel API](https://gith
 1. Download the latest release ZIP from [GitHub Releases](https://github.com/oszuidwest/zw-knabbel-wp/releases)
 2. Upload via WordPress Admin > Plugins > Add New > Upload Plugin
 3. Activate the plugin
-4. Configure via Settings > Knabbel WP
+4. Configure via Settings > ZuidWest Knabbel
 
 ## Usage
 
-1. Configure the plugin via Settings > Knabbel WP
-2. When editing a post, check "Radio News" in the metabox
+1. Configure the plugin via Settings > ZuidWest Knabbel
+2. When editing a post, check "Radionieuws" in the ACF metabox
 3. On publish, the plugin automatically:
    - Generates a short title via OpenAI
    - Converts content to speech text
