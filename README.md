@@ -24,26 +24,6 @@ WordPress plugin that automatically sends posts to the [Babbel API](https://gith
 3. Activate the plugin
 4. Configure via Settings > Knabbel WP
 
-## Configuration
-
-### Babbel API
-- **API Base URL**: Babbel API endpoint
-- **Username**: Session authentication username
-- **Password**: Session authentication password
-
-### OpenAI Settings
-- **API Key**: Your OpenAI API key
-- **Model**: GPT model selection (default: gpt-4.1-mini)
-
-### AI Prompts
-- **Title Prompt**: Prompt for generating short radio titles
-- **Speech Prompt**: Prompt for converting text to speech-ready format
-
-### Story Defaults
-- **Start/End Date Offset**: Days from now for story scheduling
-- **Default Status**: Initial story status (draft/published)
-- **Weekdays**: Which days the story should air
-
 ## Usage
 
 1. Configure the plugin via Settings > Knabbel WP
