@@ -1,0 +1,190 @@
+/**
+ * ZuidWest Knabbel - Admin Styling (WordPress-aligned)
+ * Subtle refinement, retains core WP look & feel.
+ */
+
+/* Tokens (soft defaults) */
+:root {
+    --knb-border: #e0e0e0;
+    --knb-muted: #646970;
+    --knb-primary: #2271b1;
+    --knb-primary-600: #1a5a8a;
+}
+
+.knabbel-wp-admin { padding-bottom: 16px; }
+
+/* Forms */
+.knabbel-wp-admin .form-table { width: 100%; margin-bottom: 28px; }
+.knabbel-wp-admin .form-table th { width: 260px; font-weight: 600; }
+.knabbel-wp-admin .form-table td, .knabbel-wp-admin .form-table th { padding-top: 14px; padding-bottom: 14px; }
+.knabbel-wp-admin .description { color: var(--knb-muted); font-size: 13px; line-height: 1.5; margin-top: 6px; }
+/* Subtle row separators for readability */
+.knabbel-wp-admin .form-table tr + tr th,
+.knabbel-wp-admin .form-table tr + tr td { border-top: 1px solid #f3f4f6; }
+
+/* Section hierarchy: title underline and intro note */
+.knabbel-wp-admin h2 { border-bottom: 1px solid #dcdcde; padding-bottom: 6px; margin-top: 28px; margin-bottom: 8px; }
+.knabbel-wp-admin h2 + p { color: var(--knb-muted); margin: 6px 0 12px; }
+
+/* Submit area spacing */
+.knabbel-wp-admin p.submit { margin-top: 8px; }
+
+/* Inputs */
+.knabbel-wp-admin input[type="text"],
+.knabbel-wp-admin input[type="password"],
+.knabbel-wp-admin textarea { border-radius: 4px; }
+.knabbel-wp-admin input[type="text"]:focus,
+.knabbel-wp-admin input[type="password"]:focus,
+.knabbel-wp-admin textarea:focus { box-shadow: 0 0 0 2px rgba(34, 113, 177, 0.15); }
+
+/* Buttons */
+.knabbel-wp-admin .button { border-radius: 4px; font-weight: 600; }
+.knabbel-wp-admin .button-primary { background: var(--knb-primary); border-color: var(--knb-primary); }
+.knabbel-wp-admin .button-primary:hover { background: var(--knb-primary-600); border-color: var(--knb-primary-600); }
+
+/* Cards (only for optional debug/test panels) */
+.knabbel-wp-admin .card { border: 1px solid var(--knb-border); border-radius: 6px; }
+.knabbel-wp-admin .card + .card { margin-top: 16px; }
+
+/* Debug overview (key-value list) */
+.knabbel-wp-admin .knb-kv { margin: 6px 0 0; }
+.knabbel-wp-admin .knb-kv .knb-item { display: grid; grid-template-columns: 180px 1fr; gap: 16px; align-items: start; padding: 10px 0; border-top: 1px solid #eef0f2; }
+.knabbel-wp-admin .knb-kv .knb-item:first-child { border-top: 0; }
+.knabbel-wp-admin .knb-kv dt { font-weight: 600; color: #1e1e1e; }
+.knabbel-wp-admin .knb-kv dd { margin: 0; }
+
+/* Details (collapsible payload) */
+.knabbel-wp-admin .knb-details { margin-top: 10px; }
+.knabbel-wp-admin .knb-details summary { cursor: pointer; font-weight: 600; list-style: none; }
+.knabbel-wp-admin .knb-details summary::-webkit-details-marker { display: none; }
+.knabbel-wp-admin .knb-details summary::before { content: '▸'; display: inline-block; margin-right: 6px; transform: translateY(-1px); }
+.knabbel-wp-admin .knb-details[open] summary::before { content: '▾'; }
+.knabbel-wp-admin .knb-details pre { margin-top: 8px; max-height: 260px; overflow: auto; }
+
+@media (max-width: 782px) {
+  .knabbel-wp-admin .knb-kv .knb-item { grid-template-columns: 1fr; }
+}
+
+/* Notices */
+.knabbel-wp-admin .notice { border-radius: 4px; }
+.knabbel-wp-admin .notice.inline { margin: 12px 0; padding: 8px 12px; }
+
+/* Toggle (minimal) */
+.knabbel-wp-admin .knabbel-toggle { display: inline-flex; align-items: center; gap: 10px; }
+.knabbel-wp-admin .knabbel-toggle input[type="checkbox"] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.knabbel-wp-admin .knabbel-toggle .knabbel-toggle-indicator { width: 38px; height: 22px; border-radius: 999px; background: #d0d5dd; position: relative; display: inline-block; box-shadow: inset 0 0 0 1px #cfd3da; transition: background 0.15s ease; }
+.knabbel-wp-admin .knabbel-toggle .knabbel-toggle-indicator::before { content: ''; position: absolute; left: 2px; top: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.15); transform: translateX(0); transition: transform 0.15s ease; }
+.knabbel-wp-admin .knabbel-toggle input[type="checkbox"]:checked + .knabbel-toggle-indicator { background: var(--knb-primary); }
+.knabbel-wp-admin .knabbel-toggle input[type="checkbox"]:checked + .knabbel-toggle-indicator::before { transform: translateX(16px); }
+
+/* Inputs */
+.knabbel-wp-admin input[type="text"],
+.knabbel-wp-admin input[type="password"],
+.knabbel-wp-admin textarea {
+    border: 1px solid #cfd3da;
+    border-radius: 6px;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    background: #fff;
+}
+
+.knabbel-wp-admin input[type="text"]:focus,
+.knabbel-wp-admin input[type="password"]:focus,
+.knabbel-wp-admin textarea:focus {
+    border-color: var(--knb-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(34, 113, 177, 0.15);
+}
+
+.knabbel-wp-admin textarea {
+    font-family: ui-monospace, Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.knabbel-wp-admin .description {
+    color: var(--knb-muted);
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 6px;
+}
+
+/* Buttons */
+.knabbel-wp-admin .button { border-radius: 4px; font-weight: 600; box-shadow: none; transition: background-color .12s ease, border-color .12s ease, color .12s ease; }
+.knabbel-wp-admin .button:hover { box-shadow: none; transform: none; }
+
+.knabbel-wp-admin .button-primary {
+    background: var(--knb-primary);
+    border-color: var(--knb-primary);
+}
+
+.knabbel-wp-admin .button-primary:hover {
+    background: var(--knb-primary-600);
+    border-color: var(--knb-primary-600);
+}
+
+.knabbel-wp-admin .button:disabled { opacity: 0.7; cursor: not-allowed; }
+
+/* Notices */
+.knabbel-wp-admin .notice {
+    border-radius: 6px;
+    border-left-width: 4px;
+}
+
+.knabbel-wp-admin .notice.inline { margin: 12px 0; padding: 10px 12px; }
+.knabbel-wp-admin .notice-success { border-left-color: #00a32a; background: #f0f9f0; }
+.knabbel-wp-admin .notice-error { border-left-color: #d63638; background: #fef7f7; }
+
+/* Toggle switch for debug checkbox */
+.knabbel-wp-admin .knabbel-toggle { display: inline-flex; align-items: center; gap: 10px; }
+.knabbel-wp-admin .knabbel-toggle input[type="checkbox"] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.knabbel-wp-admin .knabbel-toggle .knabbel-toggle-indicator {
+    width: 44px; height: 24px; border-radius: 999px;
+    background: #d0d5dd; position: relative; display: inline-block;
+    box-shadow: inset 0 0 0 1px #cfd3da;
+    transition: background 0.15s ease;
+}
+.knabbel-wp-admin .knabbel-toggle .knabbel-toggle-indicator::before {
+    content: '';
+    position: absolute; left: 2px; top: 2px;
+    width: 20px; height: 20px; border-radius: 50%; display: inline-block;
+    background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    transform: translateX(0); transition: transform 0.15s ease;
+}
+.knabbel-wp-admin .knabbel-toggle input[type="checkbox"]:checked + .knabbel-toggle-indicator {
+    background: var(--knb-primary);
+}
+.knabbel-wp-admin .knabbel-toggle input[type="checkbox"]:checked + .knabbel-toggle-indicator::before {
+    transform: translateX(20px);
+}
+
+/* API test results animation */
+.knabbel-wp-admin #api-test-result { opacity: 0; transition: opacity 0.3s ease-in-out; }
+.knabbel-wp-admin #api-test-result:not(:empty) { opacity: 1; }
+
+/* Code blocks */
+.knabbel-wp-admin pre {
+    background: #f6f7f7;
+    border: 1px solid var(--knb-border);
+    border-radius: 4px;
+    padding: 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap; /* allow wrapping */
+    word-break: break-word; /* break long tokens */
+    overflow-wrap: anywhere; /* modern wrap */
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Ensure debug pre does not overflow form tables */
+.knabbel-wp-admin .form-table td pre {
+    display: block;
+    width: 100%;
+}
+
+/* Responsive */
+@media (max-width: 782px) {
+    .knabbel-wp-admin .form-table th,
+    .knabbel-wp-admin .form-table td { display: block; width: 100%; padding-left: 0; padding-right: 0; }
+    .knabbel-wp-admin .form-table th { padding-bottom: 6px; }
+}

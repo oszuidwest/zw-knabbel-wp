@@ -1,0 +1,28 @@
+parameters:
+  level: 6
+  phpVersion: 80300
+  paths:
+    - zw-knabbel-wp.php
+    - includes
+  excludePaths:
+    - vendor
+  bootstrapFiles:
+    - phpstan-bootstrap.php
+  parallel:
+    maximumNumberOfProcesses: 1
+  typeAliases:
+    # Babbel API types
+    BabbelCredentials: 'array{base_url: string, username: string, password: string}'
+    BabbelApiResponse: 'array{success: bool, message: string, story_id?: string}'
+    StoryData: 'array{title: string, text: string, start_date: string, end_date: string, status?: string, weekdays?: int, metadata?: array<string, mixed>}'
+    StoryState: 'array{status?: string, story_id?: string, status_changed_at?: string, message?: string}'
+    # OpenAI types
+    OpenAISettings: 'array{api_key: string|null, model: string, api_base_url: string}'
+    ChatMessage: 'array{role: string, content: string}'
+    # HTTP types
+    WpHttpArgs: 'array{method?: string, headers?: array<string, string>, body?: string, timeout?: int, cookies?: array<mixed>}'
+    WpHttpResponse: 'array<string, mixed>'
+    # Settings types
+    SettingsFieldArgs: 'array{field: string, type?: string, default?: mixed, description?: string, placeholder?: string, rows?: int, options?: array<string, string>, min?: int, max?: int}'
+    LogContext: 'array<string, mixed>'
+

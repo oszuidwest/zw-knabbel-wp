@@ -1,0 +1,13 @@
+{
+  "name": "zw-knabbel-wp",
+  "private": true,
+  "description": "WordPress plugin for Babbel API integration",
+  "scripts": {
+    "lint": "biome check assets/",
+    "lint:fix": "biome check --write assets/",
+    "format": "biome format --write assets/"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.0"
+  }
+}

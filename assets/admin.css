@@ -1,0 +1,849 @@
+/**
+ * Knabbel WP Admin Styles
+ *
+ * Consolidated styles for settings page and post metabox.
+ */
+
+/* ==========================================================================
+   Status Badges - shared across metabox and settings
+   ========================================================================== */
+
+.knabbel-status-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: #1e1e1e;
+    background: #f3f4f6;
+    border: 1px solid #dcdcde;
+}
+
+.knabbel-status-badge.sent {
+    background: #f0f9f0;
+    border-color: #b7e3bf;
+    color: #0a5;
+}
+
+.knabbel-status-badge.processing {
+    background: #f6f7f7;
+    border-color: #dcdcde;
+}
+
+.knabbel-status-badge.scheduled {
+    background: #fff8e6;
+    border-color: #ffe399;
+    color: #9a7b00;
+}
+
+.knabbel-status-badge.error {
+    background: #fef7f7;
+    border-color: #f5c2c2;
+    color: #b11;
+}
+
+/* ==========================================================================
+   Status List - metabox utility classes
+   ========================================================================== */
+
+.knabbel-status-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.knabbel-status-list li {
+    margin-bottom: 6px;
+}
+
+.knabbel-status-muted {
+    color: #646970;
+    font-size: 12px;
+}
+
+.knabbel-pre {
+    background: #f6f7f7;
+    border: 1px solid #e0e0e0;
+    border-radius: 3px;
+    padding: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    margin: 4px 0 0;
+}
+
+/* ==========================================================================
+   Toggle Switch - settings page
+   ========================================================================== */
+
+.knabbel-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.knabbel-toggle input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.knabbel-toggle-indicator {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+    background: #ccc;
+    border-radius: 10px;
+    transition: background 0.2s;
+}
+
+.knabbel-toggle-indicator::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.knabbel-toggle input:checked + .knabbel-toggle-indicator {
+    background: #2271b1;
+}
+
+.knabbel-toggle input:checked + .knabbel-toggle-indicator::after {
+    transform: translateX(16px);
+}
+
+.knabbel-toggle input:focus + .knabbel-toggle-indicator {
+    box-shadow: 0 0 0 2px #2271b1;
+}
+
+/* ==========================================================================
+   Debug Overview Card - settings page
+   ========================================================================== */
+
+/* Card container with colored left border */
+.knabbel-debug-card {
+    background: #fff;
+    border: 1px solid #e2e4e7;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    position: relative;
+    margin-top: 16px;
+}
+
+.knabbel-debug-card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: #c3c4c7;
+}
+
+.knabbel-debug-card[data-status="sent"]::before {
+    background: #00a32a;
+}
+.knabbel-debug-card[data-status="error"]::before {
+    background: #d63638;
+}
+.knabbel-debug-card[data-status="processing"]::before {
+    background: #8c5fc7;
+}
+.knabbel-debug-card[data-status="scheduled"]::before {
+    background: #dba617;
+}
+
+/* Card header */
+.knabbel-card-header {
+    padding: 16px 16px 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.knabbel-article-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.knabbel-article-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d2327;
+    margin: 0 0 4px 0;
+    line-height: 1.3;
+}
+
+.knabbel-article-title a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.knabbel-article-title a:hover {
+    color: #2271b1;
+}
+
+.knabbel-article-id {
+    font-size: 12px;
+    color: #787c82;
+    font-family: Menlo, Consolas, Monaco, monospace;
+}
+
+/* Status badge with dot */
+.knabbel-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.knabbel-status-badge .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.knabbel-status-badge.sent {
+    background: #edfaef;
+    color: #006818;
+}
+
+.knabbel-status-badge.error {
+    background: #fcf0f1;
+    color: #a02022;
+}
+
+.knabbel-status-badge.processing {
+    background: #f3f0f7;
+    color: #6b4499;
+}
+
+.knabbel-status-badge.scheduled {
+    background: #fcf9e8;
+    color: #996800;
+}
+
+/* Card body */
+.knabbel-card-body {
+    padding: 0 16px 16px 20px;
+}
+
+.knabbel-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px 24px;
+}
+
+.knabbel-detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.knabbel-detail-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #787c82;
+    font-weight: 500;
+}
+
+.knabbel-detail-value {
+    font-size: 13px;
+    color: #50575e;
+}
+
+.knabbel-detail-value.mono {
+    font-family: Menlo, Consolas, Monaco, monospace;
+    font-size: 12px;
+}
+
+/* Error message */
+.knabbel-error-message {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 3px;
+    font-size: 13px;
+    background: #fcf0f1;
+    color: #a02022;
+}
+
+.knabbel-error-summary {
+    font-weight: 500;
+}
+
+.knabbel-details-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    padding: 0;
+    margin-top: 6px;
+    font-size: 12px;
+    color: #787c82;
+    cursor: pointer;
+}
+
+.knabbel-details-toggle:hover {
+    color: #50575e;
+}
+
+.knabbel-error-details {
+    display: none;
+    margin-top: 8px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 3px;
+    font-family: Menlo, Consolas, Monaco, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #50575e;
+}
+
+.knabbel-error-details.is-open {
+    display: block;
+}
+
+/* Card footer */
+.knabbel-card-footer {
+    padding: 12px 16px 12px 20px;
+    background: #f9f9f9;
+    border-top: 1px solid #e2e4e7;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.knabbel-footer-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.knabbel-action-retry {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 3px;
+    cursor: pointer;
+    background: #fff;
+    color: #d63638;
+    border: 1px solid #d63638;
+}
+
+.knabbel-action-retry:hover {
+    background: #d63638;
+    color: #fff;
+}
+
+.knabbel-refresh {
+    background: none;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #50575e;
+    cursor: pointer;
+}
+
+.knabbel-refresh:hover {
+    border-color: #2271b1;
+    color: #2271b1;
+}
+
+/* Post selector */
+.knabbel-selector {
+    margin-bottom: 16px;
+}
+
+.knabbel-selector label {
+    font-weight: 600;
+    color: #50575e;
+    font-size: 13px;
+    margin-right: 8px;
+}
+
+/* ==========================================================================
+   ACF Integration - radionieuws metabox injection
+   ========================================================================== */
+
+/* Hide the original metabox when injected into ACF */
+#knabbel-radionieuws {
+    display: none !important;
+}
+
+/* Force first two ACF fields to 33.33% width and stay on same row */
+#acf-group_5f21a05a18b57 .acf-fields > .acf-field:first-child,
+#acf-group_5f21a05a18b57 .acf-fields > .acf-field:nth-child(2) {
+    width: 33.33% !important;
+    float: left !important;
+}
+
+/* Style our injected radionieuws field to match */
+.knabbel-radionieuws-injected {
+    width: 33.33% !important;
+    min-height: 81px !important;
+    float: left !important;
+    box-sizing: border-box !important;
+}
+
+/* ==========================================================================
+   Settings Page - Card-based Layout
+   ========================================================================== */
+
+/* Page Header */
+.knabbel-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.knabbel-page-header h1 {
+    font-size: 23px;
+    font-weight: 400;
+    color: #1d2327;
+    margin: 0;
+}
+
+/* Settings Grid */
+.knabbel-settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.knabbel-settings-grid .full-width {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 782px) {
+    .knabbel-settings-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Settings Card */
+.knabbel-settings-card {
+    background: #fff;
+    border: 1px solid #e2e4e7;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+}
+
+.knabbel-card-title {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0f0f1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.knabbel-card-title h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d2327;
+    margin: 0;
+}
+
+.knabbel-card-title .card-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    color: #787c82;
+    flex-shrink: 0;
+}
+
+.knabbel-card-content {
+    padding: 20px;
+}
+
+.knabbel-card-description {
+    font-size: 13px;
+    color: #646970;
+    margin-bottom: 16px;
+}
+
+/* ==========================================================================
+   Settings Page - Form Fields
+   ========================================================================== */
+
+.knabbel-field {
+    margin-bottom: 16px;
+}
+
+.knabbel-field:last-child {
+    margin-bottom: 0;
+}
+
+.knabbel-field-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1d2327;
+    margin-bottom: 6px;
+}
+
+.knabbel-field-label .required {
+    color: #d63638;
+    margin-left: 2px;
+}
+
+.knabbel-field-input {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    background: #fff;
+    color: #1d2327;
+    transition:
+        border-color 0.15s,
+        box-shadow 0.15s;
+}
+
+.knabbel-field-input:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    outline: none;
+}
+
+.knabbel-field-input::placeholder {
+    color: #a7aaad;
+}
+
+textarea.knabbel-field-input {
+    height: 120px;
+    min-height: 120px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.knabbel-field-description {
+    font-size: 12px;
+    color: #646970;
+    margin-top: 6px;
+    line-height: 1.5;
+}
+
+.knabbel-field-description a {
+    color: #2271b1;
+}
+
+/* Field Row (side-by-side) */
+.knabbel-field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+@media (max-width: 782px) {
+    .knabbel-field-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   Settings Page - Toggle Switch (updated)
+   ========================================================================== */
+
+.knabbel-toggle-track {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    background: #c3c4c7;
+    border-radius: 11px;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+
+.knabbel-toggle-track::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s;
+}
+
+.knabbel-toggle input:checked + .knabbel-toggle-track {
+    background: #2271b1;
+}
+
+.knabbel-toggle input:checked + .knabbel-toggle-track::after {
+    transform: translateX(18px);
+}
+
+.knabbel-toggle input:focus + .knabbel-toggle-track {
+    box-shadow: 0 0 0 2px rgba(34, 113, 177, 0.3);
+}
+
+.knabbel-toggle-label {
+    font-size: 13px;
+    color: #50575e;
+}
+
+/* ==========================================================================
+   Settings Page - Weekday Buttons
+   ========================================================================== */
+
+.knabbel-weekdays {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.knabbel-weekday {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 36px;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #50575e;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+}
+
+.knabbel-weekday input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.knabbel-weekday:hover {
+    border-color: #2271b1;
+    color: #2271b1;
+}
+
+.knabbel-weekday.checked {
+    background: #2271b1;
+    border-color: #2271b1;
+    color: #fff;
+}
+
+/* ==========================================================================
+   Settings Page - Buttons
+   ========================================================================== */
+
+.knabbel-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid;
+    text-decoration: none;
+}
+
+.knabbel-btn-secondary {
+    background: #fff;
+    border-color: #2271b1;
+    color: #2271b1;
+}
+
+.knabbel-btn-secondary:hover {
+    background: #2271b1;
+    color: #fff;
+}
+
+.knabbel-btn-primary {
+    background: #2271b1;
+    border-color: #2271b1;
+    color: #fff;
+}
+
+.knabbel-btn-primary:hover {
+    background: #135e96;
+    border-color: #135e96;
+}
+
+/* Test Connection */
+.knabbel-test-connection {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background: #f9f9f9;
+    border-top: 1px solid #f0f0f1;
+    margin: 0 -20px -20px;
+}
+
+.knabbel-test-result {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.knabbel-test-result.success {
+    color: #00a32a;
+}
+
+.knabbel-test-result.error {
+    color: #d63638;
+}
+
+/* ==========================================================================
+   Settings Page - Table Form Layout
+   ========================================================================== */
+
+.knabbel-form-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.knabbel-form-table td {
+    padding: 14px 20px;
+    border-bottom: 1px solid #f0f0f1;
+    vertical-align: middle;
+}
+
+.knabbel-form-table tr:last-child td {
+    border-bottom: none;
+}
+
+.knabbel-form-table .label-cell {
+    font-weight: 500;
+    width: 180px;
+    color: #1d2327;
+}
+
+.knabbel-form-table .input-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.knabbel-form-table .input-inline .knabbel-field-input {
+    width: 70px;
+}
+
+.knabbel-form-table .input-suffix {
+    color: #646970;
+}
+
+/* ==========================================================================
+   Verzonden Artikelen - Overview Card
+   ========================================================================== */
+
+.knabbel-articles-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.knabbel-articles-header .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.knabbel-articles-select {
+    padding: 4px 8px;
+    font-size: 12px;
+    width: auto;
+    max-width: 200px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+}
+
+.knabbel-articles-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.knabbel-articles-table td {
+    padding: 14px 20px;
+    border-bottom: 1px solid #f0f0f1;
+}
+
+.knabbel-articles-table tr:last-child td {
+    border-bottom: none;
+}
+
+.knabbel-articles-table .label-cell {
+    font-weight: 500;
+    width: 180px;
+    color: #1d2327;
+}
+
+.knabbel-articles-table .article-link {
+    color: #2271b1;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.knabbel-articles-table .article-link:hover {
+    color: #135e96;
+    text-decoration: underline;
+}
+
+.knabbel-articles-table .post-id {
+    color: #787c82;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+.knabbel-articles-table .error-message {
+    color: #d63638;
+}
+
+.knabbel-articles-table .mono {
+    font-family: Menlo, Consolas, Monaco, monospace;
+    color: #50575e;
+}
+
+.knabbel-articles-table .muted {
+    color: #787c82;
+}
+
+.knabbel-articles-footer {
+    padding: 12px 20px;
+    background: #f9f9f9;
+    border-top: 1px solid #f0f0f1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.knabbel-articles-footer .footer-right {
+    margin-left: auto;
+}
