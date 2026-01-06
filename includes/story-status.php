@@ -27,4 +27,5 @@ enum StoryStatus: string {
 	case Processing = 'processing';
 	case Sent       = 'sent';
 	case Error      = 'error';
+	case Deleted    = 'deleted';
 }
