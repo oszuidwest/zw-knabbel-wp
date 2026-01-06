@@ -313,6 +313,11 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 		return;
 	}
 
+	// Skip autosaves and revisions.
+	if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
+		return;
+	}
+
 	// Extract status values.
 	$new_status     = $post->post_status;
 	$old_status     = null !== $post_before ? $post_before->post_status : 'new';
