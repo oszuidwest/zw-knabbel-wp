@@ -3,10 +3,10 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: ZuidWest Knabbel 0.1.0\n"
+"Project-Id-Version: ZuidWest Knabbel 0.2.0\n"
 "Report-Msgid-Bugs-To: https://github.com/oszuidwest/zw-knabbel-wp/issues\n"
-"POT-Creation-Date: 2026-01-05T19:10:17+00:00\n"
-"PO-Revision-Date: 2026-01-05T00:00:00+00:00\n"
+"POT-Creation-Date: 2026-01-06T21:34:39+00:00\n"
+"PO-Revision-Date: 2026-01-06T00:00:00+00:00\n"
 "Last-Translator: Remon Mens\n"
 "Language-Team: Dutch\n"
 "Language: nl_NL\n"
@@ -43,69 +43,89 @@ msgstr ""
 msgid "https://www.zuidwesttv.nl"
 msgstr ""
 
-#: includes/admin/metabox.php:67 includes/admin/metabox.php:112
+#: includes/admin/metabox.php:72 includes/admin/metabox.php:117
 msgid "Radio News"
 msgstr "Radionieuws"
 
-#: includes/admin/metabox.php:89
+#: includes/admin/metabox.php:94
 msgid "Knabbel Status"
 msgstr "Knabbel status"
 
-#: includes/admin/metabox.php:134 includes/admin/settings.php:460
+#: includes/admin/metabox.php:139 includes/admin/settings.php:460
 #: includes/admin/settings.php:635
 msgid "Status"
 msgstr "Status"
 
-#: includes/admin/metabox.php:138 includes/admin/settings.php:580
+#: includes/admin/metabox.php:143 includes/admin/settings.php:580
 msgid "Scheduled"
 msgstr "Ingepland"
 
-#: includes/admin/metabox.php:139 includes/admin/settings.php:581
+#: includes/admin/metabox.php:144 includes/admin/settings.php:581
 msgid "Processing"
 msgstr "Bezig"
 
-#: includes/admin/metabox.php:140 includes/admin/settings.php:582
+#: includes/admin/metabox.php:145 includes/admin/settings.php:582
 msgid "Sent"
 msgstr "Verzonden"
 
-#: includes/admin/metabox.php:141 includes/admin/settings.php:583
+#: includes/admin/metabox.php:146 includes/admin/settings.php:583
 msgid "Error"
 msgstr "Fout"
 
-#: includes/admin/metabox.php:143
+#: includes/admin/metabox.php:147
+msgid "Deleted"
+msgstr "Verwijderd"
+
+#: includes/admin/metabox.php:149
 msgid "—"
 msgstr "—"
 
-#: includes/admin/metabox.php:149
+#: includes/admin/metabox.php:155
 msgid "Last status change:"
 msgstr "Laatste statuswijziging:"
 
-#: includes/admin/metabox.php:159
+#: includes/admin/metabox.php:165
 msgid "Story ID"
 msgstr "Verhaal-ID"
 
-#: includes/admin/metabox.php:165
+#: includes/admin/metabox.php:171
 msgid "Scheduled:"
 msgstr "Gepland:"
 
-#: includes/admin/metabox.php:174 includes/admin/settings.php:656
+#: includes/admin/metabox.php:180 includes/admin/settings.php:656
 #: includes/admin/settings.php:661
 msgid "Message"
 msgstr "Bericht"
 
-#: includes/admin/metabox.php:217
-msgid "Already sent — no new submission scheduled"
-msgstr "Al verzonden — geen nieuwe inzending ingepland"
+#: includes/admin/metabox.php:238
+msgid "Story deleted from Babbel"
+msgstr "Verhaal verwijderd uit Babbel"
 
-#: includes/admin/metabox.php:229
+#: includes/admin/metabox.php:279
+msgid "Story dates updated in Babbel"
+msgstr "Verhaaldatums bijgewerkt in Babbel"
+
+#: includes/admin/metabox.php:343
+msgid "Story deleted (post unscheduled)"
+msgstr "Verhaal verwijderd (bericht niet meer ingepland)"
+
+#: includes/admin/metabox.php:385
+msgid "Story deleted (post trashed)"
+msgstr "Verhaal verwijderd (bericht in prullenbak)"
+
+#: includes/admin/metabox.php:427
+msgid "Story restored in Babbel"
+msgstr "Verhaal hersteld in Babbel"
+
+#: includes/admin/metabox.php:458
 msgid "Processing already scheduled"
 msgstr "Verwerking al ingepland"
 
-#: includes/admin/metabox.php:248
+#: includes/admin/metabox.php:477
 msgid "Processing scheduled"
 msgstr "Verwerking ingepland"
 
-#: includes/admin/metabox.php:256
+#: includes/admin/metabox.php:485
 msgid "Could not schedule action"
 msgstr "Kon actie niet inplannen"
 
@@ -314,7 +334,7 @@ msgstr "Laatste statuswijziging"
 msgid "Babbel ID"
 msgstr "Babbel ID"
 
-#: includes/admin/settings.php:662 zw-knabbel-wp.php:519
+#: includes/admin/settings.php:662 zw-knabbel-wp.php:543
 msgid "Story is being processed..."
 msgstr "Verhaal wordt verwerkt..."
 
@@ -342,12 +362,14 @@ msgstr "Geen sessiecookies ontvangen"
 msgid "Could not encode story data"
 msgstr "Kon verhaalgegevens niet coderen"
 
-#: includes/babbel-api.php:222
+#: includes/babbel-api.php:222 includes/babbel-api.php:442
+#: includes/babbel-api.php:517 includes/babbel-api.php:613
 msgid "API connection failed: "
 msgstr "API-verbinding mislukt: "
 
 #. translators: %1$d is the HTTP status code, %2$s is the response body.
-#: includes/babbel-api.php:244
+#: includes/babbel-api.php:244 includes/babbel-api.php:464
+#: includes/babbel-api.php:540 includes/babbel-api.php:635
 #, php-format
 msgid "API error: HTTP %1$d - %2$s"
 msgstr "API-fout: HTTP %1$d - %2$s"
@@ -364,7 +386,7 @@ msgstr "API-fout"
 msgid "No story ID received from API"
 msgstr "Geen verhaal-ID ontvangen van API"
 
-#: includes/babbel-api.php:316 zw-knabbel-wp.php:588
+#: includes/babbel-api.php:316 zw-knabbel-wp.php:608
 msgid "Story created successfully"
 msgstr "Verhaal succesvol aangemaakt"
 
@@ -388,26 +410,50 @@ msgstr "Verbinding succesvol"
 msgid "Unexpected response: HTTP %d"
 msgstr "Onverwachte respons: HTTP %d"
 
-#: zw-knabbel-wp.php:444
+#: includes/babbel-api.php:401
+msgid "No data to update"
+msgstr "Geen gegevens om bij te werken"
+
+#: includes/babbel-api.php:410 includes/babbel-api.php:416
+msgid "Could not encode update data"
+msgstr "Kon updategegevens niet coderen"
+
+#: includes/babbel-api.php:480
+msgid "Story updated successfully"
+msgstr "Verhaal succesvol bijgewerkt"
+
+#: includes/babbel-api.php:556
+msgid "Story deleted successfully"
+msgstr "Verhaal succesvol verwijderd"
+
+#: includes/babbel-api.php:581 includes/babbel-api.php:587
+msgid "Could not encode restore data"
+msgstr "Kon herstelgegevens niet coderen"
+
+#: includes/babbel-api.php:651
+msgid "Story restored successfully"
+msgstr "Verhaal succesvol hersteld"
+
+#: zw-knabbel-wp.php:468
 msgid "Insufficient permissions"
 msgstr "Onvoldoende rechten"
 
-#: zw-knabbel-wp.php:483
+#: zw-knabbel-wp.php:507
 msgid "Already sent — skipping"
 msgstr "Al verzonden — wordt overgeslagen"
 
-#: zw-knabbel-wp.php:495
+#: zw-knabbel-wp.php:519
 msgid "Post not found"
 msgstr "Bericht niet gevonden"
 
-#: zw-knabbel-wp.php:508
+#: zw-knabbel-wp.php:532
 msgid "Send to Babbel is disabled for this post"
 msgstr "Verzenden naar Babbel is uitgeschakeld voor dit bericht"
 
-#: zw-knabbel-wp.php:532
+#: zw-knabbel-wp.php:556
 msgid "Could not generate title"
 msgstr "Kon titel niet genereren"
 
-#: zw-knabbel-wp.php:545
+#: zw-knabbel-wp.php:569
 msgid "Could not generate speech text"
 msgstr "Kon spreektekst niet genereren"
