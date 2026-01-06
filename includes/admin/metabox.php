@@ -28,7 +28,8 @@ function metabox_init(): void {
 	add_action( 'admin_enqueue_scripts', __NAMESPACE__ . '\\metabox_enqueue_assets' );
 
 	// Hooks for scheduled post support.
-	add_action( 'transition_post_status', __NAMESPACE__ . '\\handle_status_transition', 10, 3 );
+	// Uses wp_after_insert_post to ensure checkbox meta is saved before we read it.
+	add_action( 'wp_after_insert_post', __NAMESPACE__ . '\\handle_post_saved', 10, 4 );
 	add_action( 'wp_trash_post', __NAMESPACE__ . '\\handle_trash_post' );
 	add_action( 'untrash_post', __NAMESPACE__ . '\\handle_untrash_post' );
 }
@@ -292,24 +293,29 @@ function metabox_save( int $post_id ): void {
 }
 
 /**
- * Handles post status transitions for story creation.
+ * Handles post saves for story creation.
  *
  * Creates stories when posts transition to 'future' (scheduled) or 'publish' status.
  * Also handles deletion when transitioning from 'future' back to 'draft'.
  *
+ * Uses wp_after_insert_post hook to ensure post meta (checkbox) is saved before reading it.
+ *
  * @since 0.2.0
  *
- * @param string   $new_status New post status.
- * @param string   $old_status Old post status.
- * @param \WP_Post $post       Post object.
+ * @param int           $post_id     Post ID.
+ * @param \WP_Post      $post        Post object.
+ * @param bool          $update      Whether this is an existing post being updated.
+ * @param \WP_Post|null $post_before Post object before the update, or null for new posts.
  */
-function handle_status_transition( string $new_status, string $old_status, \WP_Post $post ): void {
+function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Post $post_before ): void {
 	// Only handle posts.
 	if ( 'post' !== $post->post_type ) {
 		return;
 	}
 
-	$post_id        = $post->ID;
+	// Extract status values.
+	$new_status     = $post->post_status;
+	$old_status     = null !== $post_before ? $post_before->post_status : 'new';
 	$send_to_babbel = (bool) get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true );
 	$state          = get_story_state( $post_id );
 	$status         = $state['status'] ?? '';
