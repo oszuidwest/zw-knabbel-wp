@@ -194,7 +194,7 @@ function metabox_render_status( \WP_Post $post ): void {
  * - Deleting from Babbel when checkbox is unchecked
  * - Updating dates in Babbel when checkbox is checked and story exists
  *
- * Story creation is handled by handle_status_transition() to support scheduled posts.
+ * Story creation is handled by handle_post_saved() to support scheduled posts.
  *
  * @since 0.1.0
  *
