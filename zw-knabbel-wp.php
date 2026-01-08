@@ -378,7 +378,7 @@ function cleanup_legacy_data(): void {
  * This migration runs once to rename the field for clarity.
  * Safe to run multiple times - skips already migrated records.
  *
- * @since 0.1.02
+ * @since 0.1.0
  * @global wpdb $wpdb WordPress database abstraction object.
  */
 function migrate_status_changed_at(): void {

@@ -212,7 +212,7 @@ function settings_page(): void {
 }
 
 /**
- * Renders the Babbel API settings card.
+ * Displays the Babbel API settings card.
  *
  * @since 0.1.05
  * @param array<string, mixed> $settings Current settings.
@@ -297,7 +297,7 @@ function render_babbel_api_card( array $settings ): void {
 }
 
 /**
- * Renders the OpenAI settings card.
+ * Displays the OpenAI settings card.
  *
  * @since 0.1.05
  * @param array<string, mixed> $settings Current settings.
@@ -354,7 +354,7 @@ function render_openai_card( array $settings ): void {
 }
 
 /**
- * Renders the AI Prompts settings card.
+ * Displays the AI Prompts settings card.
  *
  * @since 0.1.05
  * @param array<string, mixed> $settings Current settings.
@@ -406,7 +406,7 @@ function render_prompts_card( array $settings ): void {
 }
 
 /**
- * Renders the Story Defaults settings card.
+ * Displays the Story Defaults settings card.
  *
  * @since 0.1.05
  * @param array<string, mixed> $settings Current settings.
@@ -500,7 +500,7 @@ function render_defaults_card( array $settings ): void {
 }
 
 /**
- * Renders the Verzonden Artikelen overview card.
+ * Displays the Verzonden Artikelen overview card.
  *
  * @since 0.1.05
  */

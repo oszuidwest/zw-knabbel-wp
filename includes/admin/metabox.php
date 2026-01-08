@@ -95,7 +95,7 @@ function metabox_add_status(): void {
 }
 
 /**
- * Renders the Radionieuws metabox content.
+ * Displays the Radionieuws metabox content.
  *
  * @since 0.1.0
  *
@@ -115,7 +115,7 @@ function metabox_render( \WP_Post $post ): void {
 }
 
 /**
- * Renders the status metabox content (Debug Mode only).
+ * Displays the status metabox content (Debug Mode only).
  *
  * @since 0.1.0
  *
