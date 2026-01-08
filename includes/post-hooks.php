@@ -34,6 +34,7 @@ function register_post_hooks(): void {
 	add_filter( 'update_post_metadata', __NAMESPACE__ . '\\capture_checkbox_old_value', 10, 5 );
 	add_action( 'updated_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_updated', 10, 4 );
 	add_action( 'added_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_added', 10, 4 );
+	add_action( 'deleted_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_deleted', 10, 4 );
 }
 
 /**
@@ -122,6 +123,32 @@ function handle_checkbox_meta_added( $meta_id, $post_id, $meta_key, $meta_value 
 }
 
 /**
+ * Handles checkbox meta being deleted via REST API or CLI.
+ *
+ * @since 0.2.0
+ *
+ * @param int[]  $meta_ids   Array of deleted meta IDs.
+ * @param int    $post_id    Post ID.
+ * @param string $meta_key   Meta key.
+ * @param mixed  $meta_value Meta value that was deleted.
+ */
+function handle_checkbox_meta_deleted( $meta_ids, $post_id, $meta_key, $meta_value ): void {
+	if ( '_zw_knabbel_send_to_babbel' !== $meta_key ) {
+		return;
+	}
+
+	// Skip if metabox_save() already handled this.
+	if ( ! empty( $GLOBALS['knabbel_skip_meta_sync'] ) ) {
+		return;
+	}
+
+	// Meta was deleted; if old value was truthy, treat as checkbox being disabled.
+	if ( (bool) $meta_value ) {
+		handle_checkbox_change( $post_id, true, false );
+	}
+}
+
+/**
  * Handles checkbox state change from any source (metabox, REST API, CLI).
  *
  * @since 0.2.0
@@ -174,7 +201,9 @@ function handle_checkbox_change( int $post_id, bool $was_enabled, bool $is_enabl
 
 	// Checkbox enabled on already published/scheduled post.
 	if ( ! $was_enabled && $is_enabled ) {
-		if ( in_array( $post_status, array( 'publish', 'future' ), true ) && StoryStatus::Sent->value !== $status ) {
+		// Skip if processing is already in progress or complete.
+		$skip_statuses = array( StoryStatus::Sent->value, StoryStatus::Scheduled->value, StoryStatus::Processing->value );
+		if ( in_array( $post_status, array( 'publish', 'future' ), true ) && ! in_array( $status, $skip_statuses, true ) ) {
 			schedule_story_processing( $post_id );
 		}
 	}
