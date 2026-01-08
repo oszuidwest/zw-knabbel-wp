@@ -31,10 +31,11 @@ function register_post_hooks(): void {
 	add_action( 'untrash_post', __NAMESPACE__ . '\\handle_untrash_post' );
 
 	// Meta change hooks for REST API and CLI support.
-	add_filter( 'update_post_metadata', __NAMESPACE__ . '\\capture_checkbox_old_value', 10, 5 );
+	add_filter( 'update_post_metadata', __NAMESPACE__ . '\\capture_checkbox_old_value', 10, 3 );
+	add_filter( 'delete_post_metadata', __NAMESPACE__ . '\\capture_checkbox_old_value_before_delete', 10, 3 );
 	add_action( 'updated_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_updated', 10, 4 );
 	add_action( 'added_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_added', 10, 4 );
-	add_action( 'deleted_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_deleted', 10, 4 );
+	add_action( 'deleted_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_deleted', 10, 3 );
 }
 
 /**
@@ -44,20 +45,44 @@ function register_post_hooks(): void {
  *
  * @since 0.2.0
  *
- * @param null|bool $check      Whether to allow updating metadata.
- * @param int       $object_id  Post ID.
- * @param string    $meta_key   Meta key.
- * @param mixed     $meta_value New meta value.
- * @param mixed     $prev_value Previous meta value (if specified in update call).
+ * @param null|bool $check     Whether to allow updating metadata.
+ * @param int       $object_id Post ID.
+ * @param string    $meta_key  Meta key.
  * @return null|bool Unmodified $check to allow normal update.
  */
-function capture_checkbox_old_value( $check, $object_id, $meta_key, $meta_value, $prev_value ) {
+function capture_checkbox_old_value( $check, $object_id, $meta_key ) {
 	if ( '_zw_knabbel_send_to_babbel' !== $meta_key ) {
 		return $check;
 	}
 
 	// Store current value before it gets updated.
 	$GLOBALS['knabbel_checkbox_old_value'] = get_post_meta( $object_id, $meta_key, true );
+
+	return $check;
+}
+
+/**
+ * Captures the old checkbox value before meta deletion.
+ *
+ * Stores the previous value in a global so handle_checkbox_meta_deleted() can detect
+ * if the checkbox was enabled before deletion. This is necessary because the
+ * deleted_post_meta action receives an empty $meta_value when delete_post_meta()
+ * is called without a specific value.
+ *
+ * @since 0.2.0
+ *
+ * @param null|bool $check     Whether to allow deleting metadata.
+ * @param int       $object_id Post ID.
+ * @param string    $meta_key  Meta key.
+ * @return null|bool Unmodified $check to allow normal delete.
+ */
+function capture_checkbox_old_value_before_delete( $check, $object_id, $meta_key ) {
+	if ( '_zw_knabbel_send_to_babbel' !== $meta_key ) {
+		return $check;
+	}
+
+	// Store current value before it gets deleted.
+	$GLOBALS['knabbel_checkbox_old_value_for_delete'] = get_post_meta( $object_id, $meta_key, true );
 
 	return $check;
 }
@@ -125,14 +150,17 @@ function handle_checkbox_meta_added( $meta_id, $post_id, $meta_key, $meta_value 
 /**
  * Handles checkbox meta being deleted via REST API or CLI.
  *
+ * Uses the value captured by capture_checkbox_old_value_before_delete() instead
+ * of relying on the hook's $meta_value parameter, which is empty when
+ * delete_post_meta() is called without a specific value to delete.
+ *
  * @since 0.2.0
  *
- * @param int[]  $meta_ids   Array of deleted meta IDs.
- * @param int    $post_id    Post ID.
- * @param string $meta_key   Meta key.
- * @param mixed  $meta_value Meta value that was deleted.
+ * @param int[]  $meta_ids  Array of deleted meta IDs (unused but required by hook).
+ * @param int    $post_id   Post ID.
+ * @param string $meta_key  Meta key.
  */
-function handle_checkbox_meta_deleted( $meta_ids, $post_id, $meta_key, $meta_value ): void {
+function handle_checkbox_meta_deleted( $meta_ids, $post_id, $meta_key ): void {
 	if ( '_zw_knabbel_send_to_babbel' !== $meta_key ) {
 		return;
 	}
@@ -142,8 +170,12 @@ function handle_checkbox_meta_deleted( $meta_ids, $post_id, $meta_key, $meta_val
 		return;
 	}
 
-	// Meta was deleted; if old value was truthy, treat as checkbox being disabled.
-	if ( (bool) $meta_value ) {
+	// Use captured value from before the delete (more reliable than $meta_value).
+	$old_value = $GLOBALS['knabbel_checkbox_old_value_for_delete'] ?? '';
+	unset( $GLOBALS['knabbel_checkbox_old_value_for_delete'] );
+
+	// Only act if the checkbox was actually enabled before deletion.
+	if ( (bool) $old_value ) {
 		handle_checkbox_change( $post_id, true, false );
 	}
 }
