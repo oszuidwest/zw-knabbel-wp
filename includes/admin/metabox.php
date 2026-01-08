@@ -148,7 +148,7 @@ function metabox_render_status( \WP_Post $post ): void {
 			<li class="knabbel-status-muted">
 				<?php esc_html_e( 'Last status change:', 'zw-knabbel-wp' ); ?>
 				<?php
-				// status_changed_at is stored as local time string via current_time('mysql')
+				// status_changed_at is stored as local time string via current_time('mysql').
 				$updated_ts = strtotime( $updated . ' ' . wp_timezone_string() );
 				echo esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $updated_ts ) );
 				?>
@@ -164,7 +164,7 @@ function metabox_render_status( \WP_Post $post ): void {
 			<li class="knabbel-status-muted">
 				<?php esc_html_e( 'Scheduled:', 'zw-knabbel-wp' ); ?>
 				<?php
-				// Action Scheduler returns UTC timestamp
+				// Action Scheduler returns UTC timestamp.
 				echo esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $scheduled ) );
 				?>
 			</li>
@@ -209,7 +209,7 @@ function metabox_save( int $post_id ): void {
 		// Send-once policy: do not schedule again once sent.
 		$state = get_post_meta( $post_id, '_zw_knabbel_story_state', true );
 		if ( is_array( $state ) && isset( $state['status'] ) && \KnabbelWP\StoryStatus::Sent->value === $state['status'] ) {
-			// Already sent — keep state, don't reschedule
+			// Already sent — keep state, don't reschedule.
 			update_story_state(
 				$post_id,
 				array(
@@ -220,7 +220,7 @@ function metabox_save( int $post_id ): void {
 			return;
 		}
 
-		// De-dupe scheduling: skip if an event is already queued for this post
+		// De-dupe scheduling: skip if an event is already queued for this post.
 		if ( \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' ) ) {
 			update_story_state(
 				$post_id,
@@ -232,7 +232,7 @@ function metabox_save( int $post_id ): void {
 			return;
 		}
 
-		// Schedule async processing via Action Scheduler
+		// Schedule async processing via Action Scheduler.
 		$scheduled = \as_schedule_single_action(
 			time(),
 			'knabbel_process_story',

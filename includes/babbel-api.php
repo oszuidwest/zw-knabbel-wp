@@ -48,7 +48,7 @@ function babbel_get_session_cookies(): array|\WP_Error {
 		return new \WP_Error( 'missing_credentials', __( 'Username and password are required', 'zw-knabbel-wp' ) );
 	}
 
-	// Create unique cache key for this API instance
+	// Create unique cache key for this API instance.
 	$cache_key      = 'knabbel_session_' . md5( $credentials['base_url'] . $credentials['username'] );
 	$cached_cookies = get_transient( $cache_key );
 
@@ -56,7 +56,7 @@ function babbel_get_session_cookies(): array|\WP_Error {
 		return $cached_cookies;
 	}
 
-	// Create fresh session
+	// Create fresh session.
 	$login_endpoint = $credentials['base_url'] . '/sessions';
 	$login_data     = wp_json_encode(
 		array(
@@ -88,7 +88,7 @@ function babbel_get_session_cookies(): array|\WP_Error {
 			return new \WP_Error( 'no_cookies', __( 'No session cookies received', 'zw-knabbel-wp' ) );
 		}
 
-		// Cache session cookies for 50 minutes (sessions expire after 1 hour)
+		// Cache session cookies for 50 minutes (sessions expire after 1 hour).
 		set_transient( $cache_key, $cookies, 50 * MINUTE_IN_SECONDS );
 
 		return $cookies;
@@ -110,8 +110,8 @@ function babbel_clear_session_cache(): void {
  * Automatically retries with fresh session on 401 Unauthorized.
  *
  * @since 0.1.0
- * @param string                  $url  The API endpoint URL.
- * @param array<string, mixed>    $args Request arguments for wp_remote_request().
+ * @param string               $url  The API endpoint URL.
+ * @param array<string, mixed> $args Request arguments for wp_remote_request().
  * @return array<string, mixed>|\WP_Error HTTP response array or WP_Error on failure.
  *
  * @phpstan-param WpHttpArgs $args
@@ -124,7 +124,7 @@ function babbel_make_authenticated_request( string $url, array $args = array() )
 		return $cookies;
 	}
 
-	// Add cached session cookies to request
+	// Add cached session cookies to request.
 	$args['cookies'] = $args['cookies'] ?? array();
 	foreach ( $cookies as $cookie ) {
 		$args['cookies'][] = $cookie;
@@ -132,7 +132,7 @@ function babbel_make_authenticated_request( string $url, array $args = array() )
 
 	$response = wp_remote_request( $url, $args );
 
-	// Retry on 401: clear cache and re-authenticate
+	// Retry on 401: clear cache and re-authenticate.
 	if ( ! is_wp_error( $response ) && wp_remote_retrieve_response_code( $response ) === 401 ) {
 		log( 'info', 'BabbelApi', 'Got 401, clearing session cache and retrying' );
 		babbel_clear_session_cache();
@@ -157,7 +157,7 @@ function babbel_make_authenticated_request( string $url, array $args = array() )
  * Create a story via the Babbel API.
  *
  * @since 0.1.0
- * @param array<string, mixed>      $story_data The story data to send.
+ * @param array<string, mixed> $story_data The story data to send.
  * @return array{success: bool, message: string, story_id?: string} Response with success status and message.
  *
  * @phpstan-param StoryData $story_data
@@ -167,8 +167,8 @@ function babbel_create_story( array $story_data ): array {
 	$credentials = babbel_get_credentials();
 	$endpoint    = $credentials['base_url'] . '/stories';
 
-	// Build JSON payload (new API format)
-	// weekdays is now expected as bitmask integer (0-127)
+	// Build JSON payload (new API format).
+	// weekdays is now expected as bitmask integer (0-127).
 	$payload = array(
 		'title'      => $story_data['title'],
 		'text'       => $story_data['text'],
@@ -178,7 +178,7 @@ function babbel_create_story( array $story_data ): array {
 		'weekdays'   => $story_data['weekdays'] ?? WEEKDAY_ALL,
 	);
 
-	// Add metadata if provided
+	// Add metadata if provided.
 	if ( isset( $story_data['metadata'] ) ) {
 		$payload['metadata'] = $story_data['metadata'];
 	}
@@ -299,7 +299,7 @@ function babbel_create_story( array $story_data ): array {
 		);
 	}
 
-		// Log successful story creation
+		// Log successful story creation.
 		log(
 			'info',
 			'BabbelApi',
@@ -335,7 +335,7 @@ function babbel_test_connection(): array {
 		);
 	}
 
-	// First authenticate
+	// First authenticate.
 	$cookies = babbel_get_session_cookies();
 	if ( is_wp_error( $cookies ) ) {
 		return array(
@@ -344,7 +344,7 @@ function babbel_test_connection(): array {
 		);
 	}
 
-	// Then verify session by getting current user
+	// Then verify session by getting current user.
 	$endpoint = $credentials['base_url'] . '/sessions/current';
 	$response = babbel_make_authenticated_request( $endpoint, array( 'method' => 'GET' ) );
 

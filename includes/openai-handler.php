@@ -123,7 +123,7 @@ function openai_make_request_single( array $messages ): ?string {
 		return null;
 	}
 
-	// OpenAI API parameters
+	// OpenAI API parameters.
 	$data = array(
 		'model'       => $settings['model'],
 		'messages'    => $messages,
@@ -219,7 +219,7 @@ function openai_make_request_single( array $messages ): ?string {
 
 		$content = trim( (string) $decoded['choices'][0]['message']['content'] );
 
-		// Log successful generation with model details
+		// Log successful generation with model details.
 		$log_context = array(
 			'model'          => $settings['model'],
 			'content_length' => strlen( $content ),
