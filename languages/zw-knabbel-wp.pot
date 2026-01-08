@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-01-06T21:34:39+00:00\n"
+"POT-Creation-Date: 2026-01-08T12:11:58+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: zw-knabbel-wp\n"
@@ -41,97 +41,75 @@ msgstr ""
 msgid "https://www.zuidwesttv.nl"
 msgstr ""
 
-#: includes/admin/metabox.php:72
-#: includes/admin/metabox.php:117
+#: includes/admin/metabox.php:70
+#: includes/admin/metabox.php:115
 msgid "Radio News"
 msgstr ""
 
-#: includes/admin/metabox.php:94
+#: includes/admin/metabox.php:92
 msgid "Knabbel Status"
 msgstr ""
 
-#: includes/admin/metabox.php:139
+#: includes/admin/metabox.php:137
 #: includes/admin/settings.php:460
 #: includes/admin/settings.php:635
 msgid "Status"
 msgstr ""
 
-#: includes/admin/metabox.php:143
+#: includes/admin/metabox.php:141
 #: includes/admin/settings.php:580
 msgid "Scheduled"
 msgstr ""
 
-#: includes/admin/metabox.php:144
+#: includes/admin/metabox.php:142
 #: includes/admin/settings.php:581
 msgid "Processing"
 msgstr ""
 
-#: includes/admin/metabox.php:145
+#: includes/admin/metabox.php:143
 #: includes/admin/settings.php:582
 msgid "Sent"
 msgstr ""
 
-#: includes/admin/metabox.php:146
+#: includes/admin/metabox.php:144
 #: includes/admin/settings.php:583
 msgid "Error"
 msgstr ""
 
-#: includes/admin/metabox.php:147
+#: includes/admin/metabox.php:145
 msgid "Deleted"
 msgstr ""
 
-#: includes/admin/metabox.php:149
+#: includes/admin/metabox.php:147
 msgid "—"
 msgstr ""
 
-#: includes/admin/metabox.php:155
+#: includes/admin/metabox.php:153
 msgid "Last status change:"
 msgstr ""
 
-#: includes/admin/metabox.php:165
+#: includes/admin/metabox.php:163
 msgid "Story ID"
 msgstr ""
 
-#: includes/admin/metabox.php:171
+#: includes/admin/metabox.php:169
 msgid "Scheduled:"
 msgstr ""
 
-#: includes/admin/metabox.php:180
+#: includes/admin/metabox.php:178
 #: includes/admin/settings.php:656
 #: includes/admin/settings.php:661
 msgid "Message"
 msgstr ""
 
-#: includes/admin/metabox.php:238
+#: includes/admin/metabox.php:244
+#: includes/post-hooks.php:157
 msgid "Story deleted from Babbel"
 msgstr ""
 
-#: includes/admin/metabox.php:279
+#: includes/admin/metabox.php:298
+#: includes/post-hooks.php:255
 msgid "Story dates updated in Babbel"
-msgstr ""
-
-#: includes/admin/metabox.php:343
-msgid "Story deleted (post unscheduled)"
-msgstr ""
-
-#: includes/admin/metabox.php:385
-msgid "Story deleted (post trashed)"
-msgstr ""
-
-#: includes/admin/metabox.php:427
-msgid "Story restored in Babbel"
-msgstr ""
-
-#: includes/admin/metabox.php:458
-msgid "Processing already scheduled"
-msgstr ""
-
-#: includes/admin/metabox.php:477
-msgid "Processing scheduled"
-msgstr ""
-
-#: includes/admin/metabox.php:485
-msgid "Could not schedule action"
 msgstr ""
 
 #: includes/admin/settings.php:36
@@ -327,7 +305,7 @@ msgid "Babbel ID"
 msgstr ""
 
 #: includes/admin/settings.php:662
-#: zw-knabbel-wp.php:543
+#: zw-knabbel-wp.php:548
 msgid "Story is being processed..."
 msgstr ""
 
@@ -387,7 +365,7 @@ msgid "No story ID received from API"
 msgstr ""
 
 #: includes/babbel-api.php:316
-#: zw-knabbel-wp.php:608
+#: zw-knabbel-wp.php:613
 msgid "Story created successfully"
 msgstr ""
 
@@ -437,26 +415,50 @@ msgstr ""
 msgid "Story restored successfully"
 msgstr ""
 
-#: zw-knabbel-wp.php:468
+#: includes/post-hooks.php:284
+msgid "Story deleted (post unscheduled)"
+msgstr ""
+
+#: includes/post-hooks.php:332
+msgid "Story deleted (post trashed)"
+msgstr ""
+
+#: includes/post-hooks.php:378
+msgid "Story restored in Babbel"
+msgstr ""
+
+#: includes/post-hooks.php:409
+msgid "Processing already scheduled"
+msgstr ""
+
+#: includes/post-hooks.php:428
+msgid "Processing scheduled"
+msgstr ""
+
+#: includes/post-hooks.php:436
+msgid "Could not schedule action"
+msgstr ""
+
+#: zw-knabbel-wp.php:473
 msgid "Insufficient permissions"
 msgstr ""
 
-#: zw-knabbel-wp.php:507
+#: zw-knabbel-wp.php:512
 msgid "Already sent — skipping"
 msgstr ""
 
-#: zw-knabbel-wp.php:519
+#: zw-knabbel-wp.php:524
 msgid "Post not found"
 msgstr ""
 
-#: zw-knabbel-wp.php:532
+#: zw-knabbel-wp.php:537
 msgid "Send to Babbel is disabled for this post"
 msgstr ""
 
-#: zw-knabbel-wp.php:556
+#: zw-knabbel-wp.php:561
 msgid "Could not generate title"
 msgstr ""
 
-#: zw-knabbel-wp.php:569
+#: zw-knabbel-wp.php:574
 msgid "Could not generate speech text"
 msgstr ""

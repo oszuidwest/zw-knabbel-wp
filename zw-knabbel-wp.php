@@ -209,7 +209,8 @@ function init(): void {
 	add_action( 'knabbel_process_story', __NAMESPACE__ . '\\process_story_async', 10, 1 );
 
 	// Register global post hooks for REST API, CLI, and cron support.
-	require_once KNABBEL_PLUGIN_DIR . 'includes/admin/metabox.php';
+	// This file contains only sync logic, no admin UI code.
+	require_once KNABBEL_PLUGIN_DIR . 'includes/post-hooks.php';
 	register_post_hooks();
 
 	if ( is_admin() ) {
