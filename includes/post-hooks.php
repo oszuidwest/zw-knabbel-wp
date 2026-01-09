@@ -358,12 +358,17 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 		return;
 	}
 
-	// Handle transition from 'future' to 'draft' - delete story if exists.
-	if ( 'draft' === $new_status && 'future' === $old_status ) {
+	// Handle post leaving 'future' status (except when publishing) - delete story if exists.
+	// This handles: future→draft, future→pending, future→private, etc.
+	// Excluding: future→publish (scheduled publish), future→future (date change), future→trash (handled separately).
+	$is_leaving_scheduled = 'future' === $old_status && ! in_array( $new_status, array( 'publish', 'future', 'trash' ), true );
+
+	if ( $is_leaving_scheduled ) {
 		// Cancel any pending processing jobs.
 		\as_unschedule_all_actions( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
 
-		if ( $story_id && StoryStatus::Sent->value === $status ) {
+		// Delete story if it exists (sent or error state with story_id means it exists in Babbel).
+		if ( $story_id && in_array( $status, array( StoryStatus::Sent->value, StoryStatus::Error->value ), true ) ) {
 			$result = babbel_delete_story( $story_id );
 			if ( $result['success'] ) {
 				update_story_state(
