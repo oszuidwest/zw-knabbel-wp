@@ -382,6 +382,277 @@ function babbel_test_connection(): array {
 }
 
 /**
+ * Update an existing story in the Babbel API.
+ *
+ * @since 0.2.0
+ * @param string                                                        $story_id   The Babbel story ID.
+ * @param array{start_date?: string, end_date?: string, weekdays?: int} $story_data The story data to update.
+ * @return array{success: bool, message: string} Response with success status and message.
+ *
+ * @phpstan-return BabbelApiResponse
+ */
+function babbel_update_story( string $story_id, array $story_data ): array {
+	$credentials = babbel_get_credentials();
+	$endpoint    = $credentials['base_url'] . '/stories/' . $story_id;
+
+	if ( array() === $story_data ) {
+		return array(
+			'success' => false,
+			'message' => __( 'No data to update', 'zw-knabbel-wp' ),
+		);
+	}
+
+	try {
+		$json_body = wp_json_encode( $story_data );
+		if ( false === $json_body ) {
+			return array(
+				'success' => false,
+				'message' => __( 'Could not encode update data', 'zw-knabbel-wp' ),
+			);
+		}
+	} catch ( \JsonException $e ) {
+		return array(
+			'success' => false,
+			'message' => __( 'Could not encode update data', 'zw-knabbel-wp' ),
+		);
+	}
+
+	$args = array(
+		'method'  => 'PUT',
+		'headers' => array( 'Content-Type' => 'application/json' ),
+		'body'    => $json_body,
+		'timeout' => 30,
+	);
+
+	$response = babbel_make_authenticated_request( $endpoint, $args );
+
+	if ( is_wp_error( $response ) ) {
+		log(
+			'error',
+			'BabbelApi',
+			'Babbel API update request failed',
+			array(
+				'endpoint' => $endpoint,
+				'story_id' => $story_id,
+				'error'    => $response->get_error_message(),
+			)
+		);
+		return array(
+			'success' => false,
+			'message' => __( 'API connection failed: ', 'zw-knabbel-wp' ) . $response->get_error_message(),
+		);
+	}
+
+	$response_code = wp_remote_retrieve_response_code( $response );
+	$body          = wp_remote_retrieve_body( $response );
+
+	if ( 200 !== $response_code ) {
+		log(
+			'error',
+			'BabbelApi',
+			'Babbel API update HTTP error',
+			array(
+				'endpoint'      => $endpoint,
+				'story_id'      => $story_id,
+				'response_code' => $response_code,
+				'response_body' => substr( $body, 0, 500 ),
+			)
+		);
+		return array(
+			'success' => false,
+			// translators: %1$d is the HTTP status code, %2$s is the response body.
+			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, substr( $body, 0, 200 ) ),
+		);
+	}
+
+	log(
+		'info',
+		'BabbelApi',
+		'Story successfully updated in Babbel API',
+		array(
+			'story_id' => $story_id,
+			'endpoint' => $endpoint,
+		)
+	);
+
+	return array(
+		'success' => true,
+		'message' => __( 'Story updated successfully', 'zw-knabbel-wp' ),
+	);
+}
+
+/**
+ * Delete (soft delete) a story from the Babbel API.
+ *
+ * @since 0.2.0
+ * @param string $story_id The Babbel story ID.
+ * @return array{success: bool, message: string} Response with success status and message.
+ *
+ * @phpstan-return BabbelApiResponse
+ */
+function babbel_delete_story( string $story_id ): array {
+	$credentials = babbel_get_credentials();
+	$endpoint    = $credentials['base_url'] . '/stories/' . $story_id;
+
+	$args = array(
+		'method'  => 'DELETE',
+		'timeout' => 30,
+	);
+
+	$response = babbel_make_authenticated_request( $endpoint, $args );
+
+	if ( is_wp_error( $response ) ) {
+		log(
+			'error',
+			'BabbelApi',
+			'Babbel API delete request failed',
+			array(
+				'endpoint' => $endpoint,
+				'story_id' => $story_id,
+				'error'    => $response->get_error_message(),
+			)
+		);
+		return array(
+			'success' => false,
+			'message' => __( 'API connection failed: ', 'zw-knabbel-wp' ) . $response->get_error_message(),
+		);
+	}
+
+	$response_code = wp_remote_retrieve_response_code( $response );
+	$body          = wp_remote_retrieve_body( $response );
+
+	// API returns 200 for successful delete (soft delete).
+	if ( 200 !== $response_code && 204 !== $response_code ) {
+		log(
+			'error',
+			'BabbelApi',
+			'Babbel API delete HTTP error',
+			array(
+				'endpoint'      => $endpoint,
+				'story_id'      => $story_id,
+				'response_code' => $response_code,
+				'response_body' => substr( $body, 0, 500 ),
+			)
+		);
+		return array(
+			'success' => false,
+			// translators: %1$d is the HTTP status code, %2$s is the response body.
+			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, substr( $body, 0, 200 ) ),
+		);
+	}
+
+	log(
+		'info',
+		'BabbelApi',
+		'Story successfully deleted from Babbel API',
+		array(
+			'story_id' => $story_id,
+			'endpoint' => $endpoint,
+		)
+	);
+
+	return array(
+		'success' => true,
+		'message' => __( 'Story deleted successfully', 'zw-knabbel-wp' ),
+	);
+}
+
+/**
+ * Restore a soft-deleted story in the Babbel API.
+ *
+ * @since 0.2.0
+ * @param string $story_id The Babbel story ID.
+ * @return array{success: bool, message: string} Response with success status and message.
+ *
+ * @phpstan-return BabbelApiResponse
+ */
+function babbel_restore_story( string $story_id ): array {
+	$credentials = babbel_get_credentials();
+	$endpoint    = $credentials['base_url'] . '/stories/' . $story_id;
+
+	// PATCH with deleted_at: null to restore.
+	$payload = array( 'deleted_at' => null );
+
+	try {
+		$json_body = wp_json_encode( $payload );
+		if ( false === $json_body ) {
+			return array(
+				'success' => false,
+				'message' => __( 'Could not encode restore data', 'zw-knabbel-wp' ),
+			);
+		}
+	} catch ( \JsonException $e ) {
+		return array(
+			'success' => false,
+			'message' => __( 'Could not encode restore data', 'zw-knabbel-wp' ),
+		);
+	}
+
+	$args = array(
+		'method'  => 'PATCH',
+		'headers' => array( 'Content-Type' => 'application/json' ),
+		'body'    => $json_body,
+		'timeout' => 30,
+	);
+
+	$response = babbel_make_authenticated_request( $endpoint, $args );
+
+	if ( is_wp_error( $response ) ) {
+		log(
+			'error',
+			'BabbelApi',
+			'Babbel API restore request failed',
+			array(
+				'endpoint' => $endpoint,
+				'story_id' => $story_id,
+				'error'    => $response->get_error_message(),
+			)
+		);
+		return array(
+			'success' => false,
+			'message' => __( 'API connection failed: ', 'zw-knabbel-wp' ) . $response->get_error_message(),
+		);
+	}
+
+	$response_code = wp_remote_retrieve_response_code( $response );
+	$body          = wp_remote_retrieve_body( $response );
+
+	if ( 200 !== $response_code ) {
+		log(
+			'error',
+			'BabbelApi',
+			'Babbel API restore HTTP error',
+			array(
+				'endpoint'      => $endpoint,
+				'story_id'      => $story_id,
+				'response_code' => $response_code,
+				'response_body' => substr( $body, 0, 500 ),
+			)
+		);
+		return array(
+			'success' => false,
+			// translators: %1$d is the HTTP status code, %2$s is the response body.
+			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, substr( $body, 0, 200 ) ),
+		);
+	}
+
+	log(
+		'info',
+		'BabbelApi',
+		'Story successfully restored in Babbel API',
+		array(
+			'story_id' => $story_id,
+			'endpoint' => $endpoint,
+		)
+	);
+
+	return array(
+		'success' => true,
+		'message' => __( 'Story restored successfully', 'zw-knabbel-wp' ),
+	);
+}
+
+/**
  * Clean up session data and debug information.
  *
  * @since 0.1.0

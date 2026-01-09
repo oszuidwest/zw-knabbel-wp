@@ -1,8 +1,9 @@
 <?php
 /**
- * Metabox functionality
+ * Admin metabox functionality
  *
- * Provides the post editor metabox for sending posts to the Babbel API.
+ * Provides the post editor metabox UI for sending posts to the Babbel API.
+ * This file is only loaded in admin context.
  *
  * @package KnabbelWP
  * @since   0.0.1
@@ -17,7 +18,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Initialize metabox functionality.
+ * Initialize admin-only metabox functionality.
+ *
+ * Registers hooks for the post editor UI. Must only be called in admin context.
  *
  * @since 0.1.0
  */
@@ -139,6 +142,7 @@ function metabox_render_status( \WP_Post $post ): void {
 					'processing' => __( 'Processing', 'zw-knabbel-wp' ),
 					'sent'       => __( 'Sent', 'zw-knabbel-wp' ),
 					'error'      => __( 'Error', 'zw-knabbel-wp' ),
+					'deleted'    => __( 'Deleted', 'zw-knabbel-wp' ),
 				);
 				$label       = $status && isset( $label_map[ $status ] ) ? $label_map[ $status ] : ( $status ? $status : __( '—', 'zw-knabbel-wp' ) );
 				echo '<span class="knabbel-status-badge ' . esc_attr( $status_slug ) . '">' . esc_html( $label ) . '</span>';
@@ -180,7 +184,14 @@ function metabox_render_status( \WP_Post $post ): void {
 }
 
 /**
- * Saves metabox data.
+ * Saves metabox data and handles checkbox state changes.
+ *
+ * This function handles:
+ * - Saving the checkbox meta value
+ * - Deleting from Babbel when checkbox is unchecked
+ * - Updating dates in Babbel when checkbox is checked and story exists
+ *
+ * Story creation is handled by handle_post_saved() to support scheduled posts.
  *
  * @since 0.1.0
  *
@@ -188,8 +199,8 @@ function metabox_render_status( \WP_Post $post ): void {
  */
 function metabox_save( int $post_id ): void {
 	if (
-			! isset( $_POST['knabbel_nonce'] ) ||
-			! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['knabbel_nonce'] ) ), 'knabbel_metabox_nonce' )
+		! isset( $_POST['knabbel_nonce'] ) ||
+		! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['knabbel_nonce'] ) ), 'knabbel_metabox_nonce' )
 	) {
 		return;
 	}
@@ -202,58 +213,97 @@ function metabox_save( int $post_id ): void {
 		return;
 	}
 
-		$send_to_babbel = isset( $_POST['knabbel_send_to_babbel'] ) ? 1 : 0;
-		update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', $send_to_babbel );
+	// Get previous checkbox state before updating.
+	$was_enabled = (bool) get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true );
 
-	if ( $send_to_babbel && 'publish' === get_post_status( $post_id ) ) {
-		// Send-once policy: do not schedule again once sent.
-		$state = get_post_meta( $post_id, '_zw_knabbel_story_state', true );
-		if ( is_array( $state ) && isset( $state['status'] ) && \KnabbelWP\StoryStatus::Sent->value === $state['status'] ) {
-			// Already sent — keep state, don't reschedule.
-			update_story_state(
-				$post_id,
-				array(
-					'status'  => \KnabbelWP\StoryStatus::Sent->value,
-					'message' => __( 'Already sent — no new submission scheduled', 'zw-knabbel-wp' ),
-				)
-			);
+	// Save new checkbox state.
+	// Set flag to prevent meta hooks from double-processing this change.
+	$send_to_babbel                    = isset( $_POST['knabbel_send_to_babbel'] ) ? 1 : 0;
+	$GLOBALS['knabbel_skip_meta_sync'] = true;
+	update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', $send_to_babbel );
+	unset( $GLOBALS['knabbel_skip_meta_sync'] );
+
+	// Get current story state.
+	$state    = get_story_state( $post_id );
+	$status   = $state['status'] ?? '';
+	$story_id = $state['story_id'] ?? '';
+
+	// Handle checkbox being unchecked.
+	if ( $was_enabled && ! $send_to_babbel ) {
+		// Cancel any pending processing jobs.
+		\as_unschedule_all_actions( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
+
+		// Delete from Babbel if story was sent.
+		if ( $story_id && StoryStatus::Sent->value === $status ) {
+			$result = babbel_delete_story( $story_id );
+			if ( $result['success'] ) {
+				update_story_state(
+					$post_id,
+					array(
+						'status'  => StoryStatus::Deleted->value,
+						'message' => __( 'Story deleted from Babbel', 'zw-knabbel-wp' ),
+					)
+				);
+			} else {
+				update_story_state(
+					$post_id,
+					array(
+						'status'  => StoryStatus::Error->value,
+						'message' => $result['message'],
+					)
+				);
+			}
+		} elseif ( in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
+			// Clear pending state if job was cancelled.
+			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
+		}
+		return;
+	}
+
+	// Handle checkbox being enabled on already published/scheduled post - create story.
+	if ( ! $was_enabled && $send_to_babbel && StoryStatus::Sent->value !== $status ) {
+		$post_status = get_post_status( $post_id );
+		if ( in_array( $post_status, array( 'publish', 'future' ), true ) ) {
+			schedule_story_processing( $post_id );
+		}
+		return;
+	}
+
+	// Handle updates when checkbox is checked and story exists.
+	if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
+		$post = get_post( $post_id );
+		if ( ! $post ) {
 			return;
 		}
 
-		// De-dupe scheduling: skip if an event is already queued for this post.
-		if ( \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' ) ) {
-			update_story_state(
-				$post_id,
-				array(
-					'status'  => \KnabbelWP\StoryStatus::Scheduled->value,
-					'message' => __( 'Processing already scheduled', 'zw-knabbel-wp' ),
-				)
-			);
-			return;
-		}
+		// Calculate dates based on post status.
+		$post_status = get_post_status( $post_id );
+		$base_date   = 'future' === $post_status ? $post->post_date : 'now';
+		$dates       = calculate_story_dates( $base_date );
 
-		// Schedule async processing via Action Scheduler.
-		$scheduled = \as_schedule_single_action(
-			time(),
-			'knabbel_process_story',
-			array( 'post_id' => $post_id ),
-			'zw-knabbel-wp'
+		$result = babbel_update_story(
+			$story_id,
+			array(
+				'start_date' => $dates['start_date'],
+				'end_date'   => $dates['end_date'],
+				'weekdays'   => $dates['weekdays'],
+			)
 		);
 
-		if ( $scheduled ) {
+		if ( $result['success'] ) {
 			update_story_state(
 				$post_id,
 				array(
-					'status'  => \KnabbelWP\StoryStatus::Scheduled->value,
-					'message' => __( 'Processing scheduled', 'zw-knabbel-wp' ),
+					'status'  => StoryStatus::Sent->value,
+					'message' => __( 'Story dates updated in Babbel', 'zw-knabbel-wp' ),
 				)
 			);
 		} else {
 			update_story_state(
 				$post_id,
 				array(
-					'status'  => \KnabbelWP\StoryStatus::Error->value,
-					'message' => __( 'Could not schedule action', 'zw-knabbel-wp' ),
+					'status'  => StoryStatus::Error->value,
+					'message' => $result['message'],
 				)
 			);
 		}

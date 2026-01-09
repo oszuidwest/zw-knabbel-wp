@@ -3,7 +3,7 @@
  * Plugin Name: ZuidWest Knabbel
  * Plugin URI: https://github.com/oszuidwest/zw-knabbel-wp
  * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Ondersteunt OpenAI GPT-modellen voor AI-gegenereerde content.
- * Version: 0.1.0
+ * Version: 0.2.0
  * Requires at least: 6.8
  * Requires PHP: 8.3
  * Author: Streekomroep ZuidWest
@@ -169,6 +169,30 @@ function get_story_state( int $post_id ): array {
 	return is_array( $state ) ? $state : array();
 }
 
+/**
+ * Calculate story dates based on a base date and configured offsets.
+ *
+ * For published posts, base_date should be 'now'.
+ * For scheduled posts, base_date should be the scheduled publish time (post_date).
+ *
+ * @since 0.2.0
+ * @param string $base_date Date string to calculate from (e.g., 'now' or '2025-01-15 10:00:00').
+ * @return array{start_date: string, end_date: string, weekdays: int} Story dates and weekdays bitmask.
+ */
+function calculate_story_dates( string $base_date = 'now' ): array {
+	$options      = get_option( 'knabbel_settings' );
+	$start_offset = (int) ( $options['start_days_offset'] ?? 1 );
+	$end_offset   = (int) ( $options['end_days_offset'] ?? 2 );
+
+	$tz   = wp_timezone();
+	$base = new \DateTimeImmutable( $base_date, $tz );
+
+	return array(
+		'start_date' => $base->modify( "+{$start_offset} day" )->format( 'Y-m-d' ),
+		'end_date'   => $base->modify( "+{$end_offset} day" )->format( 'Y-m-d' ),
+		'weekdays'   => settings_to_weekdays_bitmask( $options ),
+	);
+}
 
 /**
  * Initializes the plugin.
@@ -185,6 +209,11 @@ function init(): void {
 
 	// Register cron hook for async story processing (always, not just admin).
 	add_action( 'knabbel_process_story', __NAMESPACE__ . '\\process_story_async', 10, 1 );
+
+	// Register global post hooks for REST API, CLI, and cron support.
+	// This file contains only sync logic, no admin UI code.
+	require_once KNABBEL_PLUGIN_DIR . 'includes/post-hooks.php';
+	register_post_hooks();
 
 	if ( is_admin() ) {
 		admin_init();
@@ -550,55 +579,51 @@ function process_story_async( int|array $post_id_or_args ): void {
 		return;
 	}
 
-		// Prepare story data using configurable defaults.
-		$options        = get_option( 'knabbel_settings' );
-		$start_offset   = (int) ( $options['start_days_offset'] ?? 1 );
-		$end_offset     = (int) ( $options['end_days_offset'] ?? 2 );
-		$default_status = $options['default_status'] ?? 'draft';
+	// Prepare story data using configurable defaults.
+	$options        = get_option( 'knabbel_settings' );
+	$default_status = $options['default_status'] ?? 'draft';
 
-		// Calculate dates in site timezone.
-		$tz         = wp_timezone();
-		$now        = new \DateTimeImmutable( 'now', $tz );
-		$start_date = $now->modify( "+{$start_offset} day" )->format( 'Y-m-d' );
-		$end_date   = $now->modify( "+{$end_offset} day" )->format( 'Y-m-d' );
+	// Calculate dates based on post status:
+	// - For scheduled posts (future): use the scheduled publish time (post_date).
+	// - For published posts: use current time.
+	$post_status = get_post_status( $post_id );
+	$base_date   = 'future' === $post_status ? $post->post_date : 'now';
+	$dates       = calculate_story_dates( $base_date );
 
-		// Calculate weekdays bitmask from settings.
-		$weekdays_bitmask = settings_to_weekdays_bitmask( $options );
+	$story_data = array(
+		'title'      => $title,
+		'text'       => $speech_text,
+		'start_date' => $dates['start_date'],
+		'end_date'   => $dates['end_date'],
+		'status'     => $default_status,
+		'weekdays'   => $dates['weekdays'],
+		'metadata'   => array(
+			'wordpress_id'         => $post_id,
+			'original_speech_text' => $speech_text,
+		),
+	);
 
-		$story_data = array(
-			'title'      => $title,
-			'text'       => $speech_text,
-			'start_date' => $start_date,
-			'end_date'   => $end_date,
-			'status'     => $default_status,
-			'weekdays'   => $weekdays_bitmask,
-			'metadata'   => array(
-				'wordpress_id'         => $post_id,
-				'original_speech_text' => $speech_text,
-			),
+	// Send to Babbel API.
+	$result = babbel_create_story( $story_data );
+
+	if ( $result['success'] ) {
+		update_story_state(
+			$post_id,
+			array(
+				'status'                => \KnabbelWP\StoryStatus::Sent->value,
+				'story_id'              => $result['story_id'],
+				'message'               => __( 'Story created successfully', 'zw-knabbel-wp' ),
+				'generated_title'       => $title,
+				'generated_speech_text' => $speech_text,
+			)
 		);
-
-		// Send to Babbel API.
-		$result = babbel_create_story( $story_data );
-
-		if ( $result['success'] ) {
-			update_story_state(
-				$post_id,
-				array(
-					'status'                => \KnabbelWP\StoryStatus::Sent->value,
-					'story_id'              => $result['story_id'],
-					'message'               => __( 'Story created successfully', 'zw-knabbel-wp' ),
-					'generated_title'       => $title,
-					'generated_speech_text' => $speech_text,
-				)
-			);
-		} else {
-			update_story_state(
-				$post_id,
-				array(
-					'status'  => \KnabbelWP\StoryStatus::Error->value,
-					'message' => $result['message'],
-				)
-			);
-		}
+	} else {
+		update_story_state(
+			$post_id,
+			array(
+				'status'  => \KnabbelWP\StoryStatus::Error->value,
+				'message' => $result['message'],
+			)
+		);
+	}
 }
