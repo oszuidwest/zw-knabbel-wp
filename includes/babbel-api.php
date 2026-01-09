@@ -241,7 +241,7 @@ function babbel_create_story( array $story_data ): array {
 		return array(
 			'success' => false,
 			// translators: %1$d is the HTTP status code, %2$s is the response body.
-			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, substr( $body, 0, 200 ) ),
+			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, substr( $body, 0, 1000 ) ),
 		);
 	}
 
@@ -461,7 +461,7 @@ function babbel_update_story( string $story_id, array $story_data ): array {
 		return array(
 			'success' => false,
 			// translators: %1$d is the HTTP status code, %2$s is the response body.
-			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, substr( $body, 0, 200 ) ),
+			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, substr( $body, 0, 1000 ) ),
 		);
 	}
 
@@ -537,7 +537,7 @@ function babbel_delete_story( string $story_id ): array {
 		return array(
 			'success' => false,
 			// translators: %1$d is the HTTP status code, %2$s is the response body.
-			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, substr( $body, 0, 200 ) ),
+			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, substr( $body, 0, 1000 ) ),
 		);
 	}
 
@@ -632,7 +632,7 @@ function babbel_restore_story( string $story_id ): array {
 		return array(
 			'success' => false,
 			// translators: %1$d is the HTTP status code, %2$s is the response body.
-			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, substr( $body, 0, 200 ) ),
+			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, substr( $body, 0, 1000 ) ),
 		);
 	}
 
