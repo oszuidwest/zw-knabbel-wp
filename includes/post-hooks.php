@@ -275,8 +275,9 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 	$status         = $state['status'] ?? '';
 	$story_id       = (string) ( $state['story_id'] ?? '' );
 
-	// Statuses that indicate processing is already in progress or complete.
-	$skip_statuses = array( StoryStatus::Sent->value, StoryStatus::Scheduled->value, StoryStatus::Processing->value );
+	// Statuses that indicate processing is already in progress, complete, or was deleted.
+	// Deleted is included to prevent creating a new story when untrashing - restore handles that.
+	$skip_statuses = array( StoryStatus::Sent->value, StoryStatus::Scheduled->value, StoryStatus::Processing->value, StoryStatus::Deleted->value );
 
 	// Handle transition to 'future' (scheduled post) - create story.
 	if ( 'future' === $new_status && 'future' !== $old_status && 'publish' !== $old_status ) {
