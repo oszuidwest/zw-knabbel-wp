@@ -198,7 +198,7 @@ function handle_checkbox_change( int $post_id, bool $was_enabled, bool $is_enabl
 	$post_status = get_post_status( $post_id );
 	$state       = get_story_state( $post_id );
 	$status      = $state['status'] ?? '';
-	$story_id    = $state['story_id'] ?? '';
+	$story_id    = (string) ( $state['story_id'] ?? '' );
 
 	// Checkbox disabled.
 	if ( $was_enabled && ! $is_enabled ) {
@@ -273,7 +273,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 	$send_to_babbel = (bool) get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true );
 	$state          = get_story_state( $post_id );
 	$status         = $state['status'] ?? '';
-	$story_id       = $state['story_id'] ?? '';
+	$story_id       = (string) ( $state['story_id'] ?? '' );
 
 	// Statuses that indicate processing is already in progress or complete.
 	$skip_statuses = array( StoryStatus::Sent->value, StoryStatus::Scheduled->value, StoryStatus::Processing->value );
@@ -381,7 +381,7 @@ function handle_trash_post( int $post_id ): void {
 
 	$state    = get_story_state( $post_id );
 	$status   = $state['status'] ?? '';
-	$story_id = $state['story_id'] ?? '';
+	$story_id = (string) ( $state['story_id'] ?? '' );
 
 	if ( $story_id && StoryStatus::Sent->value === $status ) {
 		$result = babbel_delete_story( $story_id );
@@ -426,7 +426,7 @@ function handle_untrash_post( int $post_id ): void {
 	$send_to_babbel = (bool) get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true );
 	$state          = get_story_state( $post_id );
 	$status         = $state['status'] ?? '';
-	$story_id       = $state['story_id'] ?? '';
+	$story_id       = (string) ( $state['story_id'] ?? '' );
 
 	// Only restore if checkbox is enabled, we have a story_id, and it was deleted.
 	if ( $send_to_babbel && $story_id && StoryStatus::Deleted->value === $status ) {

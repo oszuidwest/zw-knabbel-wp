@@ -226,7 +226,7 @@ function metabox_save( int $post_id ): void {
 	// Get current story state.
 	$state    = get_story_state( $post_id );
 	$status   = $state['status'] ?? '';
-	$story_id = $state['story_id'] ?? '';
+	$story_id = (string) ( $state['story_id'] ?? '' );
 
 	// Handle checkbox being unchecked.
 	if ( $was_enabled && ! $send_to_babbel ) {
