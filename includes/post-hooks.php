@@ -306,18 +306,70 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 	// Deleted is included to prevent creating a new story when untrashing - restore handles that.
 	$skip_statuses = array( StoryStatus::Sent->value, StoryStatus::Scheduled->value, StoryStatus::Processing->value, StoryStatus::Deleted->value );
 
-	// Handle transition to 'future' (scheduled post) - create story.
+	// Handle transition to 'future' (scheduled post) - create or restore story.
 	if ( 'future' === $new_status && 'future' !== $old_status && 'publish' !== $old_status ) {
-		if ( $send_to_babbel && ! in_array( $status, $skip_statuses, true ) ) {
-			schedule_story_processing( $post_id );
+		if ( $send_to_babbel ) {
+			// Restore soft-deleted story instead of creating new.
+			if ( $story_id && StoryStatus::Deleted->value === $status ) {
+				$result = babbel_restore_story( $story_id );
+				if ( $result['success'] ) {
+					update_story_state(
+						$post_id,
+						array(
+							'status'  => StoryStatus::Sent->value,
+							'message' => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
+						)
+					);
+				} else {
+					update_story_state(
+						$post_id,
+						array(
+							'status'  => StoryStatus::Error->value,
+							'message' => $result['message'],
+						)
+					);
+				}
+				return;
+			}
+
+			// Create new story if not already sent/scheduled/processing.
+			if ( ! in_array( $status, $skip_statuses, true ) ) {
+				schedule_story_processing( $post_id );
+			}
 		}
 		return;
 	}
 
-	// Handle transition to 'publish' - create story if not already sent.
+	// Handle transition to 'publish' - create or restore story if not already sent.
 	if ( 'publish' === $new_status && 'publish' !== $old_status ) {
-		if ( $send_to_babbel && ! in_array( $status, $skip_statuses, true ) ) {
-			schedule_story_processing( $post_id );
+		if ( $send_to_babbel ) {
+			// Restore soft-deleted story instead of creating new.
+			if ( $story_id && StoryStatus::Deleted->value === $status ) {
+				$result = babbel_restore_story( $story_id );
+				if ( $result['success'] ) {
+					update_story_state(
+						$post_id,
+						array(
+							'status'  => StoryStatus::Sent->value,
+							'message' => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
+						)
+					);
+				} else {
+					update_story_state(
+						$post_id,
+						array(
+							'status'  => StoryStatus::Error->value,
+							'message' => $result['message'],
+						)
+					);
+				}
+				return;
+			}
+
+			// Create new story if not already sent/scheduled/processing.
+			if ( ! in_array( $status, $skip_statuses, true ) ) {
+				schedule_story_processing( $post_id );
+			}
 		}
 		return;
 	}
