@@ -570,8 +570,8 @@ function babbel_restore_story( string $story_id ): array {
 	$credentials = babbel_get_credentials();
 	$endpoint    = $credentials['base_url'] . '/stories/' . $story_id;
 
-	// PATCH with deleted_at: null to restore.
-	$payload = array( 'deleted_at' => null );
+	// PATCH with deleted_at: "" (empty string) to restore.
+	$payload = array( 'deleted_at' => '' );
 
 	try {
 		$json_body = wp_json_encode( $payload );
