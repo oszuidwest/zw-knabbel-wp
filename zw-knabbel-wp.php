@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Plugin Name: ZuidWest Knabbel
  * Plugin URI: https://github.com/oszuidwest/zw-knabbel-wp
@@ -13,6 +12,8 @@
  * License URI: https://opensource.org/licenses/MIT
  * Text Domain: zw-knabbel-wp
  * Domain Path: /languages
+ *
+ * @package KnabbelWP
  */
 
 declare(strict_types=1);
@@ -30,13 +31,13 @@ unset( $knabbel_plugin_data );
 define( 'KNABBEL_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KNABBEL_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
-// Load composer autoloader
+// Load composer autoloader.
 require_once KNABBEL_PLUGIN_DIR . 'vendor/autoload.php';
 
-// Load Action Scheduler (not PSR-4, needs explicit bootstrap)
+// Load Action Scheduler (not PSR-4, needs explicit bootstrap).
 require_once KNABBEL_PLUGIN_DIR . 'vendor/woocommerce/action-scheduler/action-scheduler.php';
 
-// Direct includes
+// Direct includes.
 require_once KNABBEL_PLUGIN_DIR . 'includes/story-status.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/weekdays.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/babbel-api.php';
@@ -65,7 +66,7 @@ function debug_enabled(): bool {
  * Replaces duplicate log_message() methods in BabbelApi and OpenAiHandler classes.
  *
  * @since 0.1.0
- * @param string                  $level     Log level: 'error', 'warning', 'info'
+ * @param string               $level     Log level: 'error', 'warning', 'info'.
  * @param string               $component Component name: 'BabbelApi', 'OpenAiHandler', etc.
  * @param string               $message   Log message.
  * @param array<string, mixed> $context   Additional context data.
@@ -73,7 +74,7 @@ function debug_enabled(): bool {
  * @phpstan-param LogContext $context
  */
 function log( string $level, string $component, string $message, array $context = array() ): void {
-	// Only log when WordPress debug logging is enabled
+	// Only log when WordPress debug logging is enabled.
 	if ( ! defined( 'WP_DEBUG_LOG' ) || ! WP_DEBUG_LOG ) {
 		return;
 	}
@@ -89,7 +90,7 @@ function log( string $level, string $component, string $message, array $context 
 	// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional logging to WP_DEBUG_LOG.
 	error_log( $log_entry );
 
-	// Store critical errors for admin display
+	// Store critical errors for admin display.
 	if ( 'error' === $level ) {
 		$recent_errors   = get_option( 'knabbel_recent_errors', array() );
 		$recent_errors[] = array(
@@ -99,7 +100,7 @@ function log( string $level, string $component, string $message, array $context 
 			'context'   => $context,
 		);
 
-		// Keep only last 10 errors
+		// Keep only last 10 errors.
 		$recent_errors = array_slice( $recent_errors, -10 );
 		update_option( 'knabbel_recent_errors', $recent_errors );
 	}
@@ -112,18 +113,18 @@ function log( string $level, string $component, string $message, array $context 
  * Triggers WordPress action hook for extensibility.
  *
  * @since 0.1.0
- * @param int                                                                   $post_id The post ID.
- * @param array{status?: string, story_id?: string, message?: string}           $updates Partial state updates to apply.
+ * @param int                                                         $post_id The post ID.
+ * @param array{status?: string, story_id?: string, message?: string} $updates Partial state updates to apply.
  * @return bool True on successful update, false on failure.
  *
  * @phpstan-param StoryState $updates
  */
 function update_story_state( int $post_id, array $updates = array() ): bool {
-	// Single read operation
+	// Single read operation.
 	$meta_value    = get_post_meta( $post_id, '_zw_knabbel_story_state', true );
 	$current_state = is_array( $meta_value ) ? $meta_value : array();
 
-	// Merge updates with current state and add timestamp
+	// Merge updates with current state and add timestamp.
 	$new_state = array_merge(
 		$current_state,
 		$updates,
@@ -133,7 +134,7 @@ function update_story_state( int $post_id, array $updates = array() ): bool {
 		)
 	);
 
-	// Single write operation for all data
+	// Single write operation for all data.
 	$success = update_post_meta( $post_id, '_zw_knabbel_story_state', $new_state );
 
 	if ( $success ) {
@@ -157,6 +158,7 @@ function update_story_state( int $post_id, array $updates = array() ): bool {
  *
  * @since 0.1.0
  * @param int $post_id The post ID.
+ *
  * phpcs:ignore Generic.Files.LineLength.TooLong -- Type annotation.
  * @return array{status?: string, story_id?: string, status_changed_at?: string, message?: string, post_id?: int} Story state data or empty array if none exists.
  *
@@ -226,11 +228,11 @@ function init(): void {
  * @since 0.1.0
  */
 function admin_init(): void {
-	// Load admin functions directly
+	// Load admin functions directly.
 	require_once KNABBEL_PLUGIN_DIR . 'includes/admin/settings.php';
 	require_once KNABBEL_PLUGIN_DIR . 'includes/admin/metabox.php';
 
-	// Initialize admin functionality
+	// Initialize admin functionality.
 	settings_init();
 	metabox_init();
 
@@ -254,7 +256,7 @@ function activate(): void {
 			'title_prompt'      => '',
 			'speech_prompt'     => '',
 			'debug_mode'        => false,
-			// Story defaults
+			// Story defaults.
 			'start_days_offset' => 1,
 			'end_days_offset'   => 2,
 			'default_status'    => 'draft',
@@ -271,10 +273,10 @@ function activate(): void {
 		// WP 6.6+ changed the default autoload behavior from 'yes' to dynamic heuristics.
 		add_option( 'knabbel_settings', $default_options, '', true );
 
-		// Cleanup all legacy data on activation
+		// Cleanup all legacy data on activation.
 		cleanup_legacy_data();
 
-		// Run data migrations
+		// Run data migrations.
 		migrate_status_changed_at();
 }
 
@@ -288,7 +290,7 @@ function activate(): void {
 function deactivate(): void {
 	babbel_cleanup_sessions();
 
-	// Clear Action Scheduler jobs
+	// Clear Action Scheduler jobs.
 	\as_unschedule_all_actions( 'knabbel_process_story', array(), 'zw-knabbel-wp' );
 }
 
@@ -304,7 +306,7 @@ function deactivate(): void {
 function cleanup_legacy_data(): void {
 	global $wpdb;
 
-	// Remove legacy options-based debug keys
+	// Remove legacy options-based debug keys.
 	$legacy_options = array(
 		'knabbel_last_cron_run',
 		'knabbel_last_cron_error',
@@ -312,7 +314,7 @@ function cleanup_legacy_data(): void {
 		'knabbel_last_story_data',
 		'knabbel_debug_logs',
 		'knabbel_recent_errors',
-		// Additional legacy options from older versions
+		// Additional legacy options from older versions.
 		'knabbel_api_credentials',
 		'knabbel_openai_settings',
 		'knabbel_cached_settings',
@@ -324,7 +326,7 @@ function cleanup_legacy_data(): void {
 		delete_option( $option );
 	}
 
-	// Remove all legacy per-post meta keys in single query
+	// Remove all legacy per-post meta keys in single query.
 	$legacy_meta_keys = array(
 		'_zw_knabbel_babbel_status',
 		'_zw_knabbel_babbel_error',
@@ -334,7 +336,7 @@ function cleanup_legacy_data(): void {
 		'_zw_knabbel_babbel_last_error',
 		'_zw_knabbel_babbel_last_story_data',
 		'_zw_knabbel_babbel_debug_payload',
-		// Additional legacy meta keys from older plugin versions
+		// Additional legacy meta keys from older plugin versions.
 		'_zw_knabbel_babbel_processed',
 		'_zw_knabbel_babbel_retry_count',
 		'_zw_knabbel_babbel_locked',
@@ -366,7 +368,7 @@ function cleanup_legacy_data(): void {
 		)
 	);
 
-	// Clean up legacy user meta keys (in case any user-specific data was stored)
+	// Clean up legacy user meta keys (in case any user-specific data was stored).
 	$legacy_user_meta_keys = array(
 		'_zw_knabbel_user_preferences',
 		'_zw_knabbel_last_activity',
@@ -382,12 +384,12 @@ function cleanup_legacy_data(): void {
 		)
 	);
 
-	// Clear any legacy cron jobs that might be stuck
+	// Clear any legacy cron jobs that might be stuck.
 	wp_clear_scheduled_hook( 'knabbel_legacy_cleanup' );
 	wp_clear_scheduled_hook( 'knabbel_old_process' );
 	wp_clear_scheduled_hook( 'knabbel_babbel_process' );
 
-	// Log cleanup completion with detailed stats
+	// Log cleanup completion with detailed stats.
 	log(
 		'info',
 		'Cleanup',
@@ -407,19 +409,19 @@ function cleanup_legacy_data(): void {
  * This migration runs once to rename the field for clarity.
  * Safe to run multiple times - skips already migrated records.
  *
- * @since 0.1.02
+ * @since 0.1.0
  * @global wpdb $wpdb WordPress database abstraction object.
  */
 function migrate_status_changed_at(): void {
 	global $wpdb;
 
-	// Check if migration already ran
+	// Check if migration already ran.
 	$migration_done = get_option( 'knabbel_migration_status_changed_at', false );
 	if ( $migration_done ) {
 		return;
 	}
 
-	// Find all posts with story state
+	// Find all posts with story state.
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time migration.
 	$results = $wpdb->get_results(
 		$wpdb->prepare(
@@ -435,12 +437,12 @@ function migrate_status_changed_at(): void {
 			continue;
 		}
 
-		// Skip if already migrated or no updated_at field
+		// Skip if already migrated or no updated_at field.
 		if ( isset( $state['status_changed_at'] ) || ! isset( $state['updated_at'] ) ) {
 			continue;
 		}
 
-		// Rename the field
+		// Rename the field.
 		$state['status_changed_at'] = $state['updated_at'];
 		unset( $state['updated_at'] );
 
@@ -448,7 +450,7 @@ function migrate_status_changed_at(): void {
 		++$migrated;
 	}
 
-	// Mark migration as complete
+	// Mark migration as complete.
 	update_option( 'knabbel_migration_status_changed_at', true );
 
 	if ( $migrated > 0 ) {
@@ -491,7 +493,7 @@ function ajax_test_api(): void {
  * @param int|array{post_id?: int} $post_id_or_args The WordPress post ID or Action Scheduler args array.
  */
 function process_story_async( int|array $post_id_or_args ): void {
-	// Handle both WP-Cron (int) and Action Scheduler (array) formats
+	// Handle both WP-Cron (int) and Action Scheduler (array) formats.
 	$post_id = is_array( $post_id_or_args ) ? (int) ( $post_id_or_args['post_id'] ?? 0 ) : $post_id_or_args;
 
 	if ( ! $post_id ) {
@@ -499,10 +501,10 @@ function process_story_async( int|array $post_id_or_args ): void {
 		return;
 	}
 
-	// Debug logging for cron execution
+	// Debug logging for cron execution.
 	log( 'info', 'CronProcessor', 'Starting async story processing', array( 'post_id' => $post_id ) );
 
-		// Send-once safety: if already sent, do nothing
+		// Send-once safety: if already sent, do nothing.
 		$existing_state = get_post_meta( $post_id, '_zw_knabbel_story_state', true );
 	if ( is_array( $existing_state ) && isset( $existing_state['status'] ) && \KnabbelWP\StoryStatus::Sent->value === $existing_state['status'] ) {
 		update_story_state(
@@ -582,8 +584,8 @@ function process_story_async( int|array $post_id_or_args ): void {
 	$default_status = $options['default_status'] ?? 'draft';
 
 	// Calculate dates based on post status:
-	// - For scheduled posts (future): use the scheduled publish time (post_date)
-	// - For published posts: use current time
+	// - For scheduled posts (future): use the scheduled publish time (post_date).
+	// - For published posts: use current time.
 	$post_status = get_post_status( $post_id );
 	$base_date   = 'future' === $post_status ? $post->post_date : 'now';
 	$dates       = calculate_story_dates( $base_date );

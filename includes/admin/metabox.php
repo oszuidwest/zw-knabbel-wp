@@ -98,7 +98,7 @@ function metabox_add_status(): void {
 }
 
 /**
- * Renders the Radionieuws metabox content.
+ * Displays the Radionieuws metabox content.
  *
  * @since 0.1.0
  *
@@ -118,7 +118,7 @@ function metabox_render( \WP_Post $post ): void {
 }
 
 /**
- * Renders the status metabox content (Debug Mode only).
+ * Displays the status metabox content (Debug Mode only).
  *
  * @since 0.1.0
  *
@@ -152,7 +152,7 @@ function metabox_render_status( \WP_Post $post ): void {
 			<li class="knabbel-status-muted">
 				<?php esc_html_e( 'Last status change:', 'zw-knabbel-wp' ); ?>
 				<?php
-				// status_changed_at is stored as local time string via current_time('mysql')
+				// status_changed_at is stored as local time string via current_time('mysql').
 				$updated_ts = strtotime( $updated . ' ' . wp_timezone_string() );
 				echo esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $updated_ts ) );
 				?>
@@ -168,7 +168,7 @@ function metabox_render_status( \WP_Post $post ): void {
 			<li class="knabbel-status-muted">
 				<?php esc_html_e( 'Scheduled:', 'zw-knabbel-wp' ); ?>
 				<?php
-				// Action Scheduler returns UTC timestamp
+				// Action Scheduler returns UTC timestamp.
 				echo esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $scheduled ) );
 				?>
 			</li>

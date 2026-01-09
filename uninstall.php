@@ -34,4 +34,4 @@ if ( function_exists( 'as_unschedule_all_actions' ) ) {
 // Note: The following data is intentionally preserved:
 // - Option: knabbel_settings (user configuration)
 // - Post meta: _zw_knabbel_story_state (story processing history)
-// - Post meta: _zw_knabbel_send_to_babbel (user selections)
+// - Post meta: _zw_knabbel_send_to_babbel (user selections).
