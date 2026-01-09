@@ -198,6 +198,16 @@ function metabox_render_status( \WP_Post $post ): void {
  * @param int $post_id The post ID being saved.
  */
 function metabox_save( int $post_id ): void {
+	// Skip revisions - they don't have our metabox.
+	if ( wp_is_post_revision( $post_id ) ) {
+		return;
+	}
+
+	// Only handle 'post' post type - our metabox is only registered there.
+	if ( 'post' !== get_post_type( $post_id ) ) {
+		return;
+	}
+
 	if (
 		! isset( $_POST['knabbel_nonce'] ) ||
 		! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['knabbel_nonce'] ) ), 'knabbel_metabox_nonce' )

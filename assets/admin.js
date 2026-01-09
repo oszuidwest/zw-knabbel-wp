@@ -108,15 +108,17 @@
                 '<div class="acf-label"><label>Radionieuws</label></div>' +
                 '<div class="acf-input"><div class="acf-true-false"></div></div>';
 
-            // Clone checkbox and hidden input
+            // Move (not clone) checkbox and hidden input to ACF area.
+            // This ensures only one checkbox exists in the form.
             const checkbox = inside.querySelector('input[type="checkbox"]');
             const hidden = inside.querySelector('input[type="hidden"]');
 
             if (checkbox) {
                 const trueFalse = wrapper.querySelector('.acf-true-false');
                 const label = document.createElement('label');
-                if (hidden) label.appendChild(hidden.cloneNode(true));
-                label.appendChild(checkbox.cloneNode(true));
+                // Move elements (not clone) to prevent duplicate form fields.
+                if (hidden) label.appendChild(hidden);
+                label.appendChild(checkbox);
                 trueFalse.appendChild(label);
             }
 
