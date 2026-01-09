@@ -233,9 +233,36 @@ function handle_checkbox_change( int $post_id, bool $was_enabled, bool $is_enabl
 
 	// Checkbox enabled on already published/scheduled post.
 	if ( ! $was_enabled && $is_enabled ) {
-		// Skip if processing is already in progress or complete.
+		if ( ! in_array( $post_status, array( 'publish', 'future' ), true ) ) {
+			return;
+		}
+
+		// Restore soft-deleted story instead of creating new.
+		if ( $story_id && StoryStatus::Deleted->value === $status ) {
+			$result = babbel_restore_story( $story_id );
+			if ( $result['success'] ) {
+				update_story_state(
+					$post_id,
+					array(
+						'status'  => StoryStatus::Sent->value,
+						'message' => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
+					)
+				);
+			} else {
+				update_story_state(
+					$post_id,
+					array(
+						'status'  => StoryStatus::Error->value,
+						'message' => $result['message'],
+					)
+				);
+			}
+			return;
+		}
+
+		// Create new story if not already sent/scheduled/processing.
 		$skip_statuses = array( StoryStatus::Sent->value, StoryStatus::Scheduled->value, StoryStatus::Processing->value );
-		if ( in_array( $post_status, array( 'publish', 'future' ), true ) && ! in_array( $status, $skip_statuses, true ) ) {
+		if ( ! in_array( $status, $skip_statuses, true ) ) {
 			schedule_story_processing( $post_id );
 		}
 	}

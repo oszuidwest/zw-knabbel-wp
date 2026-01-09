@@ -270,10 +270,38 @@ function metabox_save( int $post_id ): void {
 		return;
 	}
 
-	// Handle checkbox being enabled on already published/scheduled post - create story.
-	if ( ! $was_enabled && $send_to_babbel && StoryStatus::Sent->value !== $status ) {
+	// Handle checkbox being enabled on already published/scheduled post.
+	if ( ! $was_enabled && $send_to_babbel ) {
 		$post_status = get_post_status( $post_id );
-		if ( in_array( $post_status, array( 'publish', 'future' ), true ) ) {
+		if ( ! in_array( $post_status, array( 'publish', 'future' ), true ) ) {
+			return;
+		}
+
+		// Restore soft-deleted story instead of creating new.
+		if ( $story_id && StoryStatus::Deleted->value === $status ) {
+			$result = babbel_restore_story( $story_id );
+			if ( $result['success'] ) {
+				update_story_state(
+					$post_id,
+					array(
+						'status'  => StoryStatus::Sent->value,
+						'message' => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
+					)
+				);
+			} else {
+				update_story_state(
+					$post_id,
+					array(
+						'status'  => StoryStatus::Error->value,
+						'message' => $result['message'],
+					)
+				);
+			}
+			return;
+		}
+
+		// Create new story if not already sent/scheduled/processing.
+		if ( ! in_array( $status, array( StoryStatus::Sent->value, StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
 			schedule_story_processing( $post_id );
 		}
 		return;
