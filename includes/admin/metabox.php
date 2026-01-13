@@ -304,46 +304,8 @@ function metabox_save( int $post_id ): void {
 		if ( ! in_array( $status, array( StoryStatus::Sent->value, StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
 			schedule_story_processing( $post_id );
 		}
-		return;
 	}
 
-	// Handle updates when checkbox is checked and story exists.
-	if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
-		$post = get_post( $post_id );
-		if ( ! $post ) {
-			return;
-		}
-
-		// Calculate dates based on post status.
-		$post_status = get_post_status( $post_id );
-		$base_date   = 'future' === $post_status ? $post->post_date : 'now';
-		$dates       = calculate_story_dates( $base_date );
-
-		$result = babbel_update_story(
-			$story_id,
-			array(
-				'start_date' => $dates['start_date'],
-				'end_date'   => $dates['end_date'],
-				'weekdays'   => $dates['weekdays'],
-			)
-		);
-
-		if ( $result['success'] ) {
-			update_story_state(
-				$post_id,
-				array(
-					'status'  => StoryStatus::Sent->value,
-					'message' => __( 'Story dates updated in Babbel', 'zw-knabbel-wp' ),
-				)
-			);
-		} else {
-			update_story_state(
-				$post_id,
-				array(
-					'status'  => StoryStatus::Error->value,
-					'message' => $result['message'],
-				)
-			);
-		}
-	}
+	// Note: Date updates for existing stories are handled in handle_post_saved()
+	// which has access to $post_before for detecting actual date changes.
 }

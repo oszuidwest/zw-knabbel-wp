@@ -410,6 +410,68 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 		return;
 	}
 
+	// Handle future→publish transition: recalculate dates based on 'now' instead of scheduled date.
+	if ( 'publish' === $new_status && 'future' === $old_status ) {
+		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
+			$dates  = calculate_story_dates( 'now' );
+			$result = babbel_update_story(
+				$story_id,
+				array(
+					'start_date' => $dates['start_date'],
+					'end_date'   => $dates['end_date'],
+					'weekdays'   => $dates['weekdays'],
+				)
+			);
+			if ( $result['success'] ) {
+				update_story_state(
+					$post_id,
+					array(
+						'status'  => StoryStatus::Sent->value,
+						'message' => __( 'Story dates updated (post published)', 'zw-knabbel-wp' ),
+					)
+				);
+			} else {
+				// Keep 'sent' status on error - story still exists in Babbel.
+				log( 'error', 'PostHooks', 'Failed to update story dates on publish', array( 'post_id' => $post_id, 'error' => $result['message'] ) );
+			}
+		}
+		return;
+	}
+
+	// Handle date changes for published posts with existing stories.
+	// Only update if the post_date actually changed (compare on Y-m-d level).
+	if ( 'publish' === $new_status && 'publish' === $old_status ) {
+		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
+			$old_date_ymd = null !== $post_before ? substr( $post_before->post_date, 0, 10 ) : null;
+			$new_date_ymd = substr( $post->post_date, 0, 10 );
+
+			if ( null !== $old_date_ymd && $old_date_ymd !== $new_date_ymd ) {
+				$dates  = calculate_story_dates( $post->post_date );
+				$result = babbel_update_story(
+					$story_id,
+					array(
+						'start_date' => $dates['start_date'],
+						'end_date'   => $dates['end_date'],
+						'weekdays'   => $dates['weekdays'],
+					)
+				);
+				if ( $result['success'] ) {
+					update_story_state(
+						$post_id,
+						array(
+							'status'  => StoryStatus::Sent->value,
+							'message' => __( 'Story dates updated in Babbel', 'zw-knabbel-wp' ),
+						)
+					);
+				} else {
+					// Keep 'sent' status on error - story still exists in Babbel.
+					log( 'error', 'PostHooks', 'Failed to update story dates', array( 'post_id' => $post_id, 'error' => $result['message'] ) );
+				}
+			}
+		}
+		return;
+	}
+
 	// Handle post leaving 'future' status (except when publishing) - delete story if exists.
 	// This handles: future→draft, future→pending, future→private, etc.
 	// Excluding: future→publish (scheduled publish), future→future (date change), future→trash (handled separately).
