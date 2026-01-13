@@ -415,7 +415,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 
 	// Handle date changes for scheduled posts with existing stories (Quick Edit, REST API).
 	if ( 'future' === $new_status && 'future' === $old_status ) {
-		if ( $story_id && StoryStatus::Sent->value === $status ) {
+		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
 			$old_date = null !== $post_before ? $post_before->post_date : null;
 			if ( $old_date !== $post->post_date ) {
 				$dates  = calculate_story_dates( $post->post_date );
@@ -436,11 +436,14 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 						)
 					);
 				} else {
-					update_story_state(
-						$post_id,
+					// Keep 'sent' status on error - story still exists in Babbel.
+					log(
+						'error',
+						'PostHooks',
+						'Failed to update story dates (scheduled post)',
 						array(
-							'status'  => StoryStatus::Error->value,
-							'message' => $result['message'],
+							'post_id' => $post_id,
+							'error'   => $result['message'],
 						)
 					);
 				}
