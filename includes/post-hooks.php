@@ -363,7 +363,15 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 				);
 			} else {
 				// Keep 'sent' status on error - story still exists in Babbel.
-				log( 'error', 'PostHooks', 'Failed to update story dates on publish', array( 'post_id' => $post_id, 'error' => $result['message'] ) );
+				log(
+					'error',
+					'PostHooks',
+					'Failed to update story dates on publish',
+					array(
+						'post_id' => $post_id,
+						'error'   => $result['message'],
+					)
+				);
 			}
 		}
 		// Don't return here - fall through to generic publish handler to handle
@@ -468,7 +476,15 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 					);
 				} else {
 					// Keep 'sent' status on error - story still exists in Babbel.
-					log( 'error', 'PostHooks', 'Failed to update story dates', array( 'post_id' => $post_id, 'error' => $result['message'] ) );
+					log(
+						'error',
+						'PostHooks',
+						'Failed to update story dates',
+						array(
+							'post_id' => $post_id,
+							'error'   => $result['message'],
+						)
+					);
 				}
 			}
 		}

@@ -112,6 +112,10 @@ msgstr ""
 msgid "Story dates updated in Babbel"
 msgstr ""
 
+#: includes/post-hooks.php:361
+msgid "Story dates updated (post published)"
+msgstr ""
+
 #: includes/admin/settings.php:36
 msgid "ZuidWest Knabbel Settings"
 msgstr ""
