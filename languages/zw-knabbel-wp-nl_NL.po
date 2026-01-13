@@ -110,6 +110,10 @@ msgstr "Verhaal verwijderd uit Babbel"
 msgid "Story dates updated in Babbel"
 msgstr "Verhaaldatums bijgewerkt in Babbel"
 
+#: includes/post-hooks.php:361
+msgid "Story dates updated (post published)"
+msgstr "Verhaaldatums bijgewerkt (bericht gepubliceerd)"
+
 #: includes/post-hooks.php:284
 msgid "Story deleted (post unscheduled)"
 msgstr "Verhaal verwijderd (bericht niet meer ingepland)"

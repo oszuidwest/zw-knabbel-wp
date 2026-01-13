@@ -340,6 +340,45 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 		return;
 	}
 
+	// Handle future→publish transition: recalculate dates based on 'now' instead of scheduled date.
+	// Must come BEFORE the generic publish handler below, which would otherwise short-circuit.
+	if ( 'publish' === $new_status && 'future' === $old_status ) {
+		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
+			$dates  = calculate_story_dates( 'now' );
+			$result = babbel_update_story(
+				$story_id,
+				array(
+					'start_date' => $dates['start_date'],
+					'end_date'   => $dates['end_date'],
+					'weekdays'   => $dates['weekdays'],
+				)
+			);
+			if ( $result['success'] ) {
+				update_story_state(
+					$post_id,
+					array(
+						'status'  => StoryStatus::Sent->value,
+						'message' => __( 'Story dates updated (post published)', 'zw-knabbel-wp' ),
+					)
+				);
+			} else {
+				// Keep 'sent' status on error - story still exists in Babbel.
+				log(
+					'error',
+					'PostHooks',
+					'Failed to update story dates on publish',
+					array(
+						'post_id' => $post_id,
+						'error'   => $result['message'],
+					)
+				);
+			}
+		}
+		// Don't return here - fall through to generic publish handler to handle
+		// cases where story doesn't exist yet (e.g., checkbox enabled on scheduled post
+		// but story creation failed, then post is published).
+	}
+
 	// Handle transition to 'publish' - create or restore story if not already sent.
 	if ( 'publish' === $new_status && 'publish' !== $old_status ) {
 		if ( $send_to_babbel ) {
@@ -376,7 +415,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 
 	// Handle date changes for scheduled posts with existing stories (Quick Edit, REST API).
 	if ( 'future' === $new_status && 'future' === $old_status ) {
-		if ( $story_id && StoryStatus::Sent->value === $status ) {
+		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
 			$old_date = null !== $post_before ? $post_before->post_date : null;
 			if ( $old_date !== $post->post_date ) {
 				$dates  = calculate_story_dates( $post->post_date );
@@ -397,11 +436,56 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 						)
 					);
 				} else {
+					// Keep 'sent' status on error - story still exists in Babbel.
+					log(
+						'error',
+						'PostHooks',
+						'Failed to update story dates (scheduled post)',
+						array(
+							'post_id' => $post_id,
+							'error'   => $result['message'],
+						)
+					);
+				}
+			}
+		}
+		return;
+	}
+
+	// Handle date changes for published posts with existing stories.
+	// Only update if the post_date actually changed (compare on Y-m-d level).
+	if ( 'publish' === $new_status && 'publish' === $old_status ) {
+		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
+			$old_date_ymd = null !== $post_before ? substr( $post_before->post_date, 0, 10 ) : null;
+			$new_date_ymd = substr( $post->post_date, 0, 10 );
+
+			if ( null !== $old_date_ymd && $old_date_ymd !== $new_date_ymd ) {
+				$dates  = calculate_story_dates( $post->post_date );
+				$result = babbel_update_story(
+					$story_id,
+					array(
+						'start_date' => $dates['start_date'],
+						'end_date'   => $dates['end_date'],
+						'weekdays'   => $dates['weekdays'],
+					)
+				);
+				if ( $result['success'] ) {
 					update_story_state(
 						$post_id,
 						array(
-							'status'  => StoryStatus::Error->value,
-							'message' => $result['message'],
+							'status'  => StoryStatus::Sent->value,
+							'message' => __( 'Story dates updated in Babbel', 'zw-knabbel-wp' ),
+						)
+					);
+				} else {
+					// Keep 'sent' status on error - story still exists in Babbel.
+					log(
+						'error',
+						'PostHooks',
+						'Failed to update story dates',
+						array(
+							'post_id' => $post_id,
+							'error'   => $result['message'],
 						)
 					);
 				}
