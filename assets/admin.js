@@ -129,6 +129,7 @@
                 firstField.insertAdjacentElement('afterend', wrapper);
                 firstField.style.width = '50%';
                 firstField.style.cssFloat = 'left';
+                firstField.style.minHeight = '0';
             }
 
             wrapper.style.width = '50%';
