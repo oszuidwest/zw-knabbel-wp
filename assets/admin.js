@@ -99,14 +99,30 @@
                 return;
             }
 
-            // Create wrapper that looks like an ACF field
+            // Build wrapper matching ACF's own field structure using DOM methods.
+            // The first ACF field ("Toon in kabelkrant") is 50% wide,
+            // leaving 50% empty space for our checkbox on the same row.
             const wrapper = document.createElement('div');
             wrapper.className =
                 'acf-field acf-field-true-false knabbel-radionieuws-injected -r0';
-            wrapper.dataset.width = '33';
-            wrapper.innerHTML =
-                '<div class="acf-label"><label>Radionieuws</label></div>' +
-                '<div class="acf-input"><div class="acf-true-false"></div></div>';
+            wrapper.dataset.width = '50';
+            wrapper.style.width = '50%';
+            wrapper.style.minHeight = '0';
+
+            const acfLabel = document.createElement('div');
+            acfLabel.className = 'acf-label';
+            const labelEl = document.createElement('label');
+            labelEl.textContent = 'Radionieuws';
+            acfLabel.appendChild(labelEl);
+
+            const acfInput = document.createElement('div');
+            acfInput.className = 'acf-input';
+            const trueFalse = document.createElement('div');
+            trueFalse.className = 'acf-true-false';
+            acfInput.appendChild(trueFalse);
+
+            wrapper.appendChild(acfLabel);
+            wrapper.appendChild(acfInput);
 
             // Move (not clone) checkbox and hidden input to ACF area.
             // This ensures only one checkbox exists in the form.
@@ -114,26 +130,17 @@
             const hidden = inside.querySelector('input[type="hidden"]');
 
             if (checkbox) {
-                const trueFalse = wrapper.querySelector('.acf-true-false');
-                const label = document.createElement('label');
-                // Move elements (not clone) to prevent duplicate form fields.
-                if (hidden) label.appendChild(hidden);
-                label.appendChild(checkbox);
-                trueFalse.appendChild(label);
+                const inputLabel = document.createElement('label');
+                if (hidden) inputLabel.appendChild(hidden);
+                inputLabel.appendChild(checkbox);
+                trueFalse.appendChild(inputLabel);
             }
 
-            // Insert after first field (the "Toon in kabelkrant" checkbox)
-            // so both checkboxes sit side-by-side, with remaining fields below.
+            // Insert after the first field to fill its empty 50% space.
             const firstField = acfBox.querySelector('.acf-field:first-child');
             if (firstField) {
                 firstField.insertAdjacentElement('afterend', wrapper);
-                firstField.style.width = '50%';
-                firstField.style.cssFloat = 'left';
-                firstField.style.minHeight = '0';
             }
-
-            wrapper.style.width = '50%';
-            wrapper.style.cssFloat = 'left';
         }, 200);
     }
 
