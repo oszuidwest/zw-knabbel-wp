@@ -122,20 +122,17 @@
                 trueFalse.appendChild(label);
             }
 
-            // Insert after second field
-            const secondField = acfBox.querySelector('.acf-field:nth-child(2)');
-            if (secondField) {
-                secondField.insertAdjacentElement('afterend', wrapper);
+            // Insert after first field (the "Toon in kabelkrant" checkbox)
+            // so both checkboxes sit side-by-side, with remaining fields below.
+            const firstField = acfBox.querySelector('.acf-field:first-child');
+            if (firstField) {
+                firstField.insertAdjacentElement('afterend', wrapper);
+                firstField.style.width = '50%';
+                firstField.style.cssFloat = 'left';
             }
 
-            // Style first two fields
-            const firstFields = acfBox.querySelectorAll(
-                '.acf-field:first-child, .acf-field:nth-child(2)',
-            );
-            firstFields.forEach((field) => {
-                field.style.width = '33.33%';
-                field.style.cssFloat = 'left';
-            });
+            wrapper.style.width = '50%';
+            wrapper.style.cssFloat = 'left';
         }, 200);
     }
 
