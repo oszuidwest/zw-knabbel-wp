@@ -259,7 +259,6 @@ function activate(): void {
 			'api_password'      => '',
 			'openai_api_key'    => '',
 			'openai_model'      => 'gpt-4.1-mini',
-			'title_prompt'      => '',
 			'speech_prompt'     => '',
 			'debug_mode'        => false,
 			// Story defaults.
@@ -567,21 +566,11 @@ function process_story_async( int|array $post_id_or_args ): void {
 
 	$content = wp_strip_all_tags( $post->post_content );
 
-	// Generate title.
-	$title = openai_generate_content( $content, 'title' );
-	if ( null === $title ) {
-		update_story_state(
-			$post_id,
-			array(
-				'status'  => \KnabbelWP\StoryStatus::Error->value,
-				'message' => __( 'Could not generate title', 'zw-knabbel-wp' ),
-			)
-		);
-		return;
-	}
+	// Use the raw post title directly (not get_the_title() which applies filters and prefixes).
+	$title = $post->post_title;
 
 	// Generate speech text.
-	$speech_text = openai_generate_content( $content, 'speech' );
+	$speech_text = openai_generate_content( $content );
 	if ( null === $speech_text ) {
 		update_story_state(
 			$post_id,
@@ -627,7 +616,6 @@ function process_story_async( int|array $post_id_or_args ): void {
 				'status'                => \KnabbelWP\StoryStatus::Sent->value,
 				'story_id'              => $result['story_id'],
 				'message'               => __( 'Story created successfully', 'zw-knabbel-wp' ),
-				'generated_title'       => $title,
 				'generated_speech_text' => $speech_text,
 			)
 		);

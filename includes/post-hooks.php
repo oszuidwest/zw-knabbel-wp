@@ -239,24 +239,7 @@ function handle_checkbox_change( int $post_id, bool $was_enabled, bool $is_enabl
 
 		// Restore soft-deleted story instead of creating new.
 		if ( $story_id && StoryStatus::Deleted->value === $status ) {
-			$result = babbel_restore_story( $story_id );
-			if ( $result['success'] ) {
-				update_story_state(
-					$post_id,
-					array(
-						'status'  => StoryStatus::Sent->value,
-						'message' => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
-					)
-				);
-			} else {
-				update_story_state(
-					$post_id,
-					array(
-						'status'  => StoryStatus::Error->value,
-						'message' => $result['message'],
-					)
-				);
-			}
+			restore_and_sync_story( $post_id, $story_id, $post->post_title );
 			return;
 		}
 
@@ -311,24 +294,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 		if ( $send_to_babbel ) {
 			// Restore soft-deleted story instead of creating new.
 			if ( $story_id && StoryStatus::Deleted->value === $status ) {
-				$result = babbel_restore_story( $story_id );
-				if ( $result['success'] ) {
-					update_story_state(
-						$post_id,
-						array(
-							'status'  => StoryStatus::Sent->value,
-							'message' => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
-						)
-					);
-				} else {
-					update_story_state(
-						$post_id,
-						array(
-							'status'  => StoryStatus::Error->value,
-							'message' => $result['message'],
-						)
-					);
-				}
+				restore_and_sync_story( $post_id, $story_id, $post->post_title );
 				return;
 			}
 
@@ -348,6 +314,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 			$result = babbel_update_story(
 				$story_id,
 				array(
+					'title'      => $post->post_title,
 					'start_date' => $dates['start_date'],
 					'end_date'   => $dates['end_date'],
 					'weekdays'   => $dates['weekdays'],
@@ -358,7 +325,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 					$post_id,
 					array(
 						'status'  => StoryStatus::Sent->value,
-						'message' => __( 'Story dates updated (post published)', 'zw-knabbel-wp' ),
+						'message' => __( 'Story updated (post published)', 'zw-knabbel-wp' ),
 					)
 				);
 			} else {
@@ -366,7 +333,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 				log(
 					'error',
 					'PostHooks',
-					'Failed to update story dates on publish',
+					'Failed to update story on publish',
 					array(
 						'post_id' => $post_id,
 						'error'   => $result['message'],
@@ -384,24 +351,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 		if ( $send_to_babbel ) {
 			// Restore soft-deleted story instead of creating new.
 			if ( $story_id && StoryStatus::Deleted->value === $status ) {
-				$result = babbel_restore_story( $story_id );
-				if ( $result['success'] ) {
-					update_story_state(
-						$post_id,
-						array(
-							'status'  => StoryStatus::Sent->value,
-							'message' => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
-						)
-					);
-				} else {
-					update_story_state(
-						$post_id,
-						array(
-							'status'  => StoryStatus::Error->value,
-							'message' => $result['message'],
-						)
-					);
-				}
+				restore_and_sync_story( $post_id, $story_id, $post->post_title );
 				return;
 			}
 
@@ -413,26 +363,31 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 		return;
 	}
 
-	// Handle date changes for scheduled posts with existing stories (Quick Edit, REST API).
+	// Handle date/title changes for scheduled posts with existing stories (Quick Edit, REST API).
 	if ( 'future' === $new_status && 'future' === $old_status ) {
 		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
-			$old_date = null !== $post_before ? $post_before->post_date : null;
-			if ( $old_date !== $post->post_date ) {
-				$dates  = calculate_story_dates( $post->post_date );
-				$result = babbel_update_story(
-					$story_id,
-					array(
-						'start_date' => $dates['start_date'],
-						'end_date'   => $dates['end_date'],
-						'weekdays'   => $dates['weekdays'],
-					)
-				);
+			$old_date      = null !== $post_before ? $post_before->post_date : null;
+			$old_title     = null !== $post_before ? $post_before->post_title : null;
+			$date_changed  = $old_date !== $post->post_date;
+			$title_changed = $old_title !== $post->post_title;
+
+			if ( $date_changed || $title_changed ) {
+				$update_data = array( 'title' => $post->post_title );
+
+				if ( $date_changed ) {
+					$dates                     = calculate_story_dates( $post->post_date );
+					$update_data['start_date'] = $dates['start_date'];
+					$update_data['end_date']   = $dates['end_date'];
+					$update_data['weekdays']   = $dates['weekdays'];
+				}
+
+				$result = babbel_update_story( $story_id, $update_data );
 				if ( $result['success'] ) {
 					update_story_state(
 						$post_id,
 						array(
 							'status'  => StoryStatus::Sent->value,
-							'message' => __( 'Story dates updated in Babbel', 'zw-knabbel-wp' ),
+							'message' => __( 'Story updated in Babbel', 'zw-knabbel-wp' ),
 						)
 					);
 				} else {
@@ -440,7 +395,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 					log(
 						'error',
 						'PostHooks',
-						'Failed to update story dates (scheduled post)',
+						'Failed to update story (scheduled post)',
 						array(
 							'post_id' => $post_id,
 							'error'   => $result['message'],
@@ -452,29 +407,32 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 		return;
 	}
 
-	// Handle date changes for published posts with existing stories.
-	// Only update if the post_date actually changed (compare on Y-m-d level).
+	// Handle date/title changes for published posts with existing stories.
 	if ( 'publish' === $new_status && 'publish' === $old_status ) {
 		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
-			$old_date_ymd = null !== $post_before ? substr( $post_before->post_date, 0, 10 ) : null;
-			$new_date_ymd = substr( $post->post_date, 0, 10 );
+			$old_date_ymd  = null !== $post_before ? substr( $post_before->post_date, 0, 10 ) : null;
+			$new_date_ymd  = substr( $post->post_date, 0, 10 );
+			$old_title     = null !== $post_before ? $post_before->post_title : null;
+			$date_changed  = null !== $old_date_ymd && $old_date_ymd !== $new_date_ymd;
+			$title_changed = $old_title !== $post->post_title;
 
-			if ( null !== $old_date_ymd && $old_date_ymd !== $new_date_ymd ) {
-				$dates  = calculate_story_dates( $post->post_date );
-				$result = babbel_update_story(
-					$story_id,
-					array(
-						'start_date' => $dates['start_date'],
-						'end_date'   => $dates['end_date'],
-						'weekdays'   => $dates['weekdays'],
-					)
-				);
+			if ( $date_changed || $title_changed ) {
+				$update_data = array( 'title' => $post->post_title );
+
+				if ( $date_changed ) {
+					$dates                     = calculate_story_dates( $post->post_date );
+					$update_data['start_date'] = $dates['start_date'];
+					$update_data['end_date']   = $dates['end_date'];
+					$update_data['weekdays']   = $dates['weekdays'];
+				}
+
+				$result = babbel_update_story( $story_id, $update_data );
 				if ( $result['success'] ) {
 					update_story_state(
 						$post_id,
 						array(
 							'status'  => StoryStatus::Sent->value,
-							'message' => __( 'Story dates updated in Babbel', 'zw-knabbel-wp' ),
+							'message' => __( 'Story updated in Babbel', 'zw-knabbel-wp' ),
 						)
 					);
 				} else {
@@ -482,7 +440,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 					log(
 						'error',
 						'PostHooks',
-						'Failed to update story dates',
+						'Failed to update story',
 						array(
 							'post_id' => $post_id,
 							'error'   => $result['message'],
@@ -599,25 +557,68 @@ function handle_untrash_post( int $post_id ): void {
 
 	// Only restore if checkbox is enabled, we have a story_id, and it was deleted.
 	if ( $send_to_babbel && $story_id && StoryStatus::Deleted->value === $status ) {
-		$result = babbel_restore_story( $story_id );
-		if ( $result['success'] ) {
-			update_story_state(
-				$post_id,
-				array(
-					'status'  => StoryStatus::Sent->value,
-					'message' => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
-				)
-			);
-		} else {
-			update_story_state(
-				$post_id,
-				array(
-					'status'  => StoryStatus::Error->value,
-					'message' => $result['message'],
-				)
-			);
-		}
+		restore_and_sync_story( $post_id, $story_id, $post->post_title );
 	}
+}
+
+/**
+ * Restores a soft-deleted story and syncs the current post title.
+ *
+ * Uses PATCH to restore (deleted_at) then PUT to update the title,
+ * matching the Babbel API contract where PATCH only accepts status/deleted_at.
+ *
+ * @since 0.3.0
+ *
+ * @param int    $post_id  The post ID.
+ * @param string $story_id The Babbel story ID.
+ * @param string $title    The current post title to sync.
+ * @return array{success: bool, message: string} Response with success status and message.
+ */
+function restore_and_sync_story( int $post_id, string $story_id, string $title ): array {
+	$result = babbel_restore_story( $story_id );
+	if ( ! $result['success'] ) {
+		update_story_state(
+			$post_id,
+			array(
+				'status'  => StoryStatus::Error->value,
+				'message' => $result['message'],
+			)
+		);
+		return $result;
+	}
+
+	// Sync the current post title via PUT (PATCH only accepts status/deleted_at).
+	$title_result = babbel_update_story( $story_id, array( 'title' => $title ) );
+	if ( $title_result['success'] ) {
+		update_story_state(
+			$post_id,
+			array(
+				'status'  => StoryStatus::Sent->value,
+				'message' => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
+			)
+		);
+	} else {
+		// Keep 'sent' status - story is restored but title may be stale.
+		log(
+			'error',
+			'PostHooks',
+			'Story restored but title sync failed',
+			array(
+				'post_id'  => $post_id,
+				'story_id' => $story_id,
+				'error'    => $title_result['message'],
+			)
+		);
+		update_story_state(
+			$post_id,
+			array(
+				'status'  => StoryStatus::Sent->value,
+				'message' => __( 'Story restored, but title sync failed', 'zw-knabbel-wp' ),
+			)
+		);
+	}
+
+	return $result;
 }
 
 /**

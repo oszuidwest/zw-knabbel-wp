@@ -62,7 +62,6 @@ function settings_register_settings(): void {
 				'api_password'      => '',
 				'openai_api_key'    => '',
 				'openai_model'      => 'gpt-4.1-mini',
-				'title_prompt'      => '',
 				'speech_prompt'     => '',
 				'debug_mode'        => false,
 				'start_days_offset' => 1,
@@ -105,7 +104,7 @@ function sanitize_settings( array $input ): array {
 	}
 
 	// Textarea fields (prompts) - preserve newlines.
-	$textarea_fields = array( 'title_prompt', 'speech_prompt' );
+	$textarea_fields = array( 'speech_prompt' );
 	foreach ( $textarea_fields as $field ) {
 		if ( isset( $input[ $field ] ) ) {
 			$sanitized[ $field ] = sanitize_textarea_field( $input[ $field ] );
@@ -315,7 +314,7 @@ function render_openai_card( array $settings ): void {
 		</div>
 		<div class="knabbel-card-content">
 			<p class="knabbel-card-description">
-				<?php esc_html_e( 'Configure OpenAI for generating titles and speech text.', 'zw-knabbel-wp' ); ?>
+				<?php esc_html_e( 'Configure OpenAI for generating speech text.', 'zw-knabbel-wp' ); ?>
 			</p>
 
 			<div class="knabbel-field">
@@ -394,28 +393,13 @@ function render_prompts_card( array $settings ): void {
 		</div>
 		<div class="knabbel-card-content">
 			<p class="knabbel-card-description">
-				<?php esc_html_e( 'Customize the AI prompts for generating titles and speech text.', 'zw-knabbel-wp' ); ?>
+				<?php esc_html_e( 'Customize the AI prompt for generating speech text.', 'zw-knabbel-wp' ); ?>
 			</p>
 
-			<div class="knabbel-field-row">
-				<div class="knabbel-field">
-					<label class="knabbel-field-label">
-						<?php esc_html_e( 'Title Generation Prompt', 'zw-knabbel-wp' ); ?>
-					</label>
-					<textarea name="knabbel_settings[title_prompt]"
-						class="knabbel-field-input"
-						rows="4"
-						<?php // phpcs:ignore Generic.Files.LineLength.TooLong -- Placeholder text with newlines ?>
-						placeholder="<?php echo esc_attr( "Creëer een pakkende radiotitel (max 60 karakters) die:\n- Direct de kernboodschap weergeeft\n- Nieuwswaardig en luisteraantrekkelijk is\n- Geschikt voor gesproken presentatie\n- Actief geformuleerd is" ); ?>"><?php echo esc_textarea( $settings['title_prompt'] ?? '' ); ?></textarea>
-					<p class="knabbel-field-description">
-						<?php esc_html_e( 'Prompt for generating radio-friendly titles. Leave empty for default prompt.', 'zw-knabbel-wp' ); ?>
-					</p>
-				</div>
-
-				<div class="knabbel-field">
-					<label class="knabbel-field-label">
-						<?php esc_html_e( 'Speech Text Generation Prompt', 'zw-knabbel-wp' ); ?>
-					</label>
+			<div class="knabbel-field">
+				<label class="knabbel-field-label">
+					<?php esc_html_e( 'Speech Text Generation Prompt', 'zw-knabbel-wp' ); ?>
+				</label>
 					<textarea name="knabbel_settings[speech_prompt]"
 						class="knabbel-field-input"
 						rows="4"
@@ -424,7 +408,6 @@ function render_prompts_card( array $settings ): void {
 					<p class="knabbel-field-description">
 						<?php esc_html_e( 'Prompt for converting to radio-friendly speech text. Leave empty for default prompt.', 'zw-knabbel-wp' ); ?>
 					</p>
-				</div>
 			</div>
 		</div>
 	</div>
