@@ -345,21 +345,10 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 		return;
 	}
 
-	// Handle date/title changes for scheduled posts with existing stories (Quick Edit, REST API).
-	if ( 'future' === $new_status && 'future' === $old_status ) {
+	// Handle date/title changes for existing stories (same-status updates via Quick Edit, REST API).
+	if ( $new_status === $old_status && in_array( $new_status, array( 'future', 'publish' ), true ) ) {
 		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
-			$update_data = build_story_update_from_changes( $post, $post_before );
-			if ( $update_data ) {
-				push_story_update( $post_id, $story_id, $update_data, __( 'Story updated in Babbel', 'zw-knabbel-wp' ) );
-			}
-		}
-		return;
-	}
-
-	// Handle date/title changes for published posts with existing stories.
-	if ( 'publish' === $new_status && 'publish' === $old_status ) {
-		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
-			$update_data = build_story_update_from_changes( $post, $post_before, true );
+			$update_data = build_story_update_from_changes( $post, $post_before, 'publish' === $new_status );
 			if ( $update_data ) {
 				push_story_update( $post_id, $story_id, $update_data, __( 'Story updated in Babbel', 'zw-knabbel-wp' ) );
 			}
