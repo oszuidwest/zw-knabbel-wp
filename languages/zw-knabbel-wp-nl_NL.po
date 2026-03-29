@@ -110,9 +110,13 @@ msgstr "Verhaal verwijderd uit Babbel"
 msgid "Story dates updated in Babbel"
 msgstr "Verhaaldatums bijgewerkt in Babbel"
 
-#: includes/post-hooks.php:361
-msgid "Story dates updated (post published)"
-msgstr "Verhaaldatums bijgewerkt (bericht gepubliceerd)"
+#: includes/post-hooks.php
+msgid "Story updated (post published)"
+msgstr "Verhaal bijgewerkt (bericht gepubliceerd)"
+
+#: includes/post-hooks.php
+msgid "Story updated in Babbel"
+msgstr "Verhaal bijgewerkt in Babbel"
 
 #: includes/post-hooks.php:284
 msgid "Story deleted (post unscheduled)"
@@ -452,3 +456,7 @@ msgstr "Verzenden naar Babbel is uitgeschakeld voor dit bericht"
 #: zw-knabbel-wp.php:574
 msgid "Could not generate speech text"
 msgstr "Kon spreektekst niet genereren"
+
+#: includes/post-hooks.php
+msgid "Story restored, but title sync failed"
+msgstr "Verhaal hersteld, maar titelsynchronisatie mislukt"
