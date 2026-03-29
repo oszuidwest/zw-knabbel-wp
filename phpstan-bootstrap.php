@@ -2,11 +2,13 @@
 /**
  * PHPStan Bootstrap File
  *
- * Defines constants that are normally defined in the main plugin file
- * to avoid PHPStan errors when analyzing individual files.
+ * Defines constants and function stubs for static analysis only.
+ * This file is NOT loaded at runtime and is excluded from release builds.
  *
  * @package KnabbelWP
  * @since   0.0.1
+ *
+ * phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
