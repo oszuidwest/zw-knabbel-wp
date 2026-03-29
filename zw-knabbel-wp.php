@@ -3,7 +3,7 @@
  * Plugin Name: ZuidWest Knabbel
  * Plugin URI: https://github.com/oszuidwest/zw-knabbel-wp
  * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Ondersteunt OpenAI GPT-modellen voor AI-gegenereerde content.
- * Version: 0.3.0
+ * Version: 0.3.1
  * Requires at least: 6.8
  * Requires PHP: 8.3
  * Author: Streekomroep ZuidWest
@@ -396,6 +396,13 @@ function cleanup_legacy_data(): void {
 			$legacy_user_meta_keys
 		)
 	);
+
+	// Remove deprecated title_prompt from settings (removed in 0.3.0).
+	$settings = get_option( 'knabbel_settings' );
+	if ( is_array( $settings ) && isset( $settings['title_prompt'] ) ) {
+		unset( $settings['title_prompt'] );
+		update_option( 'knabbel_settings', $settings );
+	}
 
 	// Clear any legacy cron jobs that might be stuck.
 	wp_clear_scheduled_hook( 'knabbel_legacy_cleanup' );
