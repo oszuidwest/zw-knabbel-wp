@@ -265,8 +265,10 @@ function openai_make_request_single( array $messages ): ?string {
  */
 function openai_add_few_shot_examples( array $messages ): array {
 	// Respect the setting immediately, even before the nightly sync clears the cache.
-	$settings = get_option( 'knabbel_settings' );
-	if ( empty( $settings['few_shot_count'] ) ) {
+	// Default to 5 for existing installations that lack the key after an upgrade.
+	$settings       = get_option( 'knabbel_settings' );
+	$few_shot_count = (int) ( $settings['few_shot_count'] ?? 5 );
+	if ( $few_shot_count <= 0 ) {
 		return $messages;
 	}
 
