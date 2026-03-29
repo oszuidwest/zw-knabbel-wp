@@ -5,7 +5,7 @@ WordPress plugin that automatically sends posts to the [Babbel API](https://gith
 ## Features
 
 - **ACF Integration**: Injects a "Radio News" checkbox into a specific ACF field group
-- **OpenAI Integration**: Uses GPT models to automatically generate short titles and speech text
+- **OpenAI Integration**: Uses GPT models to automatically generate speech text
 - **Settings Page**: Fully configurable prompts and API settings
 - **Async Processing**: Uses Action Scheduler for reliable background processing
 
@@ -29,8 +29,7 @@ WordPress plugin that automatically sends posts to the [Babbel API](https://gith
 1. Configure the plugin via Settings > ZuidWest Knabbel
 2. When editing a post, check "Radionieuws" in the ACF metabox
 3. On publish, the plugin automatically:
-   - Generates a short title via OpenAI
-   - Converts content to speech text
+   - Converts content to speech text via OpenAI
    - Creates a story in the Babbel API
 
 ## Development

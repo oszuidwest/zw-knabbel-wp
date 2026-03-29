@@ -182,7 +182,7 @@ msgid "OpenAI"
 msgstr ""
 
 #: includes/admin/settings.php:314
-msgid "Configure OpenAI for generating titles and speech text."
+msgid "Configure OpenAI for generating speech text."
 msgstr ""
 
 #: includes/admin/settings.php:319
@@ -216,18 +216,10 @@ msgid "AI Prompts"
 msgstr ""
 
 #: includes/admin/settings.php:371
-msgid "Customize the AI prompts for generating titles and speech text."
+msgid "Customize the AI prompt for generating speech text."
 msgstr ""
 
-#: includes/admin/settings.php:377
-msgid "Title Generation Prompt"
-msgstr ""
-
-#: includes/admin/settings.php:385
-msgid "Prompt for generating radio-friendly titles. Leave empty for default prompt."
-msgstr ""
-
-#: includes/admin/settings.php:391
+#: includes/admin/settings.php:402
 msgid "Speech Text Generation Prompt"
 msgstr ""
 
@@ -476,10 +468,6 @@ msgstr ""
 
 #: zw-knabbel-wp.php:537
 msgid "Send to Babbel is disabled for this post"
-msgstr ""
-
-#: zw-knabbel-wp.php:561
-msgid "Could not generate title"
 msgstr ""
 
 #: zw-knabbel-wp.php:574

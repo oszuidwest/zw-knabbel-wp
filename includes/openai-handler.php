@@ -2,7 +2,7 @@
 /**
  * OpenAI API integration
  *
- * Handles content generation using OpenAI API for titles and speech text.
+ * Handles content generation using OpenAI API for speech text.
  *
  * @package KnabbelWP
  * @since   0.0.1
@@ -38,20 +38,15 @@ function openai_get_settings(): array {
  *
  * @since 0.1.0
  * @param string $content The source content.
- * @param string $type    The type of content to generate ('title' or 'speech').
  * @return string|null The generated content or null on failure.
  */
-function openai_generate_content( string $content, string $type = 'title' ): ?string {
+function openai_generate_content( string $content ): ?string {
 	$options = get_option( 'knabbel_settings' );
 
-	$prompts = array(
-		// phpcs:ignore Generic.Files.LineLength.TooLong -- Prompt text should remain on single line for clarity.
-		'title'  => 'Creëer een pakkende radiotitel (max 60 karakters) die:\n- Direct de kernboodschap weergeeft\n- Nieuwswaardig en luisteraantrekkelijk is\n- Geschikt voor gesproken presentatie\n- Actief geformuleerd is',
-		// phpcs:ignore Generic.Files.LineLength.TooLong -- Prompt text should remain on single line for clarity.
-		'speech' => 'Transformeer naar natuurlijke radiospreektekst met:\n- Korte, heldere zinnen (max 15 woorden)\n- Spreektaal en radiofrases\n- Logische volgorde voor luisteraars\n- Duidelijke overgangen tussen punten\n- Actieve zinsbouw\n- Getallen uitgeschreven waar natuurlijk',
-	);
+	// phpcs:ignore Generic.Files.LineLength.TooLong -- Prompt text should remain on single line for clarity.
+	$default_prompt = 'Transformeer naar natuurlijke radiospreektekst met:\n- Korte, heldere zinnen (max 15 woorden)\n- Spreektaal en radiofrases\n- Logische volgorde voor luisteraars\n- Duidelijke overgangen tussen punten\n- Actieve zinsbouw\n- Getallen uitgeschreven waar natuurlijk';
 
-	$prompt = $options[ $type . '_prompt' ] ?? $prompts[ $type ];
+	$prompt = $options['speech_prompt'] ?? $default_prompt;
 
 	$messages = array(
 		array(
@@ -60,10 +55,7 @@ function openai_generate_content( string $content, string $type = 'title' ): ?st
 		),
 	);
 
-	// Add few-shot examples for speech generation only.
-	if ( 'speech' === $type ) {
-		$messages = openai_add_few_shot_examples( $messages );
-	}
+	$messages = openai_add_few_shot_examples( $messages );
 
 	$messages[] = array(
 		'role'    => 'user',
