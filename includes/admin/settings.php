@@ -75,6 +75,7 @@ function settings_register_settings(): void {
 				'weekday_thursday'  => true,
 				'weekday_friday'    => true,
 				'weekday_saturday'  => true,
+				'few_shot_count'    => 5,
 			),
 		)
 	);
@@ -117,6 +118,9 @@ function sanitize_settings( array $input ): array {
 	}
 	if ( isset( $input['end_days_offset'] ) ) {
 		$sanitized['end_days_offset'] = absint( $input['end_days_offset'] );
+	}
+	if ( isset( $input['few_shot_count'] ) ) {
+		$sanitized['few_shot_count'] = min( absint( $input['few_shot_count'] ), 20 );
 	}
 
 	// Select field with allowed values.
@@ -335,18 +339,40 @@ function render_openai_card( array $settings ): void {
 				</p>
 			</div>
 
-			<div class="knabbel-field">
-				<label class="knabbel-field-label">
-					<?php esc_html_e( 'OpenAI Model', 'zw-knabbel-wp' ); ?>
-				</label>
-				<input type="text"
-					name="knabbel_settings[openai_model]"
-					class="knabbel-field-input"
-					value="<?php echo esc_attr( $settings['openai_model'] ?? 'gpt-4.1-mini' ); ?>"
-					placeholder="gpt-4.1-mini" />
-				<p class="knabbel-field-description">
-					<?php esc_html_e( 'The OpenAI model for text generation (e.g., gpt-4.1-mini, gpt-4o-mini, gpt-4o).', 'zw-knabbel-wp' ); ?>
-				</p>
+			<div class="knabbel-field-row">
+				<div class="knabbel-field">
+					<label class="knabbel-field-label">
+						<?php esc_html_e( 'OpenAI Model', 'zw-knabbel-wp' ); ?>
+					</label>
+					<input type="text"
+						name="knabbel_settings[openai_model]"
+						class="knabbel-field-input"
+						value="<?php echo esc_attr( $settings['openai_model'] ?? 'gpt-4.1-mini' ); ?>"
+						placeholder="gpt-4.1-mini" />
+					<p class="knabbel-field-description">
+						<?php esc_html_e( 'The OpenAI model for text generation (e.g., gpt-4.1-mini, gpt-4o-mini, gpt-4o).', 'zw-knabbel-wp' ); ?>
+					</p>
+				</div>
+
+				<div class="knabbel-field">
+					<label class="knabbel-field-label">
+						<?php esc_html_e( 'Few-shot Examples', 'zw-knabbel-wp' ); ?>
+					</label>
+					<input type="number"
+						name="knabbel_settings[few_shot_count]"
+						class="knabbel-field-input"
+						value="<?php echo esc_attr( (string) ( $settings['few_shot_count'] ?? 5 ) ); ?>"
+						min="0"
+						max="20" />
+					<p class="knabbel-field-description">
+						<?php
+						esc_html_e(
+							'Number of editor-corrected examples to include in the speech prompt (0 to disable, max 20). Synced nightly from Babbel.',
+							'zw-knabbel-wp'
+						);
+						?>
+					</p>
+				</div>
 			</div>
 		</div>
 	</div>

@@ -33,6 +33,22 @@ if ( ! function_exists( 'as_schedule_single_action' ) ) {
 	}
 }
 
+if ( ! function_exists( 'as_schedule_recurring_action' ) ) {
+	/**
+	 * Schedule a recurring action.
+	 *
+	 * @param int    $timestamp         When to first run the action.
+	 * @param int    $interval_in_seconds How long to wait between runs.
+	 * @param string $hook              The hook to trigger.
+	 * @param array  $args              Arguments to pass to the hook.
+	 * @param string $group             The group to assign this job to.
+	 * @return int|false The action ID or false on failure.
+	 */
+	function as_schedule_recurring_action( int $timestamp, int $interval_in_seconds, string $hook, array $args = array(), string $group = '' ): int|false {
+		return 0;
+	}
+}
+
 if ( ! function_exists( 'as_has_scheduled_action' ) ) {
 	/**
 	 * Check if there is a scheduled action for the given hook.

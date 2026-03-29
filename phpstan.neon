@@ -15,10 +15,12 @@ parameters:
     BabbelCredentials: 'array{base_url: string, username: string, password: string}'
     BabbelApiResponse: 'array{success: bool, message: string, story_id?: string}'
     StoryData: 'array{title: string, text: string, start_date: string, end_date: string, status?: string, weekdays?: int, metadata?: array<string, mixed>}'
-    StoryState: 'array{status?: string, story_id?: string, status_changed_at?: string, message?: string}'
+    StoryState: 'array{status?: string, story_id?: string, status_changed_at?: string, message?: string, generated_title?: string, generated_speech_text?: string}'
     # OpenAI types
     OpenAISettings: 'array{api_key: string|null, model: string, api_base_url: string}'
-    ChatMessage: 'array{role: string, content: string}'
+    ChatMessage: 'array{role: string, content: string, name?: string}'
+    # Few-shot types
+    FewShotExample: 'array{input: string, output: string, edit_score: float, word_count: int}'
     # HTTP types
     WpHttpArgs: 'array{method?: string, headers?: array<string, string>, body?: string, timeout?: int, cookies?: array<mixed>}'
     WpHttpResponse: 'array<string, mixed>'
