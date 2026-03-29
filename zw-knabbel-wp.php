@@ -397,6 +397,13 @@ function cleanup_legacy_data(): void {
 		)
 	);
 
+	// Remove deprecated title_prompt from settings (removed in 0.3.0).
+	$settings = get_option( 'knabbel_settings' );
+	if ( is_array( $settings ) && isset( $settings['title_prompt'] ) ) {
+		unset( $settings['title_prompt'] );
+		update_option( 'knabbel_settings', $settings );
+	}
+
 	// Clear any legacy cron jobs that might be stuck.
 	wp_clear_scheduled_hook( 'knabbel_legacy_cleanup' );
 	wp_clear_scheduled_hook( 'knabbel_old_process' );
