@@ -673,7 +673,7 @@ function babbel_fetch_recent_stories( int $limit = 20 ): array|\WP_Error {
 		array(
 			'sort'   => '-updated_at',
 			'limit'  => $limit,
-			'fields' => 'id,title,text,metadata,updated_at,created_at',
+			'fields' => 'id,title,text,status,metadata,updated_at,created_at',
 		),
 		$credentials['base_url'] . '/stories'
 	);

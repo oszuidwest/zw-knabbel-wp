@@ -264,6 +264,12 @@ function openai_make_request_single( array $messages ): ?string {
  * @phpstan-return array<int, ChatMessage>
  */
 function openai_add_few_shot_examples( array $messages ): array {
+	// Respect the setting immediately, even before the nightly sync clears the cache.
+	$settings = get_option( 'knabbel_settings' );
+	if ( empty( $settings['few_shot_count'] ) ) {
+		return $messages;
+	}
+
 	$examples = get_option( 'knabbel_few_shot_examples', array() );
 
 	if ( empty( $examples ) || ! is_array( $examples ) ) {
