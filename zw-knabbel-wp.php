@@ -3,7 +3,7 @@
  * Plugin Name: ZuidWest Knabbel
  * Plugin URI: https://github.com/oszuidwest/zw-knabbel-wp
  * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Ondersteunt OpenAI GPT-modellen voor AI-gegenereerde content.
- * Version: 0.3.1
+ * Version: 0.4.0
  * Requires at least: 6.8
  * Requires PHP: 8.3
  * Author: Streekomroep ZuidWest
@@ -205,9 +205,6 @@ function calculate_story_dates( string $base_date = 'now' ): array {
 function init(): void {
 	load_plugin_textdomain( 'zw-knabbel-wp', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
 
-	// Run migrations on upgrade (activation hook doesn't fire on updates).
-	migrate_status_changed_at();
-
 	// Register cron hook for async story processing (always, not just admin).
 	add_action( 'knabbel_process_story', __NAMESPACE__ . '\\process_story_async', 10, 1 );
 
@@ -283,9 +280,6 @@ function activate(): void {
 		// Cleanup all legacy data on activation.
 		cleanup_legacy_data();
 
-		// Run data migrations.
-		migrate_status_changed_at();
-
 		// Schedule nightly few-shot example sync.
 		few_shot_schedule_sync();
 }
@@ -308,178 +302,18 @@ function deactivate(): void {
 }
 
 /**
- * Comprehensive cleanup of all legacy data from previous plugin versions.
+ * Cleanup deprecated data on activation.
  *
- * Removes legacy meta fields, options, transients and debug data.
- * Safe to run multiple times.
+ * Safe to run multiple times. Can be removed once all installs are on 0.4.0+.
  *
  * @since 0.1.0
- * @global wpdb $wpdb WordPress database abstraction object.
  */
 function cleanup_legacy_data(): void {
-	global $wpdb;
-
-	// Remove legacy options-based debug keys.
-	$legacy_options = array(
-		'knabbel_last_cron_run',
-		'knabbel_last_cron_error',
-		'knabbel_last_cron_success',
-		'knabbel_last_story_data',
-		'knabbel_debug_logs',
-		'knabbel_recent_errors',
-		// Additional legacy options from older versions.
-		'knabbel_api_credentials',
-		'knabbel_openai_settings',
-		'knabbel_cached_settings',
-		'knabbel_version_check',
-		'knabbel_migration_status',
-	);
-
-	foreach ( $legacy_options as $option ) {
-		delete_option( $option );
-	}
-
-	// Remove all legacy per-post meta keys in single query.
-	$legacy_meta_keys = array(
-		'_zw_knabbel_babbel_status',
-		'_zw_knabbel_babbel_error',
-		'_zw_knabbel_babbel_story_id',
-		'_zw_knabbel_babbel_last_run',
-		'_zw_knabbel_babbel_last_success',
-		'_zw_knabbel_babbel_last_error',
-		'_zw_knabbel_babbel_last_story_data',
-		'_zw_knabbel_babbel_debug_payload',
-		// Additional legacy meta keys from older plugin versions.
-		'_zw_knabbel_babbel_processed',
-		'_zw_knabbel_babbel_retry_count',
-		'_zw_knabbel_babbel_locked',
-		'_zw_knabbel_babbel_queued_at',
-		'_zw_knabbel_old_status',
-		'_zw_knabbel_migration_done',
-		'_zw_knabbel_backup_data',
-	);
-
-	$placeholders = implode( ',', array_fill( 0, count( $legacy_meta_keys ), '%s' ) );
-	$wpdb->query(
-		$wpdb->prepare(
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Dynamic placeholders.
-			'DELETE FROM ' . $wpdb->postmeta . ' WHERE meta_key IN (' . $placeholders . ')',
-			$legacy_meta_keys
-		)
-	);
-
-	// Clean up legacy session transients and cached data.
-	$wpdb->query(
-		$wpdb->prepare(
-			// phpcs:ignore Generic.Files.LineLength.TooLong -- SQL query readability.
-			'DELETE FROM ' . $wpdb->options . ' WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s',
-			'_transient_knabbel_session_%',
-			'_transient_timeout_knabbel_session_%',
-			'knabbel_session_%',
-			'_transient_knabbel_%',
-			'_transient_timeout_knabbel_%'
-		)
-	);
-
-	// Clean up legacy user meta keys (in case any user-specific data was stored).
-	$legacy_user_meta_keys = array(
-		'_zw_knabbel_user_preferences',
-		'_zw_knabbel_last_activity',
-		'_zw_knabbel_permission_cache',
-	);
-
-	$user_placeholders = implode( ',', array_fill( 0, count( $legacy_user_meta_keys ), '%s' ) );
-	$wpdb->query(
-		$wpdb->prepare(
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Dynamic placeholders.
-			'DELETE FROM ' . $wpdb->usermeta . ' WHERE meta_key IN (' . $user_placeholders . ')',
-			$legacy_user_meta_keys
-		)
-	);
-
 	// Remove deprecated title_prompt from settings (removed in 0.3.0).
 	$settings = get_option( 'knabbel_settings' );
 	if ( is_array( $settings ) && isset( $settings['title_prompt'] ) ) {
 		unset( $settings['title_prompt'] );
 		update_option( 'knabbel_settings', $settings );
-	}
-
-	// Clear any legacy cron jobs that might be stuck.
-	wp_clear_scheduled_hook( 'knabbel_legacy_cleanup' );
-	wp_clear_scheduled_hook( 'knabbel_old_process' );
-	wp_clear_scheduled_hook( 'knabbel_babbel_process' );
-
-	// Log cleanup completion with detailed stats.
-	log(
-		'info',
-		'Cleanup',
-		'Comprehensive legacy data cleanup completed on activation',
-		array(
-			'options_removed'        => count( $legacy_options ),
-			'post_meta_keys_removed' => count( $legacy_meta_keys ),
-			'user_meta_keys_removed' => count( $legacy_user_meta_keys ),
-			'cleanup_timestamp'      => current_time( 'mysql' ),
-		)
-	);
-}
-
-/**
- * Migrates story state data from updated_at to status_changed_at field.
- *
- * This migration runs once to rename the field for clarity.
- * Safe to run multiple times - skips already migrated records.
- *
- * @since 0.1.0
- * @global wpdb $wpdb WordPress database abstraction object.
- */
-function migrate_status_changed_at(): void {
-	global $wpdb;
-
-	// Check if migration already ran.
-	$migration_done = get_option( 'knabbel_migration_status_changed_at', false );
-	if ( $migration_done ) {
-		return;
-	}
-
-	// Find all posts with story state.
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time migration.
-	$results = $wpdb->get_results(
-		$wpdb->prepare(
-			"SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s",
-			'_zw_knabbel_story_state'
-		)
-	);
-
-	$migrated = 0;
-	foreach ( $results as $row ) {
-		$state = maybe_unserialize( $row->meta_value );
-		if ( ! is_array( $state ) ) {
-			continue;
-		}
-
-		// Skip if already migrated or no updated_at field.
-		if ( isset( $state['status_changed_at'] ) || ! isset( $state['updated_at'] ) ) {
-			continue;
-		}
-
-		// Rename the field.
-		$state['status_changed_at'] = $state['updated_at'];
-		unset( $state['updated_at'] );
-
-		update_post_meta( (int) $row->post_id, '_zw_knabbel_story_state', $state );
-		++$migrated;
-	}
-
-	// Mark migration as complete.
-	update_option( 'knabbel_migration_status_changed_at', true );
-
-	if ( $migrated > 0 ) {
-		log(
-			'info',
-			'Migration',
-			'Migrated updated_at to status_changed_at',
-			array( 'records_migrated' => $migrated )
-		);
 	}
 }
 

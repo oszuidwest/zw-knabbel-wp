@@ -23,12 +23,15 @@ $wpdb->query(
 	OR option_name LIKE '_transient_timeout_knabbel_session_%'"
 );
 
-// Clean up recent errors log (temporary debug data).
+// Clean up temporary options.
 delete_option( 'knabbel_recent_errors' );
+delete_option( 'knabbel_migration_status_changed_at' );
+delete_option( 'knabbel_few_shot_examples' );
 
 // Clean up any remaining Action Scheduler jobs.
 if ( function_exists( 'as_unschedule_all_actions' ) ) {
 	as_unschedule_all_actions( 'knabbel_process_story', array(), 'zw-knabbel-wp' );
+	as_unschedule_all_actions( 'knabbel_sync_few_shot_examples', array(), 'zw-knabbel-wp' );
 }
 
 // Note: The following data is intentionally preserved:
