@@ -1,21 +1,21 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: ZuidWest Knabbel 0.2.0\n"
+"Project-Id-Version: ZuidWest Knabbel 0.3.0\n"
 "Report-Msgid-Bugs-To: https://github.com/oszuidwest/zw-knabbel-wp/issues\n"
 "Last-Translator: Remon Mens\n"
 "Language-Team: Dutch\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-01-06T21:34:39+00:00\n"
-"PO-Revision-Date: 2026-01-06T00:00:00+00:00\n"
+"POT-Creation-Date: 2026-03-29T21:03:57+00:00\n"
+"PO-Revision-Date: 2026-03-29T00:00:00+00:00\n"
 "Language: nl_NL\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #. Plugin Name of the plugin
 #: zw-knabbel-wp.php
 #: includes/admin/settings.php:37
-#: includes/admin/settings.php:185
+#: includes/admin/settings.php:188
 msgid "ZuidWest Knabbel"
 msgstr "ZuidWest Knabbel"
 
@@ -46,31 +46,31 @@ msgstr "Radionieuws"
 
 #: includes/admin/metabox.php:92
 msgid "Knabbel Status"
-msgstr "Knabbel status"
+msgstr "Knabbel Status"
 
 #: includes/admin/metabox.php:137
-#: includes/admin/settings.php:460
-#: includes/admin/settings.php:635
+#: includes/admin/settings.php:469
+#: includes/admin/settings.php:644
 msgid "Status"
 msgstr "Status"
 
 #: includes/admin/metabox.php:141
-#: includes/admin/settings.php:580
+#: includes/admin/settings.php:589
 msgid "Scheduled"
 msgstr "Ingepland"
 
 #: includes/admin/metabox.php:142
-#: includes/admin/settings.php:581
+#: includes/admin/settings.php:590
 msgid "Processing"
 msgstr "Bezig"
 
 #: includes/admin/metabox.php:143
-#: includes/admin/settings.php:582
+#: includes/admin/settings.php:591
 msgid "Sent"
 msgstr "Verzonden"
 
 #: includes/admin/metabox.php:144
-#: includes/admin/settings.php:583
+#: includes/admin/settings.php:592
 msgid "Error"
 msgstr "Fout"
 
@@ -92,246 +92,221 @@ msgstr "Verhaal-ID"
 
 #: includes/admin/metabox.php:169
 msgid "Scheduled:"
-msgstr "Gepland:"
+msgstr "Ingepland:"
 
 #: includes/admin/metabox.php:178
-#: includes/admin/settings.php:656
-#: includes/admin/settings.php:661
+#: includes/admin/settings.php:665
+#: includes/admin/settings.php:670
 msgid "Message"
 msgstr "Bericht"
 
-#: includes/admin/metabox.php:244
-#: includes/post-hooks.php:157
+#: includes/admin/metabox.php:254
+#: includes/post-hooks.php:216
 msgid "Story deleted from Babbel"
 msgstr "Verhaal verwijderd uit Babbel"
-
-#: includes/admin/metabox.php:298
-#: includes/post-hooks.php:255
-msgid "Story dates updated in Babbel"
-msgstr "Verhaaldatums bijgewerkt in Babbel"
-
-#: includes/post-hooks.php:361
-msgid "Story dates updated (post published)"
-msgstr "Verhaaldatums bijgewerkt (bericht gepubliceerd)"
-
-#: includes/post-hooks.php:284
-msgid "Story deleted (post unscheduled)"
-msgstr "Verhaal verwijderd (bericht niet meer ingepland)"
-
-#: includes/post-hooks.php:332
-msgid "Story deleted (post trashed)"
-msgstr "Verhaal verwijderd (bericht in prullenbak)"
-
-#: includes/post-hooks.php:378
-msgid "Story restored in Babbel"
-msgstr "Verhaal hersteld in Babbel"
-
-#: includes/post-hooks.php:409
-msgid "Processing already scheduled"
-msgstr "Verwerking al ingepland"
-
-#: includes/post-hooks.php:428
-msgid "Processing scheduled"
-msgstr "Verwerking ingepland"
-
-#: includes/post-hooks.php:436
-msgid "Could not schedule action"
-msgstr "Kon actie niet inplannen"
 
 #: includes/admin/settings.php:36
 msgid "ZuidWest Knabbel Settings"
 msgstr "ZuidWest Knabbel Instellingen"
 
-#: includes/admin/settings.php:149
+#: includes/admin/settings.php:152
 msgid "You do not have sufficient permissions to view this page."
-msgstr "U heeft onvoldoende rechten om deze pagina te bekijken."
+msgstr "Je hebt onvoldoende rechten om deze pagina te bekijken."
 
-#: includes/admin/settings.php:174
+#: includes/admin/settings.php:177
 msgid "Testing..."
 msgstr "Testen..."
 
-#: includes/admin/settings.php:175
-#: includes/admin/settings.php:290
+#: includes/admin/settings.php:178
+#: includes/admin/settings.php:293
 msgid "Test API Connection"
 msgstr "Test API-verbinding"
 
-#: includes/admin/settings.php:176
+#: includes/admin/settings.php:179
 msgid "An error occurred"
 msgstr "Er is een fout opgetreden"
 
-#: includes/admin/settings.php:187
+#: includes/admin/settings.php:190
 msgid "Wijzigingen opslaan"
 msgstr "Wijzigingen opslaan"
 
-#: includes/admin/settings.php:225
+#: includes/admin/settings.php:228
 msgid "Babbel API"
 msgstr "Babbel API"
 
-#: includes/admin/settings.php:229
+#: includes/admin/settings.php:232
 msgid "Configure the Babbel API settings."
 msgstr "Configureer de Babbel API-instellingen."
 
-#: includes/admin/settings.php:234
+#: includes/admin/settings.php:237
 msgid "Babbel API Base URL"
 msgstr "Babbel API basis-URL"
 
-#: includes/admin/settings.php:243
+#: includes/admin/settings.php:246
 msgid "The base URL of the Babbel API (without trailing slash)."
 msgstr "De basis-URL van de Babbel API (zonder afsluitende slash)."
 
-#: includes/admin/settings.php:250
+#: includes/admin/settings.php:253
 msgid "Babbel API Username"
 msgstr "Babbel API-gebruikersnaam"
 
-#: includes/admin/settings.php:257
+#: includes/admin/settings.php:260
 msgid "username"
 msgstr "gebruikersnaam"
 
-#: includes/admin/settings.php:262
+#: includes/admin/settings.php:265
 msgid "Babbel API Password"
 msgstr "Babbel API-wachtwoord"
 
-#: includes/admin/settings.php:280
+#: includes/admin/settings.php:283
 msgid "Enable Debug Mode"
 msgstr "Debug-modus inschakelen"
 
-#: includes/admin/settings.php:284
+#: includes/admin/settings.php:287
 msgid "Show debug information and status in the sidebar. Only enable for troubleshooting."
 msgstr "Toon debug-informatie en status in de zijbalk. Alleen inschakelen voor probleemoplossing."
 
-#: includes/admin/settings.php:310
+#: includes/admin/settings.php:313
 msgid "OpenAI"
 msgstr "OpenAI"
 
-#: includes/admin/settings.php:314
+#: includes/admin/settings.php:317
 msgid "Configure OpenAI for generating speech text."
-msgstr "Configureer OpenAI voor het genereren van titels en spreektekst."
+msgstr "Configureer OpenAI voor het genereren van spreektekst."
 
-#: includes/admin/settings.php:319
+#: includes/admin/settings.php:322
 msgid "OpenAI API Key"
 msgstr "OpenAI API-sleutel"
 
 #. translators: %s: URL to OpenAI API keys page
-#: includes/admin/settings.php:331
+#: includes/admin/settings.php:334
 #, php-format
 msgid "Your OpenAI API key. Available at %s"
-msgstr "Uw OpenAI API-sleutel. Beschikbaar op %s"
+msgstr "Je OpenAI API-sleutel. Beschikbaar op %s"
 
-#: includes/admin/settings.php:340
+#: includes/admin/settings.php:344
 msgid "OpenAI Model"
 msgstr "OpenAI-model"
 
-#: includes/admin/settings.php:348
+#: includes/admin/settings.php:352
 msgid "The OpenAI model for text generation (e.g., gpt-4.1-mini, gpt-4o-mini, gpt-4o)."
 msgstr "Het OpenAI-model voor tekstgeneratie (bijv. gpt-4.1-mini, gpt-4o-mini, gpt-4o)."
 
-#: includes/admin/settings.php:367
+#: includes/admin/settings.php:358
+msgid "Few-shot Examples"
+msgstr "Few-shot voorbeelden"
+
+#: includes/admin/settings.php:368
+msgid "Number of editor-corrected examples to include in the speech prompt (0 to disable, max 20). Synced nightly from Babbel."
+msgstr "Aantal door de redactie gecorrigeerde voorbeelden in de spreektekstprompt (0 om uit te schakelen, max 20). Wordt elke nacht gesynchroniseerd vanuit Babbel."
+
+#: includes/admin/settings.php:392
 msgid "AI Prompts"
 msgstr "AI-prompts"
 
-#: includes/admin/settings.php:371
+#: includes/admin/settings.php:396
 msgid "Customize the AI prompt for generating speech text."
 msgstr "Pas de AI-prompt aan voor het genereren van spreektekst."
 
-#: includes/admin/settings.php:402
+#: includes/admin/settings.php:401
 msgid "Speech Text Generation Prompt"
 msgstr "Prompt voor spreektekstgeneratie"
 
-#: includes/admin/settings.php:399
+#: includes/admin/settings.php:409
 msgid "Prompt for converting to radio-friendly speech text. Leave empty for default prompt."
 msgstr "Prompt voor het converteren naar radiogeschikte spreektekst. Laat leeg voor standaardprompt."
 
-#: includes/admin/settings.php:416
+#: includes/admin/settings.php:425
 msgid "Sun"
 msgstr "Zo"
 
-#: includes/admin/settings.php:417
+#: includes/admin/settings.php:426
 msgid "Mon"
 msgstr "Ma"
 
-#: includes/admin/settings.php:418
+#: includes/admin/settings.php:427
 msgid "Tue"
 msgstr "Di"
 
-#: includes/admin/settings.php:419
+#: includes/admin/settings.php:428
 msgid "Wed"
 msgstr "Wo"
 
-#: includes/admin/settings.php:420
+#: includes/admin/settings.php:429
 msgid "Thu"
 msgstr "Do"
 
-#: includes/admin/settings.php:421
+#: includes/admin/settings.php:430
 msgid "Fri"
 msgstr "Vr"
 
-#: includes/admin/settings.php:422
+#: includes/admin/settings.php:431
 msgid "Sat"
 msgstr "Za"
 
-#: includes/admin/settings.php:429
+#: includes/admin/settings.php:438
 msgid "Story Defaults"
 msgstr "Standaardinstellingen verhaal"
 
-#: includes/admin/settings.php:434
+#: includes/admin/settings.php:443
 msgid "Start Date (days from now)"
 msgstr "Startdatum (dagen vanaf nu)"
 
-#: includes/admin/settings.php:442
+#: includes/admin/settings.php:451
 msgid "Number of days from publication for start date."
 msgstr "Aantal dagen vanaf publicatie voor startdatum."
 
-#: includes/admin/settings.php:447
+#: includes/admin/settings.php:456
 msgid "End Date (days from now)"
 msgstr "Einddatum (dagen vanaf nu)"
 
-#: includes/admin/settings.php:455
+#: includes/admin/settings.php:464
 msgid "Number of days from publication for end date."
 msgstr "Aantal dagen vanaf publicatie voor einddatum."
 
-#: includes/admin/settings.php:469
+#: includes/admin/settings.php:478
 msgid "Active"
 msgstr "Actief"
 
-#: includes/admin/settings.php:474
+#: includes/admin/settings.php:483
 msgid "Days"
 msgstr "Dagen"
 
-#: includes/admin/settings.php:492
+#: includes/admin/settings.php:501
 msgid "Which days the story may be broadcast."
 msgstr "Op welke dagen het verhaal uitgezonden mag worden."
 
-#: includes/admin/settings.php:606
+#: includes/admin/settings.php:615
 msgid "Knabbel Story Debug Overview"
 msgstr "Knabbel verhaal debug-overzicht"
 
-#: includes/admin/settings.php:620
+#: includes/admin/settings.php:629
 msgid "Show"
 msgstr "Tonen"
 
-#: includes/admin/settings.php:626
+#: includes/admin/settings.php:635
 msgid "Article"
 msgstr "Artikel"
 
-#: includes/admin/settings.php:644
+#: includes/admin/settings.php:653
 msgid "Last status change"
 msgstr "Laatste statuswijziging"
 
-#: includes/admin/settings.php:651
-#: includes/admin/settings.php:666
+#: includes/admin/settings.php:660
+#: includes/admin/settings.php:675
 msgid "Babbel ID"
 msgstr "Babbel ID"
 
-#: includes/admin/settings.php:662
-#: zw-knabbel-wp.php:548
+#: includes/admin/settings.php:671
+#: zw-knabbel-wp.php:563
 msgid "Story is being processed..."
 msgstr "Verhaal wordt verwerkt..."
 
-#: includes/admin/settings.php:679
+#: includes/admin/settings.php:688
 msgid "Retry"
 msgstr "Opnieuw verzenden"
 
-#: includes/admin/settings.php:684
+#: includes/admin/settings.php:693
 msgid "Refresh"
 msgstr "Vernieuwen"
 
@@ -357,7 +332,7 @@ msgstr "Kon verhaalgegevens niet coderen"
 #: includes/babbel-api.php:222
 #: includes/babbel-api.php:442
 #: includes/babbel-api.php:517
-#: includes/babbel-api.php:613
+#: includes/babbel-api.php:616
 msgid "API connection failed: "
 msgstr "API-verbinding mislukt: "
 
@@ -365,12 +340,13 @@ msgstr "API-verbinding mislukt: "
 #: includes/babbel-api.php:244
 #: includes/babbel-api.php:464
 #: includes/babbel-api.php:540
-#: includes/babbel-api.php:635
+#: includes/babbel-api.php:638
 #, php-format
 msgid "API error: HTTP %1$d - %2$s"
 msgstr "API-fout: HTTP %1$d - %2$s"
 
 #: includes/babbel-api.php:263
+#: includes/babbel-api.php:731
 msgid "Invalid API response"
 msgstr "Ongeldige API-respons"
 
@@ -383,7 +359,7 @@ msgid "No story ID received from API"
 msgstr "Geen verhaal-ID ontvangen van API"
 
 #: includes/babbel-api.php:316
-#: zw-knabbel-wp.php:613
+#: zw-knabbel-wp.php:618
 msgid "Story created successfully"
 msgstr "Verhaal succesvol aangemaakt"
 
@@ -424,31 +400,78 @@ msgstr "Verhaal succesvol bijgewerkt"
 msgid "Story deleted successfully"
 msgstr "Verhaal succesvol verwijderd"
 
-#: includes/babbel-api.php:581
-#: includes/babbel-api.php:587
+#: includes/babbel-api.php:584
+#: includes/babbel-api.php:590
 msgid "Could not encode restore data"
 msgstr "Kon herstelgegevens niet coderen"
 
-#: includes/babbel-api.php:651
+#: includes/babbel-api.php:654
 msgid "Story restored successfully"
 msgstr "Verhaal succesvol hersteld"
 
-#: zw-knabbel-wp.php:473
+#: includes/babbel-api.php:672
+msgid "Babbel API base URL not configured"
+msgstr "Babbel API basis-URL niet geconfigureerd"
+
+#. translators: %d is the HTTP status code.
+#: includes/babbel-api.php:718
+#, php-format
+msgid "API error: HTTP %d"
+msgstr "API-fout: HTTP %d"
+
+#: includes/post-hooks.php:328
+msgid "Story updated (post published)"
+msgstr "Verhaal bijgewerkt (bericht gepubliceerd)"
+
+#: includes/post-hooks.php:390
+#: includes/post-hooks.php:435
+msgid "Story updated in Babbel"
+msgstr "Verhaal bijgewerkt in Babbel"
+
+#: includes/post-hooks.php:472
+msgid "Story deleted (post unscheduled)"
+msgstr "Verhaal verwijderd (bericht niet meer ingepland)"
+
+#: includes/post-hooks.php:520
+msgid "Story deleted (post trashed)"
+msgstr "Verhaal verwijderd (bericht in prullenbak)"
+
+#: includes/post-hooks.php:597
+msgid "Story restored in Babbel"
+msgstr "Verhaal hersteld in Babbel"
+
+#: includes/post-hooks.php:616
+msgid "Story restored, but title sync failed"
+msgstr "Verhaal hersteld, maar kop niet bijgewerkt"
+
+#: includes/post-hooks.php:640
+msgid "Processing already scheduled"
+msgstr "Verwerking al ingepland"
+
+#: includes/post-hooks.php:659
+msgid "Processing scheduled"
+msgstr "Verwerking ingepland"
+
+#: includes/post-hooks.php:667
+msgid "Could not schedule action"
+msgstr "Kon actie niet inplannen"
+
+#: zw-knabbel-wp.php:488
 msgid "Insufficient permissions"
 msgstr "Onvoldoende rechten"
 
-#: zw-knabbel-wp.php:512
+#: zw-knabbel-wp.php:527
 msgid "Already sent — skipping"
 msgstr "Al verzonden — wordt overgeslagen"
 
-#: zw-knabbel-wp.php:524
+#: zw-knabbel-wp.php:539
 msgid "Post not found"
 msgstr "Bericht niet gevonden"
 
-#: zw-knabbel-wp.php:537
+#: zw-knabbel-wp.php:552
 msgid "Send to Babbel is disabled for this post"
 msgstr "Verzenden naar Babbel is uitgeschakeld voor dit bericht"
 
-#: zw-knabbel-wp.php:574
+#: zw-knabbel-wp.php:579
 msgid "Could not generate speech text"
 msgstr "Kon spreektekst niet genereren"
