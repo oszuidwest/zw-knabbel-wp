@@ -58,10 +58,16 @@ function openai_generate_content( string $content, string $type = 'title' ): ?st
 			'role'    => 'system',
 			'content' => $prompt,
 		),
-		array(
-			'role'    => 'user',
-			'content' => $content,
-		),
+	);
+
+	// Add few-shot examples for speech generation only.
+	if ( 'speech' === $type ) {
+		$messages = openai_add_few_shot_examples( $messages );
+	}
+
+	$messages[] = array(
+		'role'    => 'user',
+		'content' => "Artikel:\n\"\"\"\n" . $content . "\n\"\"\"",
 	);
 
 	return openai_make_request_with_retry( $messages );
@@ -242,4 +248,45 @@ function openai_make_request_single( array $messages ): ?string {
 		);
 		return null;
 	}
+}
+
+/**
+ * Add few-shot examples to the messages array for speech generation.
+ *
+ * Loads cached editor-corrected examples and adds them as system messages
+ * with name fields to distinguish them from the actual conversation.
+ *
+ * @since 0.3.0
+ * @param array<int, array{role: string, content: string}> $messages Existing messages array (should contain system prompt).
+ * @return array<int, array{role: string, content: string, name?: string}> Messages with few-shot examples appended.
+ *
+ * @phpstan-param array<int, ChatMessage> $messages
+ * @phpstan-return array<int, ChatMessage>
+ */
+function openai_add_few_shot_examples( array $messages ): array {
+	$examples = get_option( 'knabbel_few_shot_examples', array() );
+
+	if ( empty( $examples ) || ! is_array( $examples ) ) {
+		return $messages;
+	}
+
+	foreach ( $examples as $example ) {
+		if ( empty( $example['input'] ) || empty( $example['output'] ) ) {
+			continue;
+		}
+
+		$messages[] = array(
+			'role'    => 'system',
+			'name'    => 'example_user',
+			'content' => "Artikel:\n\"\"\"\n" . $example['input'] . "\n\"\"\"",
+		);
+
+		$messages[] = array(
+			'role'    => 'system',
+			'name'    => 'example_assistant',
+			'content' => $example['output'],
+		);
+	}
+
+	return $messages;
 }

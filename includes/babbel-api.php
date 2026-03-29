@@ -653,6 +653,103 @@ function babbel_restore_story( string $story_id ): array {
 }
 
 /**
+ * Fetch recent stories from the Babbel API for few-shot prompt examples.
+ *
+ * Retrieves active and expired stories sorted by last update (most recently
+ * edited first), which are most likely to have been reviewed by editors.
+ *
+ * @since 0.3.0
+ * @param int $limit Maximum number of stories to fetch (default 20).
+ * @return array<int, array<string, mixed>>|\WP_Error Array of story objects or WP_Error on failure.
+ */
+function babbel_fetch_recent_stories( int $limit = 20 ): array|\WP_Error {
+	$credentials = babbel_get_credentials();
+
+	if ( empty( $credentials['base_url'] ) ) {
+		return new \WP_Error( 'missing_config', __( 'Babbel API base URL not configured', 'zw-knabbel-wp' ) );
+	}
+
+	$endpoint = add_query_arg(
+		array(
+			'sort'   => '-updated_at',
+			'limit'  => $limit,
+			'fields' => 'id,title,text,metadata,updated_at,created_at',
+		),
+		$credentials['base_url'] . '/stories'
+	);
+
+	$response = babbel_make_authenticated_request(
+		$endpoint,
+		array(
+			'method'  => 'GET',
+			'timeout' => 30,
+		)
+	);
+
+	if ( is_wp_error( $response ) ) {
+		log(
+			'error',
+			'BabbelApi',
+			'Failed to fetch recent stories',
+			array( 'error' => $response->get_error_message() )
+		);
+		return $response;
+	}
+
+	$response_code = wp_remote_retrieve_response_code( $response );
+	$body          = wp_remote_retrieve_body( $response );
+
+	if ( 200 !== $response_code ) {
+		log(
+			'error',
+			'BabbelApi',
+			'Babbel API stories fetch HTTP error',
+			array(
+				'response_code' => $response_code,
+				'response_body' => substr( $body, 0, 500 ),
+			)
+		);
+		return new \WP_Error(
+			'api_error',
+			// translators: %d is the HTTP status code.
+			sprintf( __( 'API error: HTTP %d', 'zw-knabbel-wp' ), $response_code )
+		);
+	}
+
+	try {
+		$decoded = json_decode( $body, true, 512, JSON_THROW_ON_ERROR );
+	} catch ( \JsonException $e ) {
+		log(
+			'error',
+			'BabbelApi',
+			'Invalid JSON response when fetching stories',
+			array( 'json_error' => $e->getMessage() )
+		);
+		return new \WP_Error( 'json_error', __( 'Invalid API response', 'zw-knabbel-wp' ) );
+	}
+
+	$stories = $decoded['data'] ?? array();
+
+	// Filter to only active and expired stories (editor-reviewed).
+	$stories = array_filter(
+		$stories,
+		static function ( array $story ): bool {
+			$status = $story['status'] ?? '';
+			return 'active' === $status || 'expired' === $status;
+		}
+	);
+
+	log(
+		'info',
+		'BabbelApi',
+		'Fetched recent stories for few-shot examples',
+		array( 'count' => count( $stories ) )
+	);
+
+	return array_values( $stories );
+}
+
+/**
  * Clean up session data and debug information.
  *
  * @since 0.1.0

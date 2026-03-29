@@ -3,7 +3,7 @@
  * Plugin Name: ZuidWest Knabbel
  * Plugin URI: https://github.com/oszuidwest/zw-knabbel-wp
  * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Ondersteunt OpenAI GPT-modellen voor AI-gegenereerde content.
- * Version: 0.2.10
+ * Version: 0.3.0
  * Requires at least: 6.8
  * Requires PHP: 8.3
  * Author: Streekomroep ZuidWest
@@ -42,6 +42,7 @@ require_once KNABBEL_PLUGIN_DIR . 'includes/story-status.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/weekdays.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/babbel-api.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/openai-handler.php';
+require_once KNABBEL_PLUGIN_DIR . 'includes/few-shot-cache.php';
 
 /**
  * Initialize plugin hooks and actions.
@@ -210,6 +211,9 @@ function init(): void {
 	// Register cron hook for async story processing (always, not just admin).
 	add_action( 'knabbel_process_story', __NAMESPACE__ . '\\process_story_async', 10, 1 );
 
+	// Register few-shot example sync hook.
+	few_shot_register_hook();
+
 	// Register global post hooks for REST API, CLI, and cron support.
 	// This file contains only sync logic, no admin UI code.
 	require_once KNABBEL_PLUGIN_DIR . 'includes/post-hooks.php';
@@ -267,6 +271,8 @@ function activate(): void {
 			'weekday_thursday'  => true,
 			'weekday_friday'    => true,
 			'weekday_saturday'  => true,
+			// Few-shot examples.
+			'few_shot_count'    => 5,
 		);
 
 		// Explicitly set autoload to true since these settings are needed on every admin page load.
@@ -278,6 +284,9 @@ function activate(): void {
 
 		// Run data migrations.
 		migrate_status_changed_at();
+
+		// Schedule nightly few-shot example sync.
+		few_shot_schedule_sync();
 }
 
 /**
@@ -292,6 +301,9 @@ function deactivate(): void {
 
 	// Clear Action Scheduler jobs.
 	\as_unschedule_all_actions( 'knabbel_process_story', array(), 'zw-knabbel-wp' );
+
+	// Clear few-shot sync schedule and cached data.
+	few_shot_unschedule_sync();
 }
 
 /**
