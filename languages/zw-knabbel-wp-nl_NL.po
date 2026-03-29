@@ -459,4 +459,4 @@ msgstr "Kon spreektekst niet genereren"
 
 #: includes/post-hooks.php
 msgid "Story restored, but title sync failed"
-msgstr "Verhaal hersteld, maar titelsynchronisatie mislukt"
+msgstr "Verhaal hersteld, maar kop niet bijgewerkt"
