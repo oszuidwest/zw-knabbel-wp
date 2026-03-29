@@ -67,7 +67,7 @@ function openai_generate_content( string $content, string $type = 'title' ): ?st
 
 	$messages[] = array(
 		'role'    => 'user',
-		'content' => $content,
+		'content' => "Artikel:\n\"\"\"\n" . $content . "\n\"\"\"",
 	);
 
 	return openai_make_request_with_retry( $messages );
@@ -278,7 +278,7 @@ function openai_add_few_shot_examples( array $messages ): array {
 		$messages[] = array(
 			'role'    => 'system',
 			'name'    => 'example_user',
-			'content' => $example['input'],
+			'content' => "Artikel:\n\"\"\"\n" . $example['input'] . "\n\"\"\"",
 		);
 
 		$messages[] = array(
