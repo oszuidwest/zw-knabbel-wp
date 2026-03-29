@@ -195,12 +195,20 @@ msgstr ""
 msgid "Your OpenAI API key. Available at %s"
 msgstr ""
 
-#: includes/admin/settings.php:340
+#: includes/admin/settings.php:345
 msgid "OpenAI Model"
 msgstr ""
 
-#: includes/admin/settings.php:348
+#: includes/admin/settings.php:353
 msgid "The OpenAI model for text generation (e.g., gpt-4.1-mini, gpt-4o-mini, gpt-4o)."
+msgstr ""
+
+#: includes/admin/settings.php:359
+msgid "Few-shot Examples"
+msgstr ""
+
+#: includes/admin/settings.php:370
+msgid "Number of editor-corrected examples to include in the speech prompt (0 to disable, max 20). Synced nightly from Babbel."
 msgstr ""
 
 #: includes/admin/settings.php:367
@@ -357,7 +365,12 @@ msgid "API error: HTTP %1$d - %2$s"
 msgstr ""
 
 #: includes/babbel-api.php:263
+#: includes/babbel-api.php:728
 msgid "Invalid API response"
+msgstr ""
+
+#: includes/babbel-api.php:669
+msgid "Babbel API base URL not configured"
 msgstr ""
 
 #: includes/babbel-api.php:281
