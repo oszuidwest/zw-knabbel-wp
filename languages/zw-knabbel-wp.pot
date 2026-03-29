@@ -373,6 +373,12 @@ msgstr ""
 msgid "Babbel API base URL not configured"
 msgstr ""
 
+#. translators: %d is the HTTP status code.
+#: includes/babbel-api.php:715
+#, php-format
+msgid "API error: HTTP %d"
+msgstr ""
+
 #: includes/babbel-api.php:281
 msgid "API error"
 msgstr ""
