@@ -566,8 +566,8 @@ function process_story_async( int|array $post_id_or_args ): void {
 
 	$content = wp_strip_all_tags( $post->post_content );
 
-	// Use the post title directly.
-	$title = get_the_title( $post_id );
+	// Use the raw post title directly (not get_the_title() which applies filters and prefixes).
+	$title = $post->post_title;
 
 	// Generate speech text.
 	$speech_text = openai_generate_content( $content );

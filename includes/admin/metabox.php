@@ -279,24 +279,9 @@ function metabox_save( int $post_id ): void {
 
 		// Restore soft-deleted story instead of creating new.
 		if ( $story_id && StoryStatus::Deleted->value === $status ) {
-			$result = babbel_restore_story( $story_id );
-			if ( $result['success'] ) {
-				update_story_state(
-					$post_id,
-					array(
-						'status'  => StoryStatus::Sent->value,
-						'message' => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
-					)
-				);
-			} else {
-				update_story_state(
-					$post_id,
-					array(
-						'status'  => StoryStatus::Error->value,
-						'message' => $result['message'],
-					)
-				);
-			}
+			$post  = get_post( $post_id );
+			$title = $post ? $post->post_title : '';
+			restore_and_sync_story( $post_id, $story_id, $title );
 			return;
 		}
 

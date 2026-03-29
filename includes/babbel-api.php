@@ -560,6 +560,9 @@ function babbel_delete_story( string $story_id ): array {
 /**
  * Restore a soft-deleted story in the Babbel API.
  *
+ * The PATCH endpoint only accepts 'status' and 'deleted_at' fields.
+ * To update the title after restore, use babbel_update_story() separately.
+ *
  * @since 0.2.0
  * @param string $story_id The Babbel story ID.
  * @return array{success: bool, message: string} Response with success status and message.
