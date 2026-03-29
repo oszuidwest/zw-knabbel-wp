@@ -108,8 +108,7 @@ jobs:
             --exclude '.gitignore' \
             --exclude '.claude' \
             --exclude 'CLAUDE.md' \
-            --exclude 'AGENTS.md' \
-            --exclude 'UPGRADE.md'
+            --exclude 'AGENTS.md'
 
       - name: Create Zip Package
         run: |
@@ -125,21 +124,3 @@ jobs:
             "${{ env.PLUGIN_NAME }}-${{ env.VERSION }}.zip" \
             --title "${{ env.VERSION }}" \
             --generate-notes
-
-      - name: Append upgrade notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          UPGRADE_NOTES=""
-          if [ -f "UPGRADE.md" ]; then
-            UPGRADE_NOTES=$(cat UPGRADE.md)
-          fi
-          if [ -n "$UPGRADE_NOTES" ]; then
-            CURRENT=$(gh release view ${{ env.VERSION }} --json body -q .body)
-            gh release edit ${{ env.VERSION }} \
-              --notes "${CURRENT}
-
-          ---
-
-          ${UPGRADE_NOTES}"
-          fi
