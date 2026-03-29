@@ -671,9 +671,9 @@ function babbel_fetch_recent_stories( int $limit = 20 ): array|\WP_Error {
 
 	$endpoint = add_query_arg(
 		array(
-			'sort'   => '-updated_at',
-			'limit'  => $limit,
-			'fields' => 'id,title,text,metadata,updated_at,created_at',
+			'sort'               => '-updated_at',
+			'limit'              => $limit,
+			'filter[status][ne]' => 'draft',
 		),
 		$credentials['base_url'] . '/stories'
 	);
@@ -729,15 +729,6 @@ function babbel_fetch_recent_stories( int $limit = 20 ): array|\WP_Error {
 	}
 
 	$stories = $decoded['data'] ?? array();
-
-	// Filter to only active and expired stories (editor-reviewed).
-	$stories = array_filter(
-		$stories,
-		static function ( array $story ): bool {
-			$status = $story['status'] ?? '';
-			return 'active' === $status || 'expired' === $status;
-		}
-	);
 
 	log(
 		'info',

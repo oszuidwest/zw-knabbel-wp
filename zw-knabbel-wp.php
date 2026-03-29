@@ -211,8 +211,10 @@ function init(): void {
 	// Register cron hook for async story processing (always, not just admin).
 	add_action( 'knabbel_process_story', __NAMESPACE__ . '\\process_story_async', 10, 1 );
 
-	// Register few-shot example sync hook.
+	// Register few-shot example sync hook and ensure it is scheduled.
+	// Schedule check runs on every init because activation hooks do not fire on plugin updates.
 	few_shot_register_hook();
+	few_shot_schedule_sync();
 
 	// Register global post hooks for REST API, CLI, and cron support.
 	// This file contains only sync logic, no admin UI code.
