@@ -123,4 +123,4 @@ jobs:
           gh release create ${{ env.VERSION }} \
             "${{ env.PLUGIN_NAME }}-${{ env.VERSION }}.zip" \
             --title "${{ env.VERSION }}" \
-            --notes "Automated release for version ${{ env.VERSION }}"
+            --generate-notes
