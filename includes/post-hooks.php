@@ -532,10 +532,10 @@ function restore_and_sync_story( int $post_id, string $story_id, string $title )
  *
  * @since 0.4.0
  *
- * @param int    $post_id         Post ID.
- * @param string $story_id        Babbel story ID.
- * @param array  $update_data     Data to send to babbel_update_story().
- * @param string $success_message Translated message for the story state on success.
+ * @param int                  $post_id         Post ID.
+ * @param string               $story_id        Babbel story ID.
+ * @param array<string, mixed> $update_data Data to send to babbel_update_story().
+ * @param string               $success_message Translated message for the story state on success.
  */
 function push_story_update( int $post_id, string $story_id, array $update_data, string $success_message ): void {
 	$result = babbel_update_story( $story_id, $update_data );
@@ -571,7 +571,7 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
  * @param \WP_Post      $post              Current post object.
  * @param \WP_Post|null $post_before       Post object before the update.
  * @param bool          $compare_date_only Whether to compare only the Y-m-d portion of the date.
- * @return array|null Update data array for babbel_update_story(), or null if nothing changed.
+ * @return array<string, mixed>|null Update data array for babbel_update_story(), or null if nothing changed.
  */
 function build_story_update_from_changes( \WP_Post $post, ?\WP_Post $post_before, bool $compare_date_only = false ): ?array {
 	$old_title     = null !== $post_before ? $post_before->post_title : null;
