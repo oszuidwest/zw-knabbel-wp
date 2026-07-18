@@ -13,7 +13,7 @@ WordPress plugin that automatically sends posts to the [Babbel API](https://gith
 
 ## Requirements
 
-- WordPress 6.8+
+- WordPress 7.0+
 - PHP 8.3 or 8.4
 - [Advanced Custom Fields](https://www.advancedcustomfields.com/) (ACF)
 - OpenAI API access
