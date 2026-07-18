@@ -16,7 +16,7 @@
   },
   "require": {
     "php": ">=8.3",
-    "woocommerce/action-scheduler": "^3.7"
+    "woocommerce/action-scheduler": "^4.0"
   },
   "require-dev": {
     "dealerdirect/phpcodesniffer-composer-installer": "^1.2",
