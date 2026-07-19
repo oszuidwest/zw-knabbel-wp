@@ -75,6 +75,21 @@ function debug_enabled(): bool {
  * @phpstan-param LogContext $context
  */
 function prepare_log_context_for_storage( array $context ): array {
+	return array_merge(
+		prepare_log_text_context( $context ),
+		prepare_log_scalar_context( $context ),
+		prepare_log_list_context( $context )
+	);
+}
+
+/**
+ * Sanitize textual diagnostic context.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed> $context Raw log context.
+ * @return array<string, string>
+ */
+function prepare_log_text_context( array $context ): array {
 	$safe_context = array();
 	$text_fields  = array(
 		'endpoint'   => 500,
@@ -97,6 +112,19 @@ function prepare_log_context_for_storage( array $context ): array {
 		$safe_context[ $key ] = wp_html_excerpt( $value, $max_length, '' );
 	}
 
+	return $safe_context;
+}
+
+/**
+ * Sanitize scalar diagnostic context.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed> $context Raw log context.
+ * @return array<string, int|bool>
+ */
+function prepare_log_scalar_context( array $context ): array {
+	$safe_context = array();
+
 	foreach ( array( 'post_id', 'response_code', 'messages_count' ) as $key ) {
 		if ( isset( $context[ $key ] ) && is_numeric( $context[ $key ] ) ) {
 			$safe_context[ $key ] = (int) $context[ $key ];
@@ -106,6 +134,19 @@ function prepare_log_context_for_storage( array $context ): array {
 	if ( isset( $context['has_choices'] ) ) {
 		$safe_context['has_choices'] = (bool) $context['has_choices'];
 	}
+
+	return $safe_context;
+}
+
+/**
+ * Sanitize list-valued diagnostic context.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed> $context Raw log context.
+ * @return array<string, list<string>>
+ */
+function prepare_log_list_context( array $context ): array {
+	$safe_context = array();
 
 	foreach ( array( 'fields', 'response_keys' ) as $key ) {
 		if ( ! isset( $context[ $key ] ) || ! is_array( $context[ $key ] ) ) {
@@ -155,6 +196,99 @@ function prepare_recent_error_for_storage( array $entry ): ?array {
 }
 
 /**
+ * Normalize a stored error history.
+ *
+ * @since 0.4.0
+ * @param mixed $stored_errors Stored option value.
+ * @return list<array<string, mixed>>
+ *
+ * @phpstan-return list<RecentError>
+ */
+function prepare_error_history( mixed $stored_errors ): array {
+	$errors = array();
+	if ( ! is_array( $stored_errors ) ) {
+		return $errors;
+	}
+
+	foreach ( $stored_errors as $stored_error ) {
+		if ( ! is_array( $stored_error ) ) {
+			continue;
+		}
+
+		$prepared_error = prepare_recent_error_for_storage( $stored_error );
+		if ( null !== $prepared_error ) {
+			$errors[] = $prepared_error;
+		}
+	}
+
+	return $errors;
+}
+
+/**
+ * Append an error to the shared history without losing concurrent writes.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed> $new_error Prepared error entry.
+ *
+ * @phpstan-param RecentError $new_error
+ */
+function append_recent_error( array $new_error ): void {
+	global $wpdb;
+
+	$option_name  = 'knabbel_recent_errors';
+	$max_attempts = 10;
+
+	for ( $attempt = 0; $attempt < $max_attempts; ++$attempt ) {
+		// A direct read is required so the serialized value can be used as the
+		// compare-and-swap token in the conditional update below.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$stored_value = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+				$option_name
+			)
+		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+		if ( null === $stored_value ) {
+			if ( add_option( $option_name, array( $new_error ), '', false ) ) {
+				return;
+			}
+		} else {
+			$recent_errors   = prepare_error_history( maybe_unserialize( $stored_value ) );
+			$recent_errors[] = $new_error;
+			$recent_errors   = array_slice( $recent_errors, -10 );
+			$new_value       = maybe_serialize( $recent_errors );
+
+			if ( $new_value === $stored_value ) {
+				return;
+			}
+
+			// Only update the row if no other request changed it after our read.
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$updated = $wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$wpdb->options} SET option_value = %s, autoload = 'off' WHERE option_name = %s AND option_value = %s",
+					$new_value,
+					$option_name,
+					$stored_value
+				)
+			);
+			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+			if ( 1 === $updated ) {
+				wp_cache_delete( $option_name, 'options' );
+				wp_cache_delete( 'alloptions', 'options' );
+				wp_cache_delete( 'notoptions', 'options' );
+				return;
+			}
+		}
+
+		usleep( ( $attempt + 1 ) * 1000 );
+	}
+}
+
+/**
  * Centralized WordPress native logging with structured data.
  * Replaces duplicate log_message() methods in BabbelApi and OpenAiHandler classes.
  *
@@ -169,22 +303,6 @@ function prepare_recent_error_for_storage( array $entry ): ?array {
 function log( string $level, string $component, string $message, array $context = array() ): void {
 	// Store critical errors for admin display regardless of debug logging.
 	if ( 'error' === $level ) {
-		$stored_errors = get_option( 'knabbel_recent_errors', array() );
-		$recent_errors = array();
-
-		if ( is_array( $stored_errors ) ) {
-			foreach ( $stored_errors as $stored_error ) {
-				if ( ! is_array( $stored_error ) ) {
-					continue;
-				}
-
-				$prepared_error = prepare_recent_error_for_storage( $stored_error );
-				if ( null !== $prepared_error ) {
-					$recent_errors[] = $prepared_error;
-				}
-			}
-		}
-
 		$new_error = prepare_recent_error_for_storage(
 			array(
 				'timestamp' => current_time( 'mysql' ),
@@ -194,12 +312,8 @@ function log( string $level, string $component, string $message, array $context 
 			)
 		);
 		if ( null !== $new_error ) {
-			$recent_errors[] = $new_error;
+			append_recent_error( $new_error );
 		}
-
-		// Keep only last 10 errors.
-		$recent_errors = array_slice( $recent_errors, -10 );
-		update_option( 'knabbel_recent_errors', $recent_errors, false );
 	}
 
 	// Only write to the PHP error log when WordPress debug logging is enabled.
