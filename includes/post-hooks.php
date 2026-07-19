@@ -207,7 +207,7 @@ function handle_checkbox_change( int $post_id, bool $was_enabled, bool $is_enabl
 
 		// Delete from Babbel if story was sent.
 		if ( $story_id && StoryStatus::Sent->value === $status ) {
-			push_story_delete( $post_id, $story_id, __( 'Story deleted from Babbel', 'zw-knabbel-wp' ) );
+			push_story_delete( $post_id, $story_id, __( 'Story deleted from Babbel', 'zw-knabbel-wp' ), 'checkbox_disabled' );
 		} elseif ( in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
 			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
 		}
@@ -351,7 +351,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 
 		// Delete story if it exists (sent or error state with story_id means it exists in Babbel).
 		if ( $story_id && in_array( $status, array( StoryStatus::Sent->value, StoryStatus::Error->value ), true ) ) {
-			push_story_delete( $post_id, $story_id, __( 'Story deleted (post unscheduled)', 'zw-knabbel-wp' ) );
+			push_story_delete( $post_id, $story_id, __( 'Story deleted (post unscheduled)', 'zw-knabbel-wp' ), 'post_unscheduled' );
 		} elseif ( in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
 			// Clear pending state if job was cancelled.
 			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
@@ -382,7 +382,7 @@ function handle_trash_post( int $post_id ): void {
 	$story_id = (string) ( $state['story_id'] ?? '' );
 
 	if ( $story_id && StoryStatus::Sent->value === $status ) {
-		push_story_delete( $post_id, $story_id, __( 'Story deleted (post trashed)', 'zw-knabbel-wp' ) );
+		push_story_delete( $post_id, $story_id, __( 'Story deleted (post trashed)', 'zw-knabbel-wp' ), 'post_trashed' );
 	} elseif ( in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
 		// Clear pending state if job was cancelled.
 		delete_post_meta( $post_id, '_zw_knabbel_story_state' );
@@ -526,8 +526,9 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
  * @param int    $post_id         Post ID.
  * @param string $story_id        Babbel story ID.
  * @param string $success_message Translated message for the story state on success.
+ * @param string $log_context     Machine-readable context for failure logs.
  */
-function push_story_delete( int $post_id, string $story_id, string $success_message ): void {
+function push_story_delete( int $post_id, string $story_id, string $success_message, string $log_context ): void {
 	$result = babbel_delete_story( $story_id );
 	if ( $result['success'] ) {
 		update_story_state(
@@ -539,6 +540,18 @@ function push_story_delete( int $post_id, string $story_id, string $success_mess
 		);
 		return;
 	}
+
+	log(
+		'error',
+		'PostHooks',
+		'Failed to delete story in Babbel',
+		array(
+			'post_id'  => $post_id,
+			'story_id' => $story_id,
+			'context'  => $log_context,
+			'error'    => $result['message'],
+		)
+	);
 
 	update_story_state(
 		$post_id,
