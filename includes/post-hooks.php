@@ -546,6 +546,8 @@ function restore_and_sync_story( int $post_id, string $story_id, string $title )
  * @param array<string, mixed> $update_data     Data to send to babbel_update_story().
  * @param string               $success_message Translated message for the story state on success.
  * @param string               $log_context     Untranslated code-path label for the failure log.
+ *
+ * @phpstan-param StoryUpdateData $update_data
  */
 function push_story_update( int $post_id, string $story_id, array $update_data, string $success_message, string $log_context ): void {
 	$result = babbel_update_story( $story_id, $update_data );
@@ -589,6 +591,8 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
  * @return array<string, mixed>|null Update data for babbel_update_story(), or null if nothing
  *                                   changed. Always includes 'title'; start/end dates and
  *                                   weekdays only when the date changed.
+ *
+ * @phpstan-return StoryUpdateData|null
  */
 function build_story_update_from_changes( \WP_Post $post, \WP_Post $post_before, bool $compare_date_only ): ?array {
 	$title_changed = $post_before->post_title !== $post->post_title;
