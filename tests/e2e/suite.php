@@ -9,6 +9,10 @@ declare(strict_types=1);
 
 use KnabbelWP\StoryStatus;
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 	throw new RuntimeException( 'Run this suite through WP-CLI.' );
 }
