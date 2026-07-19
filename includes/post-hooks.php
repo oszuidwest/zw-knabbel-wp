@@ -310,16 +310,10 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 	// Must come BEFORE the generic publish handler below, which would otherwise short-circuit.
 	if ( 'publish' === $new_status && 'future' === $old_status ) {
 		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
-			$dates = calculate_story_dates( 'now' );
 			push_story_update(
 				$post_id,
 				$story_id,
-				array(
-					'title'      => $post->post_title,
-					'start_date' => $dates['start_date'],
-					'end_date'   => $dates['end_date'],
-					'weekdays'   => $dates['weekdays'],
-				),
+				build_full_story_update( $post->post_title, 'now' ),
 				__( 'Story updated (post published)', 'zw-knabbel-wp' ),
 				'future_to_publish'
 			);
@@ -349,7 +343,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 	// Handle date/title changes for existing stories - same-status saves from any context (editor update, Quick Edit, REST API, CLI).
 	if ( $new_status === $old_status && in_array( $new_status, array( 'future', 'publish' ), true ) ) {
 		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status && null !== $post_before ) {
-			$update_data = build_story_update_from_changes( $post, $post_before, 'publish' === $new_status );
+			$update_data = build_story_update_from_changes( $post, $post_before );
 			if ( $update_data ) {
 				push_story_update(
 					$post_id,
@@ -578,45 +572,54 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 /**
  * Detects date/title changes between post versions and builds update data.
  *
- * With $compare_date_only, only the calendar day (Y-m-d) is compared so that
- * time-only edits do not push an update (used for published posts). The
- * full-datetime comparison (scheduled posts) does push on a time-only edit,
- * which also resends dates derived from the current plugin settings.
+ * Only the calendar day (Y-m-d) of the post date is compared: story dates are
+ * day-granular, so a time-only edit can never change the Babbel payload.
  *
  * @since 0.4.0
  *
- * @param \WP_Post $post              Current post object.
- * @param \WP_Post $post_before       Post object before the update.
- * @param bool     $compare_date_only Whether to ignore time-of-day changes and compare only the calendar day.
+ * @param \WP_Post $post        Current post object.
+ * @param \WP_Post $post_before Post object before the update.
  * @return array<string, mixed>|null Update data for babbel_update_story(), or null if nothing
  *                                   changed. Always includes 'title'; start/end dates and
  *                                   weekdays only when the date changed.
  *
  * @phpstan-return StoryUpdateData|null
  */
-function build_story_update_from_changes( \WP_Post $post, \WP_Post $post_before, bool $compare_date_only ): ?array {
+function build_story_update_from_changes( \WP_Post $post, \WP_Post $post_before ): ?array {
 	$title_changed = $post_before->post_title !== $post->post_title;
-
-	if ( $compare_date_only ) {
-		$date_changed = substr( $post_before->post_date, 0, 10 ) !== substr( $post->post_date, 0, 10 );
-	} else {
-		$date_changed = $post_before->post_date !== $post->post_date;
-	}
+	$date_changed  = substr( $post_before->post_date, 0, 10 ) !== substr( $post->post_date, 0, 10 );
 
 	if ( ! $date_changed && ! $title_changed ) {
 		return null;
 	}
 
-	$update_data = array( 'title' => $post->post_title );
-
 	if ( $date_changed ) {
-		$dates                     = calculate_story_dates( $post->post_date );
-		$update_data['start_date'] = $dates['start_date'];
-		$update_data['end_date']   = $dates['end_date'];
-		$update_data['weekdays']   = $dates['weekdays'];
+		return build_full_story_update( $post->post_title, $post->post_date );
 	}
 
-	return $update_data;
+	return array( 'title' => $post->post_title );
+}
+
+/**
+ * Builds a full story update payload with dates derived from a base date.
+ *
+ * @since 0.4.0
+ *
+ * @param string $title     The post title.
+ * @param string $base_date Base date for calculate_story_dates() (e.g. 'now' or a post date).
+ * @return array<string, mixed> Update data for babbel_update_story().
+ *
+ * @phpstan-return StoryUpdateData
+ */
+function build_full_story_update( string $title, string $base_date ): array {
+	$dates = calculate_story_dates( $base_date );
+
+	return array(
+		'title'      => $title,
+		'start_date' => $dates['start_date'],
+		'end_date'   => $dates['end_date'],
+		'weekdays'   => $dates['weekdays'],
+	);
 }
 
 /**
