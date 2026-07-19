@@ -267,18 +267,10 @@ function render_recent_errors(): void {
 
 	$recent_errors = array();
 	foreach ( array_reverse( $stored_errors ) as $entry ) {
-		if ( ! is_array( $entry ) || ! isset( $entry['component'], $entry['message'] ) ) {
-			continue;
+		$normalized_entry = normalize_recent_error_entry( $entry );
+		if ( null !== $normalized_entry ) {
+			$recent_errors[] = $normalized_entry;
 		}
-		if ( ! is_scalar( $entry['component'] ) || ! is_scalar( $entry['message'] ) ) {
-			continue;
-		}
-
-		$recent_errors[] = array(
-			'timestamp' => isset( $entry['timestamp'] ) && is_scalar( $entry['timestamp'] ) ? (string) $entry['timestamp'] : '',
-			'component' => (string) $entry['component'],
-			'message'   => (string) $entry['message'],
-		);
 	}
 
 	if ( empty( $recent_errors ) ) {
@@ -335,6 +327,28 @@ function render_recent_errors(): void {
 		</div>
 	</div>
 	<?php
+}
+
+/**
+ * Normalizes a stored error entry into the safe render shape.
+ *
+ * @since 0.4.0
+ * @param mixed $entry Raw entry from the knabbel_recent_errors option.
+ * @return array{timestamp: string, component: string, message: string}|null Normalized entry, or null when invalid.
+ */
+function normalize_recent_error_entry( mixed $entry ): ?array {
+	if ( ! is_array( $entry ) || ! isset( $entry['component'], $entry['message'] ) ) {
+		return null;
+	}
+	if ( ! is_scalar( $entry['component'] ) || ! is_scalar( $entry['message'] ) ) {
+		return null;
+	}
+
+	return array(
+		'timestamp' => isset( $entry['timestamp'] ) && is_scalar( $entry['timestamp'] ) ? (string) $entry['timestamp'] : '',
+		'component' => (string) $entry['component'],
+		'message'   => (string) $entry['message'],
+	);
 }
 
 /**
