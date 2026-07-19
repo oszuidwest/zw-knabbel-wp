@@ -49,45 +49,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-wait_for_service() {
-	local service=$1
-	local container_id
-	local status
-
-	container_id=$("${compose[@]}" ps --quiet "$service")
-	if [[ -z "$container_id" ]]; then
-		echo "Service did not start: $service" >&2
-		return 1
-	fi
-
-	for _ in {1..90}; do
-		status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id")
-		if [[ "$status" == "healthy" ]]; then
-			return 0
-		fi
-		if [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]]; then
-			echo "Service $service entered state $status." >&2
-			return 1
-		fi
-		sleep 2
-	done
-
-	echo "Timed out waiting for service $service." >&2
-	return 1
-}
-
 wp() {
-	"${compose[@]}" run --rm --no-deps wordpress-cli wp "$@"
+	"${compose[@]}" run --rm wordpress-cli wp "$@"
 }
 
 rm -rf "$artifact_dir"
 
 echo "Starting isolated WordPress and Babbel services..."
-"${compose[@]}" up --detach --build wordpress-db babbel-db babbel wordpress
-wait_for_service wordpress-db
-wait_for_service babbel-db
-wait_for_service babbel
-wait_for_service wordpress
+"${compose[@]}" up --detach --build --wait --wait-timeout 240 babbel wordpress
 
 echo "Installing WordPress..."
 wp core install \

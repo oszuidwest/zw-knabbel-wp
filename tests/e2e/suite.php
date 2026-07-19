@@ -59,17 +59,17 @@ final class Knabbel_E2E_Suite {
 	 * Execute all scenarios in dependency order.
 	 */
 	public function run(): void {
-		$this->run_case( 'E2E-001', 'plugin activation, recurring queue and Babbel authentication', fn() => $this->test_bootstrap_and_authentication() );
-		$this->run_case( 'E2E-002', 'published post creates exactly one complete Babbel story', fn() => $this->test_published_story_creation() );
-		$this->run_case( 'E2E-003', 'edits synchronize and recover from an authentication failure', fn() => $this->test_update_and_error_recovery() );
-		$this->run_case( 'E2E-004', 'checkbox disable soft-deletes and re-enable restores', fn() => $this->test_checkbox_delete_and_restore() );
-		$this->run_case( 'E2E-005', 'scheduled post dates update when scheduled and published', fn() => $this->test_scheduled_story_lifecycle() );
-		$this->run_case( 'E2E-006', 'unscheduling cancels pending processing without creating a story', fn() => $this->test_pending_schedule_cancellation() );
-		$this->run_case( 'E2E-007', 'trash and untrash delete and restore the same story', fn() => $this->test_trash_and_restore() );
-		$this->run_case( 'E2E-008', 'OpenAI failure retries without creating a Babbel story', fn() => $this->test_openai_failure() );
-		$this->run_case( 'E2E-009', 'Babbel create failure is visible and preserves diagnostics safely', fn() => $this->test_babbel_create_failure() );
-		$this->run_case( 'E2E-010', 'few-shot queue learns editor changes and honors disable', fn() => $this->test_few_shot_sync() );
-		$this->run_case( 'E2E-011', 'deactivation clears sessions, caches and scheduled actions', fn() => $this->test_deactivation_cleanup() );
+		$this->run_case( 'E2E-001', 'plugin activation, recurring queue and Babbel authentication', $this->test_bootstrap_and_authentication( ... ) );
+		$this->run_case( 'E2E-002', 'published post creates exactly one complete Babbel story', $this->test_published_story_creation( ... ) );
+		$this->run_case( 'E2E-003', 'edits synchronize and recover from an authentication failure', $this->test_update_and_error_recovery( ... ) );
+		$this->run_case( 'E2E-004', 'checkbox disable soft-deletes and re-enable restores', $this->test_checkbox_delete_and_restore( ... ) );
+		$this->run_case( 'E2E-005', 'scheduled post dates update when scheduled and published', $this->test_scheduled_story_lifecycle( ... ) );
+		$this->run_case( 'E2E-006', 'unscheduling cancels pending processing without creating a story', $this->test_pending_schedule_cancellation( ... ) );
+		$this->run_case( 'E2E-007', 'trash and untrash delete and restore the same story', $this->test_trash_and_restore( ... ) );
+		$this->run_case( 'E2E-008', 'OpenAI failure retries without creating a Babbel story', $this->test_openai_failure( ... ) );
+		$this->run_case( 'E2E-009', 'Babbel create failure is visible and preserves diagnostics safely', $this->test_babbel_create_failure( ... ) );
+		$this->run_case( 'E2E-010', 'few-shot queue learns editor changes and honors disable', $this->test_few_shot_sync( ... ) );
+		$this->run_case( 'E2E-011', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '11 E2E scenarios passed with %d assertions.', $this->assertion_count ) );
 	}
@@ -149,7 +149,7 @@ final class Knabbel_E2E_Suite {
 		$this->assert_true( $result['success'], 'Valid Babbel credentials must connect.' );
 		$this->assert_string_contains( 'admin', $result['message'], 'Connection result must identify the authenticated user.' );
 
-		$cache_key = $this->plugin_session_cache_key();
+		$cache_key = KnabbelWP\babbel_get_session_cache_key();
 		$this->assert_not_empty( get_transient( $cache_key ), 'Successful login must cache session cookies.' );
 
 		$invalid_cookie = new WP_Http_Cookie(
@@ -174,17 +174,12 @@ final class Knabbel_E2E_Suite {
 		$title   = 'E2E gepubliceerd – één';
 		$content = 'Dit artikel bevat voldoende woorden om de volledige publicatieketen betrouwbaar te testen.';
 
-		$post_id = $this->create_draft( $title, $content );
-		update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', 1 );
+		$post_id = $this->create_enabled_draft( $title, $content );
 		$this->assert_same( 0, $this->story_action_count( $post_id ), 'Enabling a draft must not schedule processing.' );
 
 		$dates_before = KnabbelWP\calculate_story_dates( 'now' );
 		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
-		$this->assert_same(
-			StoryStatus::Scheduled->value,
-			KnabbelWP\get_story_state( $post_id )['status'] ?? null,
-			'Publishing must mark the story scheduled.'
-		);
+		$this->assert_story_status( $post_id, StoryStatus::Scheduled, 'Publishing must mark the story scheduled.' );
 		$this->assert_same( 1, $this->story_action_count( $post_id ), 'Publishing must enqueue one action.' );
 
 		$this->update_post( $post_id, array( 'post_title' => $title ) );
@@ -200,18 +195,7 @@ final class Knabbel_E2E_Suite {
 		$story = $this->get_babbel_story( (string) $state['story_id'] );
 		$this->assert_same( $title, $story['title'] ?? null, 'Babbel must receive the raw WordPress title.' );
 		$this->assert_same( self::GENERATED_TEXT, $story['text'] ?? null, 'Babbel must receive the generated speech text.' );
-		$this->assert_date_within_window(
-			$this->date_only( $story['start_date'] ?? '' ),
-			$dates_before['start_date'],
-			$dates_after['start_date'],
-			'Published story start date must be based on the processing date.'
-		);
-		$this->assert_date_within_window(
-			$this->date_only( $story['end_date'] ?? '' ),
-			$dates_before['end_date'],
-			$dates_after['end_date'],
-			'Published story end date must be based on the processing date.'
-		);
+		$this->assert_story_dates_in_window( $story, $dates_before, $dates_after, 'Published story dates must be based on the processing date.' );
 		$this->assert_same( 127, $story['weekdays'] ?? null, 'All configured weekdays must produce bitmask 127.' );
 		$this->assert_same( 'draft', $story['status'] ?? null, 'Babbel must receive the configured default status.' );
 		$this->assert_same( $post_id, (int) ( $story['metadata']['wordpress_id'] ?? 0 ), 'Babbel metadata must link to the WordPress post.' );
@@ -283,8 +267,7 @@ final class Knabbel_E2E_Suite {
 	 */
 	private function test_checkbox_delete_and_restore(): void {
 		update_post_meta( $this->published_post_id, '_zw_knabbel_send_to_babbel', 0 );
-		$state = KnabbelWP\get_story_state( $this->published_post_id );
-		$this->assert_same( StoryStatus::Deleted->value, $state['status'] ?? null, 'Disabling the checkbox must mark the story deleted.' );
+		$this->assert_story_status( $this->published_post_id, StoryStatus::Deleted, 'Disabling the checkbox must mark the story deleted.' );
 		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $this->published_story_id );
 
 		$this->update_post( $this->published_post_id, array( 'post_title' => 'E2E titel na verwijderen' ) );
@@ -300,19 +283,10 @@ final class Knabbel_E2E_Suite {
 	 * Verify scheduled date calculation, rescheduling and future-to-publish recalculation.
 	 */
 	private function test_scheduled_story_lifecycle(): void {
-		$post_id = $this->create_draft( 'E2E gepland', 'Een gepland artikel doorloopt dezelfde betrouwbare asynchrone integratieketen.' );
-		update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', 1 );
+		$post_id = $this->create_enabled_draft( 'E2E gepland', 'Een gepland artikel doorloopt dezelfde betrouwbare asynchrone integratieketen.' );
 
 		$first_date = $this->future_post_date( 10 );
-		$this->update_post(
-			$post_id,
-			array(
-				'post_status'   => 'publish',
-				'post_date'     => $first_date,
-				'post_date_gmt' => get_gmt_from_date( $first_date ),
-				'edit_date'     => true,
-			)
-		);
+		$this->schedule_post( $post_id, $first_date );
 		$this->assert_same( $first_date, get_post( $post_id )->post_date ?? null, 'Scheduled fixture must retain its local publication date.' );
 		$this->assert_same( 'future', get_post_status( $post_id ), 'Scheduled fixture must retain future status before processing.' );
 		$this->assert_same( 1, $this->story_action_count( $post_id ), 'Scheduling must enqueue one worker action.' );
@@ -350,18 +324,7 @@ final class Knabbel_E2E_Suite {
 		);
 		$story       = $this->get_babbel_story( $story_id );
 		$dates_after = KnabbelWP\calculate_story_dates( 'now' );
-		$this->assert_date_within_window(
-			$this->date_only( $story['start_date'] ?? '' ),
-			$dates_before['start_date'],
-			$dates_after['start_date'],
-			'Publishing a scheduled post must recalculate from the processing date.'
-		);
-		$this->assert_date_within_window(
-			$this->date_only( $story['end_date'] ?? '' ),
-			$dates_before['end_date'],
-			$dates_after['end_date'],
-			'Published scheduled story end date must recalculate from the processing date.'
-		);
+		$this->assert_story_dates_in_window( $story, $dates_before, $dates_after, 'Publishing a scheduled post must recalculate from the processing date.' );
 	}
 
 	/**
@@ -369,18 +332,8 @@ final class Knabbel_E2E_Suite {
 	 */
 	private function test_pending_schedule_cancellation(): void {
 		$title   = 'E2E planning geannuleerd';
-		$post_id = $this->create_draft( $title, 'Deze geplande verwerking wordt geannuleerd voordat een externe story ontstaat.' );
-		update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', 1 );
-		$date = $this->future_post_date( 15 );
-		$this->update_post(
-			$post_id,
-			array(
-				'post_status'   => 'publish',
-				'post_date'     => $date,
-				'post_date_gmt' => get_gmt_from_date( $date ),
-				'edit_date'     => true,
-			)
-		);
+		$post_id = $this->create_enabled_draft( $title, 'Deze geplande verwerking wordt geannuleerd voordat een externe story ontstaat.' );
+		$this->schedule_post( $post_id, $this->future_post_date( 15 ) );
 		$this->assert_same( 1, $this->story_action_count( $post_id ), 'Future post must have one pending action before cancellation.' );
 
 		$this->update_post( $post_id, array( 'post_status' => 'draft' ) );
@@ -399,8 +352,7 @@ final class Knabbel_E2E_Suite {
 		$story_id = (string) ( $state['story_id'] ?? '' );
 
 		wp_trash_post( $post_id );
-		$state = KnabbelWP\get_story_state( $post_id );
-		$this->assert_same( StoryStatus::Deleted->value, $state['status'] ?? null, 'Trashing must mark the remote story deleted.' );
+		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Trashing must mark the remote story deleted.' );
 		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 
 		wp_untrash_post( $post_id );
@@ -418,13 +370,10 @@ final class Knabbel_E2E_Suite {
 		update_option( 'knabbel_e2e_openai_mode', 'error', false );
 		update_option( 'knabbel_e2e_openai_call_count', 0, false );
 
-		$post_id = $this->create_draft( $title, 'OpenAI faalt deterministisch zodat foutafhandeling en retries aantoonbaar blijven.' );
-		update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', 1 );
-		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
-		$this->run_action_scheduler( self::STORY_HOOK );
+		$post_id = $this->create_enabled_draft( $title, 'OpenAI faalt deterministisch zodat foutafhandeling en retries aantoonbaar blijven.' );
+		$this->publish_and_process( $post_id );
 
-		$state = KnabbelWP\get_story_state( $post_id );
-		$this->assert_same( StoryStatus::Error->value, $state['status'] ?? null, 'OpenAI exhaustion must mark processing as error.' );
+		$this->assert_story_status( $post_id, StoryStatus::Error, 'OpenAI exhaustion must mark processing as error.' );
 		$this->assert_same( 3, (int) get_option( 'knabbel_e2e_openai_call_count', 0 ), 'OpenAI must be attempted exactly three times.' );
 		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'OpenAI failure must not create a Babbel story.' );
 
@@ -438,10 +387,8 @@ final class Knabbel_E2E_Suite {
 		$title = 'E2E Babbel fout';
 		$this->configure_plugin( 'wrong-create-password' );
 
-		$post_id = $this->create_draft( $title, 'Babbel weigert authenticatie en WordPress bewaart een begrensde foutstatus.' );
-		update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', 1 );
-		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
-		$this->run_action_scheduler( self::STORY_HOOK );
+		$post_id = $this->create_enabled_draft( $title, 'Babbel weigert authenticatie en WordPress bewaart een begrensde foutstatus.' );
+		$this->publish_and_process( $post_id );
 
 		$state = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Error->value, $state['status'] ?? null, 'Babbel create failure must mark lifecycle error.' );
@@ -471,9 +418,6 @@ final class Knabbel_E2E_Suite {
 		);
 		$this->assert_same( 200, wp_remote_retrieve_response_code( $response ), 'The fixture story must be editable in Babbel.' );
 
-		$settings                   = get_option( 'knabbel_settings', array() );
-		$settings['few_shot_count'] = 1;
-		update_option( 'knabbel_settings', $settings );
 		as_enqueue_async_action( self::FEW_SHOT_HOOK, array(), self::ACTION_GROUP );
 		$this->run_action_scheduler( self::FEW_SHOT_HOOK );
 
@@ -486,11 +430,12 @@ final class Knabbel_E2E_Suite {
 			'Few-shot input must use current WordPress content.'
 		);
 
+		$settings                   = get_option( 'knabbel_settings', array() );
 		$settings['few_shot_count'] = 0;
 		update_option( 'knabbel_settings', $settings );
 		as_enqueue_async_action( self::FEW_SHOT_HOOK, array(), self::ACTION_GROUP );
 		$this->run_action_scheduler( self::FEW_SHOT_HOOK );
-		$this->assert_false( false !== get_option( 'knabbel_few_shot_examples', false ), 'Disabling few-shot must remove cached examples.' );
+		$this->assert_same( false, get_option( 'knabbel_few_shot_examples', false ), 'Disabling few-shot must remove cached examples.' );
 	}
 
 	/**
@@ -521,8 +466,8 @@ final class Knabbel_E2E_Suite {
 			$this->action_count( self::FEW_SHOT_HOOK, ActionScheduler_Store::STATUS_PENDING ),
 			'Deactivation must clear the recurring few-shot action.'
 		);
-		$this->assert_false( false !== get_transient( $this->plugin_session_cache_key() ), 'Deactivation must clear Babbel sessions.' );
-		$this->assert_false( false !== get_option( 'knabbel_few_shot_examples', false ), 'Deactivation must clear few-shot data.' );
+		$this->assert_same( false, get_transient( KnabbelWP\babbel_get_session_cache_key() ), 'Deactivation must clear Babbel sessions.' );
+		$this->assert_same( false, get_option( 'knabbel_few_shot_examples', false ), 'Deactivation must clear few-shot data.' );
 	}
 
 	/**
@@ -534,24 +479,22 @@ final class Knabbel_E2E_Suite {
 	 * @throws RuntimeException When WordPress cannot create the post.
 	 */
 	private function create_and_process_published_story( string $title, string $content ): int {
-		$post_id = $this->create_draft( $title, $content );
-		update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', 1 );
-		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
-		$this->run_action_scheduler( self::STORY_HOOK );
-		$this->assert_same( StoryStatus::Sent->value, KnabbelWP\get_story_state( $post_id )['status'] ?? null, 'Published fixture must reach sent state.' );
+		$post_id = $this->create_enabled_draft( $title, $content );
+		$this->publish_and_process( $post_id );
+		$this->assert_story_status( $post_id, StoryStatus::Sent, 'Published fixture must reach sent state.' );
 
 		return $post_id;
 	}
 
 	/**
-	 * Create a draft post and fail on WordPress errors.
+	 * Create a draft post with radio news enabled and fail on WordPress errors.
 	 *
 	 * @param string $title   Post title.
 	 * @param string $content Post content.
 	 * @return int Post ID.
 	 * @throws RuntimeException When WordPress cannot create the post.
 	 */
-	private function create_draft( string $title, string $content ): int {
+	private function create_enabled_draft( string $title, string $content ): int {
 		$post_id = wp_insert_post(
 			array(
 				'post_type'    => 'post',
@@ -565,6 +508,8 @@ final class Knabbel_E2E_Suite {
 		if ( is_wp_error( $post_id ) ) {
 			throw new RuntimeException( 'Could not create test post: ' . $post_id->get_error_message() );
 		}
+
+		update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', 1 );
 
 		return $post_id;
 	}
@@ -581,6 +526,34 @@ final class Knabbel_E2E_Suite {
 		if ( is_wp_error( $result ) ) {
 			throw new RuntimeException( 'Could not update test post: ' . $result->get_error_message() );
 		}
+	}
+
+	/**
+	 * Publish a post and run its queued story processing.
+	 *
+	 * @param int $post_id Post ID.
+	 */
+	private function publish_and_process( int $post_id ): void {
+		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
+		$this->run_action_scheduler( self::STORY_HOOK );
+	}
+
+	/**
+	 * Move a post to a future publication date.
+	 *
+	 * @param int    $post_id Post ID.
+	 * @param string $date    Local MySQL datetime.
+	 */
+	private function schedule_post( int $post_id, string $date ): void {
+		$this->update_post(
+			$post_id,
+			array(
+				'post_status'   => 'publish',
+				'post_date'     => $date,
+				'post_date_gmt' => get_gmt_from_date( $date ),
+				'edit_date'     => true,
+			)
+		);
 	}
 
 	/**
@@ -613,24 +586,26 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Count scheduled actions by hook and status.
+	 * Count scheduled actions by hook, status and optional action arguments.
 	 *
-	 * @param string $hook   Action hook.
-	 * @param string $status Action Scheduler status.
+	 * @param string                    $hook   Action hook.
+	 * @param string                    $status Action Scheduler status.
+	 * @param array<string, mixed>|null $args   Optional exact action arguments.
 	 * @return int Action count.
 	 */
-	private function action_count( string $hook, string $status ): int {
-		$ids = as_get_scheduled_actions(
-			array(
-				'hook'     => $hook,
-				'group'    => self::ACTION_GROUP,
-				'status'   => $status,
-				'per_page' => -1,
-			),
-			'ids'
+	private function action_count( string $hook, string $status, ?array $args = null ): int {
+		$query = array(
+			'hook'     => $hook,
+			'group'    => self::ACTION_GROUP,
+			'status'   => $status,
+			'per_page' => -1,
 		);
 
-		return count( $ids );
+		if ( null !== $args ) {
+			$query['args'] = $args;
+		}
+
+		return count( as_get_scheduled_actions( $query, 'ids' ) );
 	}
 
 	/**
@@ -640,18 +615,7 @@ final class Knabbel_E2E_Suite {
 	 * @return int Action count.
 	 */
 	private function story_action_count( int $post_id ): int {
-		$ids = as_get_scheduled_actions(
-			array(
-				'hook'     => self::STORY_HOOK,
-				'args'     => array( 'post_id' => $post_id ),
-				'group'    => self::ACTION_GROUP,
-				'status'   => ActionScheduler_Store::STATUS_PENDING,
-				'per_page' => -1,
-			),
-			'ids'
-		);
-
-		return count( $ids );
+		return $this->action_count( self::STORY_HOOK, ActionScheduler_Store::STATUS_PENDING, array( 'post_id' => $post_id ) );
 	}
 
 	/**
@@ -717,6 +681,22 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
+	 * Issue a GET request and decode the JSON response body.
+	 *
+	 * @param string $path    API path.
+	 * @param string $message Failure message for a non-200 response.
+	 * @return array<string, mixed> Decoded response.
+	 */
+	private function babbel_get_json( string $path, string $message ): array {
+		$response = $this->babbel_request( 'GET', $path );
+		$this->assert_same( 200, wp_remote_retrieve_response_code( $response ), $message );
+		$decoded = json_decode( wp_remote_retrieve_body( $response ), true, 512, JSON_THROW_ON_ERROR );
+		$this->assert_true( is_array( $decoded ), 'Babbel response must decode to an object.' );
+
+		return $decoded;
+	}
+
+	/**
 	 * Fetch and decode one Babbel story.
 	 *
 	 * @param string $story_id Story ID.
@@ -724,12 +704,8 @@ final class Knabbel_E2E_Suite {
 	 */
 	private function get_babbel_story( string $story_id ): array {
 		$this->assert_not_empty( $story_id, 'Story ID is required for remote verification.' );
-		$response = $this->babbel_request( 'GET', '/stories/' . rawurlencode( $story_id ) );
-		$this->assert_same( 200, wp_remote_retrieve_response_code( $response ), 'Expected Babbel story to be readable.' );
-		$decoded = json_decode( wp_remote_retrieve_body( $response ), true, 512, JSON_THROW_ON_ERROR );
-		$this->assert_true( is_array( $decoded ), 'Babbel story response must decode to an object.' );
 
-		return $decoded;
+		return $this->babbel_get_json( '/stories/' . rawurlencode( $story_id ), 'Expected Babbel story to be readable.' );
 	}
 
 	/**
@@ -739,15 +715,13 @@ final class Knabbel_E2E_Suite {
 	 * @return int Matching count.
 	 */
 	private function count_babbel_stories_by_title( string $title ): int {
-		$path     = '/stories?' . http_build_query(
+		$path    = '/stories?' . http_build_query(
 			array(
 				'filter' => array( 'title' => $title ),
 				'limit'  => 100,
 			)
 		);
-		$response = $this->babbel_request( 'GET', $path );
-		$this->assert_same( 200, wp_remote_retrieve_response_code( $response ), 'Babbel story list must be readable.' );
-		$decoded = json_decode( wp_remote_retrieve_body( $response ), true, 512, JSON_THROW_ON_ERROR );
+		$decoded = $this->babbel_get_json( $path, 'Babbel story list must be readable.' );
 		$stories = is_array( $decoded['data'] ?? null ) ? $decoded['data'] : array();
 
 		return count(
@@ -775,16 +749,6 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Build the plugin's session transient key.
-	 *
-	 * @return string Cache key.
-	 */
-	private function plugin_session_cache_key(): string {
-		$credentials = KnabbelWP\babbel_get_credentials();
-		return 'knabbel_session_' . md5( $credentials['base_url'] . $credentials['username'] );
-	}
-
-	/**
 	 * Return a stable future local timestamp.
 	 *
 	 * @param int $days Days from now.
@@ -805,15 +769,31 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Assert a date was calculated within a captured processing window.
+	 * Assert the persisted story lifecycle status of a post.
 	 *
-	 * @param string $actual   Actual API date.
-	 * @param string $earliest Expected date before processing.
-	 * @param string $latest   Expected date after processing.
-	 * @param string $message  Failure message.
+	 * @param int         $post_id  Post ID.
+	 * @param StoryStatus $expected Expected status.
+	 * @param string      $message  Failure message.
 	 */
-	private function assert_date_within_window( string $actual, string $earliest, string $latest, string $message ): void {
-		$this->assert_true( in_array( $actual, array( $earliest, $latest ), true ), $message );
+	private function assert_story_status( int $post_id, StoryStatus $expected, string $message ): void {
+		$this->assert_same( $expected->value, KnabbelWP\get_story_state( $post_id )['status'] ?? null, $message );
+	}
+
+	/**
+	 * Assert start and end dates were calculated within a captured processing window.
+	 *
+	 * @param array<string, mixed>  $story   Babbel story.
+	 * @param array<string, string> $before  Expected dates captured before processing.
+	 * @param array<string, string> $after   Expected dates captured after processing.
+	 * @param string                $message Failure message prefix.
+	 */
+	private function assert_story_dates_in_window( array $story, array $before, array $after, string $message ): void {
+		foreach ( array( 'start_date', 'end_date' ) as $field ) {
+			$this->assert_true(
+				in_array( $this->date_only( $story[ $field ] ?? '' ), array( $before[ $field ], $after[ $field ] ), true ),
+				sprintf( '%s (%s)', $message, $field )
+			);
+		}
 	}
 
 	/**

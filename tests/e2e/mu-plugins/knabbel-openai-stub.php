@@ -15,9 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 add_filter(
 	'pre_http_request',
 	static function ( false|array|WP_Error $preempt, array $parsed_args, string $url ): false|array|WP_Error {
-		unset( $parsed_args );
-
-		if ( 'https://api.openai.com/v1/chat/completions' !== $url ) {
+		if ( ! str_starts_with( $url, 'https://api.openai.com/' ) ) {
 			return $preempt;
 		}
 

@@ -33,7 +33,16 @@ function babbel_get_credentials(): array {
 	);
 }
 
-
+/**
+ * Build the transient key that caches the session for the configured API instance.
+ *
+ * @since 0.1.0
+ * @return string Transient key.
+ */
+function babbel_get_session_cache_key(): string {
+	$credentials = babbel_get_credentials();
+	return 'knabbel_session_' . md5( $credentials['base_url'] . $credentials['username'] );
+}
 
 /**
  * Get cached session cookies, creating new session if needed.
@@ -48,8 +57,7 @@ function babbel_get_session_cookies(): array|\WP_Error {
 		return new \WP_Error( 'missing_credentials', __( 'Username and password are required', 'zw-knabbel-wp' ) );
 	}
 
-	// Create unique cache key for this API instance.
-	$cache_key      = 'knabbel_session_' . md5( $credentials['base_url'] . $credentials['username'] );
+	$cache_key      = babbel_get_session_cache_key();
 	$cached_cookies = get_transient( $cache_key );
 
 	if ( $cached_cookies && is_array( $cached_cookies ) ) {
@@ -100,9 +108,7 @@ function babbel_get_session_cookies(): array|\WP_Error {
  * @since 0.1.0
  */
 function babbel_clear_session_cache(): void {
-	$credentials = babbel_get_credentials();
-	$cache_key   = 'knabbel_session_' . md5( $credentials['base_url'] . $credentials['username'] );
-	delete_transient( $cache_key );
+	delete_transient( babbel_get_session_cache_key() );
 }
 
 /**
@@ -756,15 +762,12 @@ function babbel_cleanup_sessions(): void {
 
 	$option_names = $wpdb->get_col(
 		$wpdb->prepare(
-			'SELECT option_name FROM ' . $wpdb->options . ' WHERE option_name LIKE %s OR option_name LIKE %s',
-			$wpdb->esc_like( '_transient_knabbel_session_' ) . '%',
-			$wpdb->esc_like( '_transient_timeout_knabbel_session_' ) . '%'
+			'SELECT option_name FROM ' . $wpdb->options . ' WHERE option_name LIKE %s',
+			$wpdb->esc_like( '_transient_knabbel_session_' ) . '%'
 		)
 	);
 
 	foreach ( $option_names as $option_name ) {
-		if ( is_string( $option_name ) ) {
-			delete_option( $option_name );
-		}
+		delete_transient( substr( (string) $option_name, strlen( '_transient_' ) ) );
 	}
 }

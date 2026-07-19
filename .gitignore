@@ -3,6 +3,5 @@
 /node_modules
 *.mo
 *.md
-!README.md
-!tests/e2e/README.md
+!**/README.md
 /tests/e2e/artifacts/
