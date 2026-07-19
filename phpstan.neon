@@ -16,7 +16,9 @@ parameters:
     BabbelApiResponse: 'array{success: bool, message: string, story_id?: string}'
     StoryData: 'array{title: string, text: string, start_date: string, end_date: string, status?: string, weekdays?: int, metadata?: array<string, mixed>}'
     StoryUpdateData: 'array{title?: string, start_date?: string, end_date?: string, weekdays?: int}'
-    StoryState: 'array{status?: string, story_id?: string, status_changed_at?: string, message?: string, generated_speech_text?: string}'
+    LastSyncError: 'array{message: string, occurred_at: string, operation: string}'
+    StoryState: 'array{status?: string, story_id?: string, status_changed_at?: string, message?: string, generated_speech_text?: string, post_id?: int, last_sync_error?: LastSyncError}'
+    StoryStateUpdate: 'array{status?: string, story_id?: string, message?: string, generated_speech_text?: string, last_sync_error?: LastSyncError|null}'
     RecentError: 'array{timestamp: string, component: string, message: string, context: array<string, mixed>}'
     # OpenAI types
     OpenAISettings: 'array{api_key: string|null, model: string, api_base_url: string}'

@@ -106,6 +106,8 @@ function metabox_render( \WP_Post $post ): void {
 		wp_nonce_field( 'knabbel_metabox_nonce', 'knabbel_nonce' );
 
 		$send_to_babbel = get_post_meta( $post->ID, '_zw_knabbel_send_to_babbel', true );
+		$state          = get_story_state( $post->ID );
+		$sync_error     = get_story_sync_error( $state );
 
 		echo '<p>';
 		echo '<label for="knabbel_send_to_babbel">';
@@ -113,6 +115,13 @@ function metabox_render( \WP_Post $post ): void {
 		echo ' ' . esc_html__( 'Radio News', 'zw-knabbel-wp' );
 		echo '</label>';
 		echo '</p>';
+
+	if ( is_story_sync_error_renderable( $sync_error ) && null !== $sync_error ) {
+		echo '<div class="knabbel-sync-warning" role="alert">';
+		echo '<strong>' . esc_html__( 'Babbel sync warning', 'zw-knabbel-wp' ) . '</strong>';
+		echo '<div>' . esc_html( $sync_error['message'] ) . '</div>';
+		echo '</div>';
+	}
 }
 
 /**
@@ -123,12 +132,13 @@ function metabox_render( \WP_Post $post ): void {
  * @param \WP_Post $post The current post object.
  */
 function metabox_render_status( \WP_Post $post ): void {
-		$state     = get_post_meta( $post->ID, '_zw_knabbel_story_state', true );
-		$status    = is_array( $state ) && ! empty( $state['status'] ) ? $state['status'] : '';
-		$story_id  = is_array( $state ) && ! empty( $state['story_id'] ) ? $state['story_id'] : '';
-		$updated   = is_array( $state ) && ! empty( $state['status_changed_at'] ) ? $state['status_changed_at'] : '';
-		$message   = is_array( $state ) && ! empty( $state['message'] ) ? $state['message'] : '';
-		$scheduled = \as_next_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post->ID ), 'zw-knabbel-wp' );
+		$state      = get_post_meta( $post->ID, '_zw_knabbel_story_state', true );
+		$status     = is_array( $state ) && ! empty( $state['status'] ) ? $state['status'] : '';
+		$story_id   = is_array( $state ) && ! empty( $state['story_id'] ) ? $state['story_id'] : '';
+		$updated    = is_array( $state ) && ! empty( $state['status_changed_at'] ) ? $state['status_changed_at'] : '';
+		$message    = is_array( $state ) && ! empty( $state['message'] ) ? $state['message'] : '';
+		$sync_error = is_array( $state ) ? get_story_sync_error( $state ) : null;
+		$scheduled  = \as_next_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post->ID ), 'zw-knabbel-wp' );
 	?>
 		<ul class="knabbel-status-list">
 			<li>
@@ -171,7 +181,31 @@ function metabox_render_status( \WP_Post $post ): void {
 				?>
 			</li>
 			<?php endif; ?>
-			<?php if ( ! empty( $message ) ) : ?>
+			<?php if ( is_story_sync_error_renderable( $sync_error ) && null !== $sync_error ) : ?>
+			<li>
+				<strong><?php esc_html_e( 'Last sync error', 'zw-knabbel-wp' ); ?>:</strong>
+				<div class="knabbel-sync-warning">
+					<?php echo esc_html( $sync_error['message'] ); ?>
+					<?php if ( ! empty( $sync_error['operation'] ) || ! empty( $sync_error['occurred_at'] ) ) : ?>
+						<div class="knabbel-status-muted">
+							<?php if ( ! empty( $sync_error['operation'] ) ) : ?>
+								<?php esc_html_e( 'Operation', 'zw-knabbel-wp' ); ?>:
+								<code><?php echo esc_html( $sync_error['operation'] ); ?></code>
+							<?php endif; ?>
+							<?php if ( ! empty( $sync_error['occurred_at'] ) ) : ?>
+								<?php
+								$sync_error_ts = strtotime( $sync_error['occurred_at'] . ' ' . wp_timezone_string() );
+								if ( $sync_error_ts ) {
+									echo ' · ' . esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $sync_error_ts ) );
+								}
+								?>
+							<?php endif; ?>
+						</div>
+					<?php endif; ?>
+				</div>
+			</li>
+			<?php endif; ?>
+			<?php if ( ! empty( $message ) && ! is_story_sync_error_renderable( $sync_error ) ) : ?>
 			<li>
 				<strong><?php esc_html_e( 'Message', 'zw-knabbel-wp' ); ?>:</strong>
 				<div class="knabbel-pre"><?php echo esc_html( $message ); ?></div>
