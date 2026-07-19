@@ -63,6 +63,234 @@ function debug_enabled(): bool {
 }
 
 /**
+ * Sanitizes and bounds context for the operator-facing recent error store.
+ *
+ * Debug logs retain the complete context, but persistent production data is
+ * limited to known diagnostic fields and excludes response/request bodies.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed> $context Raw log context.
+ * @return array<string, mixed> Safe context for persistent storage.
+ *
+ * @phpstan-param LogContext $context
+ */
+function prepare_log_context_for_storage( array $context ): array {
+	return array_merge(
+		prepare_log_text_context( $context ),
+		prepare_log_scalar_context( $context ),
+		prepare_log_list_context( $context )
+	);
+}
+
+/**
+ * Sanitize textual diagnostic context.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed> $context Raw log context.
+ * @return array<string, string>
+ */
+function prepare_log_text_context( array $context ): array {
+	$safe_context = array();
+	$text_fields  = array(
+		'endpoint'   => 500,
+		'story_id'   => 100,
+		'error'      => 500,
+		'context'    => 100,
+		'api_error'  => 500,
+		'json_error' => 500,
+		'model'      => 100,
+		'error_type' => 100,
+		'error_code' => 100,
+	);
+
+	foreach ( $text_fields as $key => $max_length ) {
+		if ( ! isset( $context[ $key ] ) || ! is_scalar( $context[ $key ] ) ) {
+			continue;
+		}
+
+		$value                = sanitize_textarea_field( (string) $context[ $key ] );
+		$safe_context[ $key ] = wp_html_excerpt( $value, $max_length, '' );
+	}
+
+	return $safe_context;
+}
+
+/**
+ * Sanitize scalar diagnostic context.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed> $context Raw log context.
+ * @return array<string, int|bool>
+ */
+function prepare_log_scalar_context( array $context ): array {
+	$safe_context = array();
+
+	foreach ( array( 'post_id', 'response_code', 'messages_count' ) as $key ) {
+		if ( isset( $context[ $key ] ) && is_numeric( $context[ $key ] ) ) {
+			$safe_context[ $key ] = (int) $context[ $key ];
+		}
+	}
+
+	if ( isset( $context['has_choices'] ) ) {
+		$safe_context['has_choices'] = (bool) $context['has_choices'];
+	}
+
+	return $safe_context;
+}
+
+/**
+ * Sanitize list-valued diagnostic context.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed> $context Raw log context.
+ * @return array<string, list<string>>
+ */
+function prepare_log_list_context( array $context ): array {
+	$safe_context = array();
+
+	foreach ( array( 'fields', 'response_keys' ) as $key ) {
+		if ( ! isset( $context[ $key ] ) || ! is_array( $context[ $key ] ) ) {
+			continue;
+		}
+
+		$values = array();
+		foreach ( array_slice( $context[ $key ], 0, 20 ) as $value ) {
+			if ( is_scalar( $value ) ) {
+				$values[] = sanitize_key( (string) $value );
+			}
+		}
+		$safe_context[ $key ] = $values;
+	}
+
+	return $safe_context;
+}
+
+/**
+ * Prepares an error entry for bounded, non-sensitive persistent storage.
+ *
+ * This also normalizes legacy entries before they are written back, ensuring
+ * previously stored response bodies do not remain in the rolling list.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed> $entry Raw error entry.
+ * @return array<string, mixed>|null Sanitized entry, or null when invalid.
+ *
+ * @phpstan-return RecentError|null
+ */
+function prepare_recent_error_for_storage( array $entry ): ?array {
+	if ( ! isset( $entry['component'], $entry['message'] ) || ! is_scalar( $entry['component'] ) || ! is_scalar( $entry['message'] ) ) {
+		return null;
+	}
+
+	$timestamp = isset( $entry['timestamp'] ) && is_scalar( $entry['timestamp'] )
+		? wp_html_excerpt( sanitize_text_field( (string) $entry['timestamp'] ), 32, '' )
+		: current_time( 'mysql' );
+	$context   = isset( $entry['context'] ) && is_array( $entry['context'] ) ? $entry['context'] : array();
+
+	return array(
+		'timestamp' => $timestamp,
+		'component' => wp_html_excerpt( sanitize_text_field( (string) $entry['component'] ), 80, '' ),
+		'message'   => wp_html_excerpt( sanitize_textarea_field( (string) $entry['message'] ), 500, '' ),
+		'context'   => prepare_log_context_for_storage( $context ),
+	);
+}
+
+/**
+ * Normalize a stored error history.
+ *
+ * @since 0.4.0
+ * @param mixed $stored_errors Stored option value.
+ * @return list<array<string, mixed>>
+ *
+ * @phpstan-return list<RecentError>
+ */
+function prepare_error_history( mixed $stored_errors ): array {
+	$errors = array();
+	if ( ! is_array( $stored_errors ) ) {
+		return $errors;
+	}
+
+	foreach ( $stored_errors as $stored_error ) {
+		if ( ! is_array( $stored_error ) ) {
+			continue;
+		}
+
+		$prepared_error = prepare_recent_error_for_storage( $stored_error );
+		if ( null !== $prepared_error ) {
+			$errors[] = $prepared_error;
+		}
+	}
+
+	return $errors;
+}
+
+/**
+ * Append an error to the shared history using bounded optimistic retries.
+ *
+ * This is a diagnostic buffer rather than an audit log. A collision never
+ * overwrites another request's entry, while the small retry limit keeps error
+ * bursts from adding unbounded latency to the request that emitted the log.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed> $new_error Prepared error entry.
+ *
+ * @phpstan-param RecentError $new_error
+ */
+function append_recent_error( array $new_error ): void {
+	global $wpdb;
+
+	$option_name  = 'knabbel_recent_errors';
+	$max_attempts = 3;
+
+	for ( $attempt = 0; $attempt < $max_attempts; ++$attempt ) {
+		// A direct read is required so the serialized value can be used as the
+		// compare-and-swap token in the conditional update below.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$stored_value = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+				$option_name
+			)
+		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+		if ( null === $stored_value ) {
+			if ( add_option( $option_name, array( $new_error ), '', false ) ) {
+				return;
+			}
+		} else {
+			$recent_errors   = prepare_error_history( maybe_unserialize( $stored_value ) );
+			$recent_errors[] = $new_error;
+			$recent_errors   = array_slice( $recent_errors, -10 );
+			$new_value       = maybe_serialize( $recent_errors );
+
+			if ( $new_value === $stored_value ) {
+				return;
+			}
+
+			// Only update the row if no other request changed it after our read.
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$updated = $wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$wpdb->options} SET option_value = %s, autoload = 'off' WHERE option_name = %s AND option_value = %s",
+					$new_value,
+					$option_name,
+					$stored_value
+				)
+			);
+			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+			if ( 1 === $updated ) {
+				wp_cache_delete( $option_name, 'options' );
+				wp_cache_delete( 'alloptions', 'options' );
+				wp_cache_delete( 'notoptions', 'options' );
+				return;
+			}
+		}
+	}
+}
+
+/**
  * Centralized WordPress native logging with structured data.
  * Replaces duplicate log_message() methods in BabbelApi and OpenAiHandler classes.
  *
@@ -75,7 +303,22 @@ function debug_enabled(): bool {
  * @phpstan-param LogContext $context
  */
 function log( string $level, string $component, string $message, array $context = array() ): void {
-	// Only log when WordPress debug logging is enabled.
+	// Store critical errors for admin display regardless of debug logging.
+	if ( 'error' === $level ) {
+		$new_error = prepare_recent_error_for_storage(
+			array(
+				'timestamp' => current_time( 'mysql' ),
+				'component' => $component,
+				'message'   => $message,
+				'context'   => $context,
+			)
+		);
+		if ( null !== $new_error ) {
+			append_recent_error( $new_error );
+		}
+	}
+
+	// Only write to the PHP error log when WordPress debug logging is enabled.
 	if ( ! defined( 'WP_DEBUG_LOG' ) || ! WP_DEBUG_LOG ) {
 		return;
 	}
@@ -90,21 +333,6 @@ function log( string $level, string $component, string $message, array $context 
 
 	// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional logging to WP_DEBUG_LOG.
 	error_log( $log_entry );
-
-	// Store critical errors for admin display.
-	if ( 'error' === $level ) {
-		$recent_errors   = get_option( 'knabbel_recent_errors', array() );
-		$recent_errors[] = array(
-			'timestamp' => current_time( 'mysql' ),
-			'component' => $component,
-			'message'   => $message,
-			'context'   => $context,
-		);
-
-		// Keep only last 10 errors.
-		$recent_errors = array_slice( $recent_errors, -10 );
-		update_option( 'knabbel_recent_errors', $recent_errors );
-	}
 }
 
 /**

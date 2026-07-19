@@ -206,7 +206,7 @@ function settings_page(): void {
 
 		<?php
 		// Verzonden artikelen section (debug mode only).
-		if ( ! empty( $settings['debug_mode'] ) ) {
+		if ( debug_enabled() ) {
 			render_articles_overview();
 		}
 		?>

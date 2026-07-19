@@ -81,9 +81,7 @@ function metabox_add(): void {
  * @since 0.1.0
  */
 function metabox_add_status(): void {
-	$options    = get_option( 'knabbel_settings' );
-	$debug_mode = isset( $options['debug_mode'] ) ? (bool) $options['debug_mode'] : false;
-	if ( ! $debug_mode ) {
+	if ( ! debug_enabled() ) {
 		return;
 	}
 
