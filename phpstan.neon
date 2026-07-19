@@ -28,4 +28,3 @@ parameters:
     # Settings types
     SettingsFieldArgs: 'array{field: string, type?: string, default?: mixed, description?: string, placeholder?: string, rows?: int, options?: array<string, string>, min?: int, max?: int}'
     LogContext: 'array<string, mixed>'
-
