@@ -1,0 +1,110 @@
+---
+services:
+  wordpress-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: wordpress-root
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+      TZ: Europe/Amsterdam
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pwordpress-root"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  wordpress:
+    image: wordpress:7.0.1-php8.3-apache
+    environment:
+      WORDPRESS_DB_HOST: wordpress-db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DEBUG: "1"
+      WORDPRESS_CONFIG_EXTRA: |
+        define( 'WP_ENVIRONMENT_TYPE', 'local' );
+        define( 'WP_DEBUG_LOG', true );
+        define( 'DISABLE_WP_CRON', true );
+    volumes:
+      - wordpress-data:/var/www/html
+      - ../..:/var/www/html/wp-content/plugins/zw-knabbel-wp:ro
+      - ./mu-plugins:/var/www/html/wp-content/mu-plugins:ro
+    depends_on:
+      wordpress-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "php -r 'exit(@file_get_contents(\"http://localhost/wp-login.php\") === false ? 1 : 0);'"
+      interval: 2s
+      timeout: 5s
+      retries: 45
+
+  wordpress-cli:
+    image: wordpress:cli-2.12.0-php8.3
+    working_dir: /var/www/html
+    environment:
+      WORDPRESS_DB_HOST: wordpress-db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+    volumes:
+      - wordpress-data:/var/www/html
+      - ../..:/var/www/html/wp-content/plugins/zw-knabbel-wp:ro
+      - ./mu-plugins:/var/www/html/wp-content/mu-plugins:ro
+    depends_on:
+      wordpress-db:
+        condition: service_healthy
+      wordpress:
+        condition: service_healthy
+
+  babbel-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: babbel-root
+      MYSQL_DATABASE: babbel
+      MYSQL_USER: babbel
+      MYSQL_PASSWORD: babbel
+      TZ: Europe/Amsterdam
+    tmpfs:
+      - /var/lib/mysql
+    volumes:
+      - ${BABBEL_PATH:?Set BABBEL_PATH to a zwfm-babbel checkout}/migrations/001_complete_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "mysql --host=127.0.0.1 --user=babbel --password=babbel --database=babbel --execute='SELECT 1 FROM users LIMIT 1'"
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  babbel:
+    build:
+      context: ${BABBEL_PATH:?Set BABBEL_PATH to a zwfm-babbel checkout}
+    environment:
+      BABBEL_DB_HOST: babbel-db
+      BABBEL_DB_USER: babbel
+      BABBEL_DB_PASSWORD: babbel
+      BABBEL_DB_NAME: babbel
+      BABBEL_SERVER_ADDRESS: :8080
+      BABBEL_AUTH_METHOD: local
+      BABBEL_SESSION_SECRET: e2e-only-session-secret-at-least-32-characters
+      BABBEL_ENV: development
+      BABBEL_FFMPEG_PATH: ffmpeg
+      BABBEL_FFPROBE_PATH: ffprobe
+      TZ: Europe/Amsterdam
+    depends_on:
+      babbel-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 45
+      start_period: 5s
+
+volumes:
+  wordpress-data:
