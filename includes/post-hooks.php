@@ -434,8 +434,9 @@ function restore_and_sync_story( int $post_id, string $story_id, string $title )
 		update_story_state(
 			$post_id,
 			array(
-				'status'  => StoryStatus::Error->value,
-				'message' => $result['message'],
+				'status'          => StoryStatus::Error->value,
+				'message'         => $result['message'],
+				'last_sync_error' => build_story_sync_error( $result['message'], 'restore' ),
 			)
 		);
 		return $result;
@@ -447,8 +448,9 @@ function restore_and_sync_story( int $post_id, string $story_id, string $title )
 		update_story_state(
 			$post_id,
 			array(
-				'status'  => StoryStatus::Sent->value,
-				'message' => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
+				'status'          => StoryStatus::Sent->value,
+				'message'         => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
+				'last_sync_error' => null,
 			)
 		);
 	} else {
@@ -466,8 +468,9 @@ function restore_and_sync_story( int $post_id, string $story_id, string $title )
 		update_story_state(
 			$post_id,
 			array(
-				'status'  => StoryStatus::Sent->value,
-				'message' => __( 'Story restored, but title sync failed', 'zw-knabbel-wp' ),
+				'status'          => StoryStatus::Sent->value,
+				'message'         => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
+				'last_sync_error' => build_story_sync_error( $title_result['message'], 'restore' ),
 			)
 		);
 	}
@@ -498,8 +501,9 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 		update_story_state(
 			$post_id,
 			array(
-				'status'  => StoryStatus::Sent->value,
-				'message' => $success_message,
+				'status'          => StoryStatus::Sent->value,
+				'message'         => $success_message,
+				'last_sync_error' => null,
 			)
 		);
 	} else {
@@ -513,6 +517,12 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 				'context'  => $log_context,
 				'fields'   => array_keys( $update_data ),
 				'error'    => $result['message'],
+			)
+		);
+		update_story_state(
+			$post_id,
+			array(
+				'last_sync_error' => build_story_sync_error( $result['message'], 'update' ),
 			)
 		);
 	}
@@ -534,8 +544,9 @@ function push_story_delete( int $post_id, string $story_id, string $success_mess
 		update_story_state(
 			$post_id,
 			array(
-				'status'  => StoryStatus::Deleted->value,
-				'message' => $success_message,
+				'status'          => StoryStatus::Deleted->value,
+				'message'         => $success_message,
+				'last_sync_error' => null,
 			)
 		);
 		return;
@@ -556,8 +567,7 @@ function push_story_delete( int $post_id, string $story_id, string $success_mess
 	update_story_state(
 		$post_id,
 		array(
-			'status'  => StoryStatus::Error->value,
-			'message' => $result['message'],
+			'last_sync_error' => build_story_sync_error( $result['message'], 'delete' ),
 		)
 	);
 }

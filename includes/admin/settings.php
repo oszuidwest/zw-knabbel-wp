@@ -734,17 +734,18 @@ function render_articles_overview(): void {
 		return;
 	}
 
-	$status    = $selected_state['status'] ?? '';
-	$label_map = array(
+	$status     = $selected_state['status'] ?? '';
+	$label_map  = array(
 		'scheduled'  => __( 'Scheduled', 'zw-knabbel-wp' ),
 		'processing' => __( 'Processing', 'zw-knabbel-wp' ),
 		'sent'       => __( 'Sent', 'zw-knabbel-wp' ),
 		'error'      => __( 'Error', 'zw-knabbel-wp' ),
 	);
-	$slug      = $status ? sanitize_key( $status ) : 'none';
-	$label     = $status ? ( $label_map[ $status ] ?? $status ) : '—';
-	$is_error  = 'error' === $status;
-	$is_sent   = 'sent' === $status;
+	$slug       = $status ? sanitize_key( $status ) : 'none';
+	$label      = $status ? ( $label_map[ $status ] ?? $status ) : '—';
+	$is_error   = 'error' === $status;
+	$is_sent    = 'sent' === $status;
+	$sync_error = get_story_sync_error( $selected_state );
 
 	// Build select options.
 	$options_html = '';
@@ -810,7 +811,8 @@ function render_articles_overview(): void {
 					<td class="label-cell"><?php esc_html_e( 'Babbel ID', 'zw-knabbel-wp' ); ?></td>
 					<td class="mono"><?php echo esc_html( $selected_state['story_id'] ); ?></td>
 				</tr>
-				<?php elseif ( $is_error && ! empty( $selected_state['message'] ) ) : ?>
+				<?php endif; ?>
+				<?php if ( $is_error && ! empty( $selected_state['message'] ) && ! $sync_error ) : ?>
 				<tr>
 					<td class="label-cell"><?php esc_html_e( 'Message', 'zw-knabbel-wp' ); ?></td>
 					<td class="error-message"><?php echo esc_html( $selected_state['message'] ); ?></td>
@@ -824,6 +826,29 @@ function render_articles_overview(): void {
 				<tr>
 					<td class="label-cell"><?php esc_html_e( 'Babbel ID', 'zw-knabbel-wp' ); ?></td>
 					<td class="muted">—</td>
+				</tr>
+				<?php endif; ?>
+				<?php if ( $sync_error && ! empty( $sync_error['message'] ) ) : ?>
+				<tr>
+					<td class="label-cell"><?php esc_html_e( 'Last sync error', 'zw-knabbel-wp' ); ?></td>
+					<td class="error-message">
+						<?php echo esc_html( $sync_error['message'] ); ?>
+						<?php if ( ! empty( $sync_error['operation'] ) ) : ?>
+							<div class="muted">
+								<?php esc_html_e( 'Operation', 'zw-knabbel-wp' ); ?>:
+								<code><?php echo esc_html( $sync_error['operation'] ); ?></code>
+							</div>
+						<?php endif; ?>
+						<?php
+						$sync_error_ts = strtotime( $sync_error['occurred_at'] . ' ' . wp_timezone_string() );
+						if ( $sync_error_ts ) :
+							?>
+							<div class="muted">
+								<?php esc_html_e( 'Occurred', 'zw-knabbel-wp' ); ?>:
+								<?php echo esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $sync_error_ts ) ); ?>
+							</div>
+						<?php endif; ?>
+					</td>
 				</tr>
 				<?php endif; ?>
 			</table>

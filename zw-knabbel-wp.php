@@ -342,26 +342,35 @@ function log( string $level, string $component, string $message, array $context 
  * Triggers WordPress action hook for extensibility.
  *
  * @since 0.1.0
- * @param int                                                         $post_id The post ID.
- * @param array{status?: string, story_id?: string, message?: string} $updates Partial state updates to apply.
+ * @param int                  $post_id The post ID.
+ * @param array<string, mixed> $updates Partial state updates to apply.
  * @return bool True on successful update, false on failure.
  *
- * @phpstan-param StoryState $updates
+ * @phpstan-param StoryStateUpdate $updates
  */
 function update_story_state( int $post_id, array $updates = array() ): bool {
 	// Single read operation.
 	$meta_value    = get_post_meta( $post_id, '_zw_knabbel_story_state', true );
 	$current_state = is_array( $meta_value ) ? $meta_value : array();
 
-	// Merge updates with current state and add timestamp.
+	// Merge updates with current state. A sync-health-only update must not
+	// change the lifecycle status timestamp.
 	$new_state = array_merge(
 		$current_state,
 		$updates,
 		array(
-			'status_changed_at' => current_time( 'mysql' ),
-			'post_id'           => $post_id,
+			'post_id' => $post_id,
 		)
 	);
+
+	if ( array_key_exists( 'status', $updates ) ) {
+		$new_state['status_changed_at'] = current_time( 'mysql' );
+	}
+
+	// Null is an update-only sentinel: remove the error instead of persisting it.
+	if ( array_key_exists( 'last_sync_error', $updates ) && null === $updates['last_sync_error'] ) {
+		unset( $new_state['last_sync_error'] );
+	}
 
 	// Single write operation for all data.
 	$success = update_post_meta( $post_id, '_zw_knabbel_story_state', $new_state );
@@ -389,13 +398,59 @@ function update_story_state( int $post_id, array $updates = array() ): bool {
  * @param int $post_id The post ID.
  *
  * phpcs:ignore Generic.Files.LineLength.TooLong -- Type annotation.
- * @return array{status?: string, story_id?: string, status_changed_at?: string, message?: string, post_id?: int} Story state data or empty array if none exists.
+ * @return array{status?: string, story_id?: string, status_changed_at?: string, message?: string, post_id?: int, last_sync_error?: array{message: string, occurred_at: string, operation: string}} Story state data or empty array if none exists.
  *
  * @phpstan-return StoryState
  */
 function get_story_state( int $post_id ): array {
 	$state = get_post_meta( $post_id, '_zw_knabbel_story_state', true );
 	return is_array( $state ) ? $state : array();
+}
+
+/**
+ * Builds a bounded sync error for persistent story state.
+ *
+ * @since 0.4.0
+ * @param string $message   Error message to show to operators and editors.
+ * @param string $operation Sync operation: create, update, restore, or delete.
+ * @return array{message: string, occurred_at: string, operation: string} Sync error data.
+ *
+ * @phpstan-return LastSyncError
+ */
+function build_story_sync_error( string $message, string $operation ): array {
+	$allowed_operations = array( 'create', 'update', 'restore', 'delete' );
+	$operation          = sanitize_key( $operation );
+
+	return array(
+		'message'     => wp_html_excerpt( sanitize_textarea_field( $message ), 500, '' ),
+		'occurred_at' => current_time( 'mysql' ),
+		'operation'   => in_array( $operation, $allowed_operations, true ) ? $operation : 'update',
+	);
+}
+
+/**
+ * Reads a valid sync error from story state.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed> $state Story state data.
+ * @return array{message: string, occurred_at: string, operation: string}|null Sync error, or null when absent or malformed.
+ *
+ * @phpstan-return LastSyncError|null
+ */
+function get_story_sync_error( array $state ): ?array {
+	$error = $state['last_sync_error'] ?? null;
+	if ( ! is_array( $error ) || ! isset( $error['message'], $error['occurred_at'], $error['operation'] ) ) {
+		return null;
+	}
+	if ( ! is_string( $error['message'] ) || ! is_string( $error['occurred_at'] ) || ! is_string( $error['operation'] ) ) {
+		return null;
+	}
+
+	return array(
+		'message'     => $error['message'],
+		'occurred_at' => $error['occurred_at'],
+		'operation'   => $error['operation'],
+	);
 }
 
 /**
@@ -686,14 +741,16 @@ function process_story_async( int|array $post_id_or_args ): void {
 				'story_id'              => $result['story_id'],
 				'message'               => __( 'Story created successfully', 'zw-knabbel-wp' ),
 				'generated_speech_text' => $speech_text,
+				'last_sync_error'       => null,
 			)
 		);
 	} else {
 		update_story_state(
 			$post_id,
 			array(
-				'status'  => \KnabbelWP\StoryStatus::Error->value,
-				'message' => $result['message'],
+				'status'          => \KnabbelWP\StoryStatus::Error->value,
+				'message'         => $result['message'],
+				'last_sync_error' => build_story_sync_error( $result['message'], 'create' ),
 			)
 		);
 	}
