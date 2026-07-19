@@ -188,8 +188,7 @@ function metabox_render_status( \WP_Post $post ): void {
  *
  * This function handles:
  * - Saving the checkbox meta value
- * - Deleting from Babbel when checkbox is unchecked
- * - Updating dates in Babbel when checkbox is checked and story exists
+ * - Delegating checkbox state changes to the shared synchronization handler
  *
  * Story creation is handled by handle_post_saved() to support scheduled posts.
  *
@@ -233,64 +232,5 @@ function metabox_save( int $post_id ): void {
 	update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', $send_to_babbel );
 	unset( $GLOBALS['knabbel_skip_meta_sync'] );
 
-	// Get current story state.
-	$state    = get_story_state( $post_id );
-	$status   = $state['status'] ?? '';
-	$story_id = (string) ( $state['story_id'] ?? '' );
-
-	// Handle checkbox being unchecked.
-	if ( $was_enabled && ! $send_to_babbel ) {
-		// Cancel any pending processing jobs.
-		\as_unschedule_all_actions( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
-
-		// Delete from Babbel if story was sent.
-		if ( $story_id && StoryStatus::Sent->value === $status ) {
-			$result = babbel_delete_story( $story_id );
-			if ( $result['success'] ) {
-				update_story_state(
-					$post_id,
-					array(
-						'status'  => StoryStatus::Deleted->value,
-						'message' => __( 'Story deleted from Babbel', 'zw-knabbel-wp' ),
-					)
-				);
-			} else {
-				update_story_state(
-					$post_id,
-					array(
-						'status'  => StoryStatus::Error->value,
-						'message' => $result['message'],
-					)
-				);
-			}
-		} elseif ( in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
-			// Clear pending state if job was cancelled.
-			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
-		}
-		return;
-	}
-
-	// Handle checkbox being enabled on already published/scheduled post.
-	if ( ! $was_enabled && $send_to_babbel ) {
-		$post_status = get_post_status( $post_id );
-		if ( ! in_array( $post_status, array( 'publish', 'future' ), true ) ) {
-			return;
-		}
-
-		// Restore soft-deleted story instead of creating new.
-		if ( $story_id && StoryStatus::Deleted->value === $status ) {
-			$post  = get_post( $post_id );
-			$title = $post ? $post->post_title : '';
-			restore_and_sync_story( $post_id, $story_id, $title );
-			return;
-		}
-
-		// Create new story if not already sent/scheduled/processing.
-		if ( ! in_array( $status, array( StoryStatus::Sent->value, StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
-			schedule_story_processing( $post_id );
-		}
-	}
-
-	// Note: Date updates for existing stories are handled in handle_post_saved()
-	// which has access to $post_before for detecting actual date changes.
+	handle_checkbox_change( $post_id, $was_enabled, (bool) $send_to_babbel );
 }
