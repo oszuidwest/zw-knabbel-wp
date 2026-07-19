@@ -39,6 +39,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           path: zw-knabbel-wp
+          persist-credentials: false
 
       - name: Checkout Babbel
         uses: actions/checkout@v7
@@ -46,6 +47,7 @@ jobs:
           repository: oszuidwest/zwfm-babbel
           ref: main
           path: zwfm-babbel
+          persist-credentials: false
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
