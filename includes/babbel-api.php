@@ -385,8 +385,8 @@ function babbel_test_connection(): array {
  * Update an existing story in the Babbel API.
  *
  * @since 0.2.0
- * @param string                                                        $story_id   The Babbel story ID.
- * @param array{start_date?: string, end_date?: string, weekdays?: int} $story_data The story data to update.
+ * @param string                                                                        $story_id   The Babbel story ID.
+ * @param array{title?: string, start_date?: string, end_date?: string, weekdays?: int} $story_data The story data to update.
  * @return array{success: bool, message: string} Response with success status and message.
  *
  * @phpstan-return BabbelApiResponse

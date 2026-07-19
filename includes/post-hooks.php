@@ -320,7 +320,8 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 					'end_date'   => $dates['end_date'],
 					'weekdays'   => $dates['weekdays'],
 				),
-				__( 'Story updated (post published)', 'zw-knabbel-wp' )
+				__( 'Story updated (post published)', 'zw-knabbel-wp' ),
+				'future_to_publish'
 			);
 		}
 		// Don't return here - fall through to generic publish handler to handle
@@ -345,12 +346,18 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 		return;
 	}
 
-	// Handle date/title changes for existing stories (same-status updates via Quick Edit, REST API).
+	// Handle date/title changes for existing stories - same-status saves from any context (editor update, Quick Edit, REST API, CLI).
 	if ( $new_status === $old_status && in_array( $new_status, array( 'future', 'publish' ), true ) ) {
-		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status ) {
+		if ( $send_to_babbel && $story_id && StoryStatus::Sent->value === $status && null !== $post_before ) {
 			$update_data = build_story_update_from_changes( $post, $post_before, 'publish' === $new_status );
 			if ( $update_data ) {
-				push_story_update( $post_id, $story_id, $update_data, __( 'Story updated in Babbel', 'zw-knabbel-wp' ) );
+				push_story_update(
+					$post_id,
+					$story_id,
+					$update_data,
+					__( 'Story updated in Babbel', 'zw-knabbel-wp' ),
+					'publish' === $new_status ? 'published_post_edit' : 'scheduled_post_edit'
+				);
 			}
 		}
 		return;
@@ -528,16 +535,19 @@ function restore_and_sync_story( int $post_id, string $story_id, string $title )
 /**
  * Pushes a story update to Babbel and handles the result.
  *
- * Keeps 'sent' status on error since the story still exists in Babbel.
+ * On failure, logs the error and leaves the story state untouched: the status
+ * stays 'sent' since the story still exists in Babbel (unlike delete failures,
+ * which set an error state).
  *
  * @since 0.4.0
  *
  * @param int                  $post_id         Post ID.
  * @param string               $story_id        Babbel story ID.
- * @param array<string, mixed> $update_data Data to send to babbel_update_story().
+ * @param array<string, mixed> $update_data     Data to send to babbel_update_story().
  * @param string               $success_message Translated message for the story state on success.
+ * @param string               $log_context     Untranslated code-path label for the failure log.
  */
-function push_story_update( int $post_id, string $story_id, array $update_data, string $success_message ): void {
+function push_story_update( int $post_id, string $story_id, array $update_data, string $success_message, string $log_context ): void {
 	$result = babbel_update_story( $story_id, $update_data );
 	if ( $result['success'] ) {
 		update_story_state(
@@ -548,14 +558,16 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 			)
 		);
 	} else {
-		// Keep 'sent' status on error - story still exists in Babbel.
 		log(
 			'error',
 			'PostHooks',
 			'Failed to update story in Babbel',
 			array(
-				'post_id' => $post_id,
-				'error'   => $result['message'],
+				'post_id'  => $post_id,
+				'story_id' => $story_id,
+				'context'  => $log_context,
+				'fields'   => array_keys( $update_data ),
+				'error'    => $result['message'],
 			)
 		);
 	}
@@ -564,26 +576,27 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 /**
  * Detects date/title changes between post versions and builds update data.
  *
- * Returns null if nothing changed.
+ * With $compare_date_only, only the calendar day (Y-m-d) is compared so that
+ * time-only edits do not push an update (used for published posts). The
+ * full-datetime comparison (scheduled posts) does push on a time-only edit,
+ * which also resends dates derived from the current plugin settings.
  *
  * @since 0.4.0
  *
- * @param \WP_Post      $post              Current post object.
- * @param \WP_Post|null $post_before       Post object before the update.
- * @param bool          $compare_date_only Whether to compare only the Y-m-d portion of the date.
- * @return array<string, mixed>|null Update data array for babbel_update_story(), or null if nothing changed.
+ * @param \WP_Post $post              Current post object.
+ * @param \WP_Post $post_before       Post object before the update.
+ * @param bool     $compare_date_only Whether to ignore time-of-day changes and compare only the calendar day.
+ * @return array<string, mixed>|null Update data for babbel_update_story(), or null if nothing
+ *                                   changed. Always includes 'title'; start/end dates and
+ *                                   weekdays only when the date changed.
  */
-function build_story_update_from_changes( \WP_Post $post, ?\WP_Post $post_before, bool $compare_date_only = false ): ?array {
-	$old_title     = null !== $post_before ? $post_before->post_title : null;
-	$title_changed = $old_title !== $post->post_title;
+function build_story_update_from_changes( \WP_Post $post, \WP_Post $post_before, bool $compare_date_only ): ?array {
+	$title_changed = $post_before->post_title !== $post->post_title;
 
 	if ( $compare_date_only ) {
-		$old_date_ymd = null !== $post_before ? substr( $post_before->post_date, 0, 10 ) : null;
-		$new_date_ymd = substr( $post->post_date, 0, 10 );
-		$date_changed = null !== $old_date_ymd && $old_date_ymd !== $new_date_ymd;
+		$date_changed = substr( $post_before->post_date, 0, 10 ) !== substr( $post->post_date, 0, 10 );
 	} else {
-		$old_date     = null !== $post_before ? $post_before->post_date : null;
-		$date_changed = $old_date !== $post->post_date;
+		$date_changed = $post_before->post_date !== $post->post_date;
 	}
 
 	if ( ! $date_changed && ! $title_changed ) {
