@@ -24,6 +24,32 @@ if ( ! defined( 'ABSPATH' ) ) {
 function settings_init(): void {
 	add_action( 'admin_menu', __NAMESPACE__ . '\\settings_add_admin_menu' );
 	add_action( 'admin_init', __NAMESPACE__ . '\\settings_register_settings' );
+	add_action( 'admin_post_knabbel_clear_recent_errors', __NAMESPACE__ . '\\handle_clear_recent_errors' );
+}
+
+/**
+ * Clears the rolling recent error list for an authorized administrator.
+ *
+ * @since 0.4.0
+ */
+function handle_clear_recent_errors(): void {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'You do not have sufficient permissions to perform this action.', 'zw-knabbel-wp' ) );
+	}
+
+	check_admin_referer( 'knabbel_clear_recent_errors' );
+	delete_option( 'knabbel_recent_errors' );
+
+	$redirect_url = add_query_arg(
+		array(
+			'page'                   => 'zw-knabbel-wp-settings',
+			'knabbel_errors_cleared' => '1',
+		),
+		admin_url( 'options-general.php' )
+	);
+
+	wp_safe_redirect( $redirect_url . '#knabbel-recent-errors' );
+	exit;
 }
 
 /**
@@ -183,6 +209,12 @@ function settings_page(): void {
 	$settings = get_option( 'knabbel_settings', array() );
 	?>
 	<div class="wrap knabbel-wp-admin">
+		<?php
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only confirmation after the nonce-protected clear action.
+		if ( isset( $_GET['knabbel_errors_cleared'] ) && '1' === sanitize_text_field( wp_unslash( $_GET['knabbel_errors_cleared'] ) ) ) :
+			?>
+			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Recent errors cleared.', 'zw-knabbel-wp' ); ?></p></div>
+		<?php endif; ?>
 		<!-- Page Header -->
 		<div class="knabbel-page-header">
 			<h1><?php esc_html_e( 'ZuidWest Knabbel', 'zw-knabbel-wp' ); ?></h1>
@@ -209,7 +241,98 @@ function settings_page(): void {
 		if ( debug_enabled() ) {
 			render_articles_overview();
 		}
+		render_recent_errors();
 		?>
+	</div>
+	<?php
+}
+
+/**
+ * Displays the rolling list of recent plugin errors.
+ *
+ * Only top-level fields are rendered. Stored context remains intentionally
+ * hidden so nested API data can never become an unfiltered admin output path.
+ *
+ * @since 0.4.0
+ */
+function render_recent_errors(): void {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	$stored_errors = get_option( 'knabbel_recent_errors', array() );
+	if ( ! is_array( $stored_errors ) || empty( $stored_errors ) ) {
+		return;
+	}
+
+	$recent_errors = array();
+	foreach ( array_reverse( $stored_errors ) as $entry ) {
+		if ( ! is_array( $entry ) || ! isset( $entry['component'], $entry['message'] ) ) {
+			continue;
+		}
+		if ( ! is_scalar( $entry['component'] ) || ! is_scalar( $entry['message'] ) ) {
+			continue;
+		}
+
+		$recent_errors[] = array(
+			'timestamp' => isset( $entry['timestamp'] ) && is_scalar( $entry['timestamp'] ) ? (string) $entry['timestamp'] : '',
+			'component' => (string) $entry['component'],
+			'message'   => (string) $entry['message'],
+		);
+	}
+
+	if ( empty( $recent_errors ) ) {
+		return;
+	}
+	?>
+	<div id="knabbel-recent-errors" class="knabbel-settings-card" style="margin-top: 24px;">
+		<div class="knabbel-card-title knabbel-articles-header">
+			<div class="header-left">
+				<span class="dashicons dashicons-warning card-icon"></span>
+				<h2><?php esc_html_e( 'Recent Errors', 'zw-knabbel-wp' ); ?></h2>
+			</div>
+		</div>
+		<div class="knabbel-card-content" style="padding: 0;">
+			<table class="knabbel-articles-table">
+				<thead>
+					<tr>
+						<th scope="col"><?php esc_html_e( 'Time', 'zw-knabbel-wp' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Component', 'zw-knabbel-wp' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Message', 'zw-knabbel-wp' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $recent_errors as $entry ) : ?>
+						<?php
+						$timestamp    = $entry['timestamp'];
+						$timestamp_ts = $timestamp ? strtotime( $timestamp . ' ' . wp_timezone_string() ) : false;
+						?>
+						<tr>
+							<td>
+								<?php
+								echo esc_html(
+									$timestamp_ts
+										? wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $timestamp_ts )
+										: $timestamp
+								);
+								?>
+							</td>
+							<td class="mono"><?php echo esc_html( $entry['component'] ); ?></td>
+							<td class="error-message"><?php echo esc_html( $entry['message'] ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</div>
+		<div class="knabbel-articles-footer">
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="knabbel_clear_recent_errors" />
+				<?php wp_nonce_field( 'knabbel_clear_recent_errors' ); ?>
+				<button type="submit" class="knabbel-btn knabbel-btn-secondary">
+					<?php esc_html_e( 'Clear Errors', 'zw-knabbel-wp' ); ?>
+				</button>
+			</form>
+		</div>
 	</div>
 	<?php
 }
