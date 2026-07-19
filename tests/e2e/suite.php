@@ -178,7 +178,7 @@ final class Knabbel_E2E_Suite {
 		update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', 1 );
 		$this->assert_same( 0, $this->story_action_count( $post_id ), 'Enabling a draft must not schedule processing.' );
 
-		$expected_dates = KnabbelWP\calculate_story_dates( 'now' );
+		$dates_before = KnabbelWP\calculate_story_dates( 'now' );
 		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
 		$this->assert_same(
 			StoryStatus::Scheduled->value,
@@ -191,7 +191,8 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 1, $this->story_action_count( $post_id ), 'Repeated saves must not duplicate the pending action.' );
 
 		$this->run_action_scheduler( self::STORY_HOOK );
-		$state = KnabbelWP\get_story_state( $post_id );
+		$dates_after = KnabbelWP\calculate_story_dates( 'now' );
+		$state       = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'The worker must mark a created story sent.' );
 		$this->assert_not_empty( $state['story_id'] ?? '', 'The worker must persist the Babbel story ID.' );
 		$this->assert_same( self::GENERATED_TEXT, $state['generated_speech_text'] ?? null, 'The generated speech text must be persisted.' );
@@ -199,8 +200,18 @@ final class Knabbel_E2E_Suite {
 		$story = $this->get_babbel_story( (string) $state['story_id'] );
 		$this->assert_same( $title, $story['title'] ?? null, 'Babbel must receive the raw WordPress title.' );
 		$this->assert_same( self::GENERATED_TEXT, $story['text'] ?? null, 'Babbel must receive the generated speech text.' );
-		$this->assert_same( $expected_dates['start_date'], $this->date_only( $story['start_date'] ?? '' ), 'Published story start date must be based on now.' );
-		$this->assert_same( $expected_dates['end_date'], $this->date_only( $story['end_date'] ?? '' ), 'Published story end date must be based on now.' );
+		$this->assert_date_within_window(
+			$this->date_only( $story['start_date'] ?? '' ),
+			$dates_before['start_date'],
+			$dates_after['start_date'],
+			'Published story start date must be based on the processing date.'
+		);
+		$this->assert_date_within_window(
+			$this->date_only( $story['end_date'] ?? '' ),
+			$dates_before['end_date'],
+			$dates_after['end_date'],
+			'Published story end date must be based on the processing date.'
+		);
 		$this->assert_same( 127, $story['weekdays'] ?? null, 'All configured weekdays must produce bitmask 127.' );
 		$this->assert_same( 'draft', $story['status'] ?? null, 'Babbel must receive the configured default status.' );
 		$this->assert_same( $post_id, (int) ( $story['metadata']['wordpress_id'] ?? 0 ), 'Babbel metadata must link to the WordPress post.' );
@@ -222,10 +233,21 @@ final class Knabbel_E2E_Suite {
 	 */
 	private function test_update_and_error_recovery(): void {
 		$original_story = $this->get_babbel_story( $this->published_story_id );
-		$new_content    = 'De inhoud verandert, maar bestaand Babbel-speechmateriaal blijft bewust en aantoonbaar ongewijzigd.';
+		$edited_text    = 'Dit is de door de redactie aangepaste Babbel-speechtekst die behouden moet blijven.';
+		$response       = $this->babbel_request(
+			'PUT',
+			'/stories/' . $this->published_story_id,
+			array(
+				'text'   => $edited_text,
+				'status' => $original_story['status'] ?? 'draft',
+			)
+		);
+		$this->assert_same( 200, wp_remote_retrieve_response_code( $response ), 'The fixture speech text must be editable in Babbel.' );
+
+		$new_content = 'De inhoud verandert, maar bestaand Babbel-speechmateriaal blijft bewust en aantoonbaar ongewijzigd.';
 		$this->update_post( $this->published_post_id, array( 'post_content' => $new_content ) );
 		$story = $this->get_babbel_story( $this->published_story_id );
-		$this->assert_same( $original_story['text'] ?? null, $story['text'] ?? null, 'Content-only edits must not overwrite edited Babbel speech text.' );
+		$this->assert_same( $edited_text, $story['text'] ?? null, 'Content-only edits must not overwrite edited Babbel speech text.' );
 
 		$this->update_post( $this->published_post_id, array( 'post_title' => 'E2E titel gesynchroniseerd' ) );
 		$story = $this->get_babbel_story( $this->published_story_id );
@@ -317,7 +339,7 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 'E2E opnieuw gepland', $story['title'] ?? null, 'Rescheduling must synchronize the title.' );
 		$this->assert_same( $dates['start_date'], $this->date_only( $story['start_date'] ?? '' ), 'Rescheduling must recalculate story dates.' );
 
-		$published_dates = KnabbelWP\calculate_story_dates( 'now' );
+		$dates_before = KnabbelWP\calculate_story_dates( 'now' );
 		$this->update_post(
 			$post_id,
 			array(
@@ -326,16 +348,19 @@ final class Knabbel_E2E_Suite {
 				'post_date_gmt' => current_time( 'mysql', true ),
 			)
 		);
-		$story = $this->get_babbel_story( $story_id );
-		$this->assert_same(
-			$published_dates['start_date'],
+		$story       = $this->get_babbel_story( $story_id );
+		$dates_after = KnabbelWP\calculate_story_dates( 'now' );
+		$this->assert_date_within_window(
 			$this->date_only( $story['start_date'] ?? '' ),
-			'Publishing a scheduled post must recalculate from now.'
+			$dates_before['start_date'],
+			$dates_after['start_date'],
+			'Publishing a scheduled post must recalculate from the processing date.'
 		);
-		$this->assert_same(
-			$published_dates['end_date'],
+		$this->assert_date_within_window(
 			$this->date_only( $story['end_date'] ?? '' ),
-			'Published scheduled story end date must recalculate from now.'
+			$dates_before['end_date'],
+			$dates_after['end_date'],
+			'Published scheduled story end date must recalculate from the processing date.'
 		);
 	}
 
@@ -777,6 +802,18 @@ final class Knabbel_E2E_Suite {
 	 */
 	private function date_only( mixed $value ): string {
 		return is_string( $value ) ? substr( $value, 0, 10 ) : '';
+	}
+
+	/**
+	 * Assert a date was calculated within a captured processing window.
+	 *
+	 * @param string $actual   Actual API date.
+	 * @param string $earliest Expected date before processing.
+	 * @param string $latest   Expected date after processing.
+	 * @param string $message  Failure message.
+	 */
+	private function assert_date_within_window( string $actual, string $earliest, string $latest, string $message ): void {
+		$this->assert_true( in_array( $actual, array( $earliest, $latest ), true ), $message );
 	}
 
 	/**
