@@ -38,12 +38,15 @@ function handle_clear_recent_errors(): void {
 	}
 
 	check_admin_referer( 'knabbel_clear_recent_errors' );
-	delete_option( 'knabbel_recent_errors' );
+
+	$missing_option = new \stdClass();
+	$stored_errors  = get_option( 'knabbel_recent_errors', $missing_option );
+	$errors_cleared = $missing_option === $stored_errors || delete_option( 'knabbel_recent_errors' );
 
 	$redirect_url = add_query_arg(
 		array(
 			'page'                   => 'zw-knabbel-wp-settings',
-			'knabbel_errors_cleared' => '1',
+			'knabbel_errors_cleared' => $errors_cleared ? '1' : '0',
 		),
 		admin_url( 'options-general.php' )
 	);
@@ -211,9 +214,16 @@ function settings_page(): void {
 	<div class="wrap knabbel-wp-admin">
 		<?php
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only confirmation after the nonce-protected clear action.
-		if ( isset( $_GET['knabbel_errors_cleared'] ) && '1' === sanitize_text_field( wp_unslash( $_GET['knabbel_errors_cleared'] ) ) ) :
+		$clear_status = isset( $_GET['knabbel_errors_cleared'] ) ? sanitize_text_field( wp_unslash( $_GET['knabbel_errors_cleared'] ) ) : '';
+		if ( '1' === $clear_status ) :
 			?>
-			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Recent errors cleared.', 'zw-knabbel-wp' ); ?></p></div>
+			<div class="notice notice-success is-dismissible">
+				<p><?php esc_html_e( 'Recent errors cleared.', 'zw-knabbel-wp' ); ?></p>
+			</div>
+		<?php elseif ( '0' === $clear_status ) : ?>
+			<div class="notice notice-error is-dismissible">
+				<p><?php esc_html_e( 'Recent errors could not be cleared. Please try again.', 'zw-knabbel-wp' ); ?></p>
+			</div>
 		<?php endif; ?>
 		<!-- Page Header -->
 		<div class="knabbel-page-header">
@@ -273,9 +283,6 @@ function render_recent_errors(): void {
 		}
 	}
 
-	if ( empty( $recent_errors ) ) {
-		return;
-	}
 	?>
 	<div id="knabbel-recent-errors" class="knabbel-settings-card" style="margin-top: 24px;">
 		<div class="knabbel-card-title knabbel-articles-header">
@@ -294,25 +301,31 @@ function render_recent_errors(): void {
 					</tr>
 				</thead>
 				<tbody>
-					<?php foreach ( $recent_errors as $entry ) : ?>
-						<?php
-						$timestamp    = $entry['timestamp'];
-						$timestamp_ts = $timestamp ? strtotime( $timestamp . ' ' . wp_timezone_string() ) : false;
-						?>
+					<?php if ( empty( $recent_errors ) ) : ?>
 						<tr>
-							<td>
-								<?php
-								echo esc_html(
-									$timestamp_ts
-										? wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $timestamp_ts )
-										: $timestamp
-								);
-								?>
-							</td>
-							<td class="mono"><?php echo esc_html( $entry['component'] ); ?></td>
-							<td class="error-message"><?php echo esc_html( $entry['message'] ); ?></td>
+							<td colspan="3"><?php esc_html_e( 'No valid recent errors to display.', 'zw-knabbel-wp' ); ?></td>
 						</tr>
-					<?php endforeach; ?>
+					<?php else : ?>
+						<?php foreach ( $recent_errors as $entry ) : ?>
+							<?php
+							$timestamp    = $entry['timestamp'];
+							$timestamp_ts = $timestamp ? strtotime( $timestamp . ' ' . wp_timezone_string() ) : false;
+							?>
+							<tr>
+								<td>
+									<?php
+									echo esc_html(
+										$timestamp_ts
+											? wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $timestamp_ts )
+											: $timestamp
+									);
+									?>
+								</td>
+								<td class="mono"><?php echo esc_html( $entry['component'] ); ?></td>
+								<td class="error-message"><?php echo esc_html( $entry['message'] ); ?></td>
+							</tr>
+						<?php endforeach; ?>
+					<?php endif; ?>
 				</tbody>
 			</table>
 		</div>
