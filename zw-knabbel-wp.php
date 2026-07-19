@@ -63,6 +63,98 @@ function debug_enabled(): bool {
 }
 
 /**
+ * Sanitizes and bounds context for the operator-facing recent error store.
+ *
+ * Debug logs retain the complete context, but persistent production data is
+ * limited to known diagnostic fields and excludes response/request bodies.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed> $context Raw log context.
+ * @return array<string, mixed> Safe context for persistent storage.
+ *
+ * @phpstan-param LogContext $context
+ */
+function prepare_log_context_for_storage( array $context ): array {
+	$safe_context = array();
+	$text_fields  = array(
+		'endpoint'   => 500,
+		'story_id'   => 100,
+		'error'      => 500,
+		'context'    => 100,
+		'api_error'  => 500,
+		'json_error' => 500,
+		'model'      => 100,
+		'error_type' => 100,
+		'error_code' => 100,
+	);
+
+	foreach ( $text_fields as $key => $max_length ) {
+		if ( ! isset( $context[ $key ] ) || ! is_scalar( $context[ $key ] ) ) {
+			continue;
+		}
+
+		$value                = sanitize_textarea_field( (string) $context[ $key ] );
+		$safe_context[ $key ] = wp_html_excerpt( $value, $max_length, '' );
+	}
+
+	foreach ( array( 'post_id', 'response_code', 'messages_count' ) as $key ) {
+		if ( isset( $context[ $key ] ) && is_numeric( $context[ $key ] ) ) {
+			$safe_context[ $key ] = (int) $context[ $key ];
+		}
+	}
+
+	if ( isset( $context['has_choices'] ) ) {
+		$safe_context['has_choices'] = (bool) $context['has_choices'];
+	}
+
+	foreach ( array( 'fields', 'response_keys' ) as $key ) {
+		if ( ! isset( $context[ $key ] ) || ! is_array( $context[ $key ] ) ) {
+			continue;
+		}
+
+		$values = array();
+		foreach ( array_slice( $context[ $key ], 0, 20 ) as $value ) {
+			if ( is_scalar( $value ) ) {
+				$values[] = sanitize_key( (string) $value );
+			}
+		}
+		$safe_context[ $key ] = $values;
+	}
+
+	return $safe_context;
+}
+
+/**
+ * Prepares an error entry for bounded, non-sensitive persistent storage.
+ *
+ * This also normalizes legacy entries before they are written back, ensuring
+ * previously stored response bodies do not remain in the rolling list.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed> $entry Raw error entry.
+ * @return array<string, mixed>|null Sanitized entry, or null when invalid.
+ *
+ * @phpstan-return RecentError|null
+ */
+function prepare_recent_error_for_storage( array $entry ): ?array {
+	if ( ! isset( $entry['component'], $entry['message'] ) || ! is_scalar( $entry['component'] ) || ! is_scalar( $entry['message'] ) ) {
+		return null;
+	}
+
+	$timestamp = isset( $entry['timestamp'] ) && is_scalar( $entry['timestamp'] )
+		? wp_html_excerpt( sanitize_text_field( (string) $entry['timestamp'] ), 32, '' )
+		: current_time( 'mysql' );
+	$context   = isset( $entry['context'] ) && is_array( $entry['context'] ) ? $entry['context'] : array();
+
+	return array(
+		'timestamp' => $timestamp,
+		'component' => wp_html_excerpt( sanitize_text_field( (string) $entry['component'] ), 80, '' ),
+		'message'   => wp_html_excerpt( sanitize_textarea_field( (string) $entry['message'] ), 500, '' ),
+		'context'   => prepare_log_context_for_storage( $context ),
+	);
+}
+
+/**
  * Centralized WordPress native logging with structured data.
  * Replaces duplicate log_message() methods in BabbelApi and OpenAiHandler classes.
  *
@@ -75,7 +167,42 @@ function debug_enabled(): bool {
  * @phpstan-param LogContext $context
  */
 function log( string $level, string $component, string $message, array $context = array() ): void {
-	// Only log when WordPress debug logging is enabled.
+	// Store critical errors for admin display regardless of debug logging.
+	if ( 'error' === $level ) {
+		$stored_errors = get_option( 'knabbel_recent_errors', array() );
+		$recent_errors = array();
+
+		if ( is_array( $stored_errors ) ) {
+			foreach ( $stored_errors as $stored_error ) {
+				if ( ! is_array( $stored_error ) ) {
+					continue;
+				}
+
+				$prepared_error = prepare_recent_error_for_storage( $stored_error );
+				if ( null !== $prepared_error ) {
+					$recent_errors[] = $prepared_error;
+				}
+			}
+		}
+
+		$new_error = prepare_recent_error_for_storage(
+			array(
+				'timestamp' => current_time( 'mysql' ),
+				'component' => $component,
+				'message'   => $message,
+				'context'   => $context,
+			)
+		);
+		if ( null !== $new_error ) {
+			$recent_errors[] = $new_error;
+		}
+
+		// Keep only last 10 errors.
+		$recent_errors = array_slice( $recent_errors, -10 );
+		update_option( 'knabbel_recent_errors', $recent_errors, false );
+	}
+
+	// Only write to the PHP error log when WordPress debug logging is enabled.
 	if ( ! defined( 'WP_DEBUG_LOG' ) || ! WP_DEBUG_LOG ) {
 		return;
 	}
@@ -90,21 +217,6 @@ function log( string $level, string $component, string $message, array $context 
 
 	// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional logging to WP_DEBUG_LOG.
 	error_log( $log_entry );
-
-	// Store critical errors for admin display.
-	if ( 'error' === $level ) {
-		$recent_errors   = get_option( 'knabbel_recent_errors', array() );
-		$recent_errors[] = array(
-			'timestamp' => current_time( 'mysql' ),
-			'component' => $component,
-			'message'   => $message,
-			'context'   => $context,
-		);
-
-		// Keep only last 10 errors.
-		$recent_errors = array_slice( $recent_errors, -10 );
-		update_option( 'knabbel_recent_errors', $recent_errors );
-	}
 }
 
 /**
