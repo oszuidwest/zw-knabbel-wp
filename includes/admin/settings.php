@@ -812,7 +812,7 @@ function render_articles_overview(): void {
 					<td class="mono"><?php echo esc_html( $selected_state['story_id'] ); ?></td>
 				</tr>
 				<?php endif; ?>
-				<?php if ( $is_error && ! empty( $selected_state['message'] ) && ! $sync_error ) : ?>
+				<?php if ( $is_error && ! empty( $selected_state['message'] ) && ! is_story_sync_error_renderable( $sync_error ) ) : ?>
 				<tr>
 					<td class="label-cell"><?php esc_html_e( 'Message', 'zw-knabbel-wp' ); ?></td>
 					<td class="error-message"><?php echo esc_html( $selected_state['message'] ); ?></td>
@@ -828,7 +828,7 @@ function render_articles_overview(): void {
 					<td class="muted">—</td>
 				</tr>
 				<?php endif; ?>
-				<?php if ( $sync_error && ! empty( $sync_error['message'] ) ) : ?>
+				<?php if ( is_story_sync_error_renderable( $sync_error ) && null !== $sync_error ) : ?>
 				<tr>
 					<td class="label-cell"><?php esc_html_e( 'Last sync error', 'zw-knabbel-wp' ); ?></td>
 					<td class="error-message">

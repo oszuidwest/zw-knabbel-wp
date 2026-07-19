@@ -116,7 +116,7 @@ function metabox_render( \WP_Post $post ): void {
 		echo '</label>';
 		echo '</p>';
 
-	if ( $sync_error && ! empty( $sync_error['message'] ) ) {
+	if ( is_story_sync_error_renderable( $sync_error ) && null !== $sync_error ) {
 		echo '<div class="knabbel-sync-warning" role="alert">';
 		echo '<strong>' . esc_html__( 'Babbel sync warning', 'zw-knabbel-wp' ) . '</strong>';
 		echo '<div>' . esc_html( $sync_error['message'] ) . '</div>';
@@ -181,7 +181,7 @@ function metabox_render_status( \WP_Post $post ): void {
 				?>
 			</li>
 			<?php endif; ?>
-			<?php if ( $sync_error && ! empty( $sync_error['message'] ) ) : ?>
+			<?php if ( is_story_sync_error_renderable( $sync_error ) && null !== $sync_error ) : ?>
 			<li>
 				<strong><?php esc_html_e( 'Last sync error', 'zw-knabbel-wp' ); ?>:</strong>
 				<div class="knabbel-sync-warning">
@@ -205,7 +205,7 @@ function metabox_render_status( \WP_Post $post ): void {
 				</div>
 			</li>
 			<?php endif; ?>
-			<?php if ( ! empty( $message ) && ! $sync_error ) : ?>
+			<?php if ( ! empty( $message ) && ! is_story_sync_error_renderable( $sync_error ) ) : ?>
 			<li>
 				<strong><?php esc_html_e( 'Message', 'zw-knabbel-wp' ); ?>:</strong>
 				<div class="knabbel-pre"><?php echo esc_html( $message ); ?></div>

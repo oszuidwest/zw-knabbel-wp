@@ -454,6 +454,20 @@ function get_story_sync_error( array $state ): ?array {
 }
 
 /**
+ * Determines whether a sync error has a message that can be rendered.
+ *
+ * @since 0.4.0
+ * @param array<string, mixed>|null $sync_error Sync error data.
+ * @return bool Whether the sync error can be rendered.
+ */
+function is_story_sync_error_renderable( ?array $sync_error ): bool {
+	return null !== $sync_error
+		&& isset( $sync_error['message'] )
+		&& is_string( $sync_error['message'] )
+		&& '' !== trim( $sync_error['message'] );
+}
+
+/**
  * Calculate story dates based on a base date and configured offsets.
  *
  * For published posts, base_date should be 'now'.
