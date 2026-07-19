@@ -1,0 +1,76 @@
+---
+name: Babbel E2E
+
+"on":
+  push:
+    branches: [main]
+    paths:
+      - '**/*.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'tests/e2e/**'
+      - '.github/workflows/e2e.yml'
+  pull_request:
+    paths:
+      - '**/*.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'tests/e2e/**'
+      - '.github/workflows/e2e.yml'
+  schedule:
+    - cron: '30 4 * * 0'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: WordPress to Babbel
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v7
+        with:
+          path: zw-knabbel-wp
+          persist-credentials: false
+
+      - name: Checkout Babbel
+        uses: actions/checkout@v7
+        with:
+          repository: oszuidwest/zwfm-babbel
+          ref: main
+          path: zwfm-babbel
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install plugin dependencies
+        working-directory: zw-knabbel-wp
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Run E2E suite
+        working-directory: zw-knabbel-wp
+        env:
+          BABBEL_PATH: ${{ github.workspace }}/zwfm-babbel
+        run: tests/e2e/run.sh
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: babbel-e2e-logs
+          path: zw-knabbel-wp/tests/e2e/artifacts/
+          if-no-files-found: ignore
+          retention-days: 7

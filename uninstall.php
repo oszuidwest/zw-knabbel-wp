@@ -14,14 +14,9 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
 
-global $wpdb;
-
 // Clean up transients (session cache).
-$wpdb->query(
-	"DELETE FROM {$wpdb->options}
-	WHERE option_name LIKE '_transient_knabbel_session_%'
-	OR option_name LIKE '_transient_timeout_knabbel_session_%'"
-);
+require_once __DIR__ . '/includes/babbel-api.php';
+KnabbelWP\babbel_cleanup_sessions();
 
 // Clean up temporary options.
 delete_option( 'knabbel_recent_errors' );

@@ -4,3 +4,5 @@
 *.mo
 *.md
 !README.md
+!tests/e2e/README.md
+/tests/e2e/artifacts/

@@ -752,13 +752,19 @@ function babbel_fetch_recent_stories( int $limit = 20 ): array|\WP_Error {
  * @global wpdb $wpdb WordPress database abstraction object.
  */
 function babbel_cleanup_sessions(): void {
-	// Clean up cached session transients (WordPress native cleanup).
 	global $wpdb;
-		$wpdb->query(
-			$wpdb->prepare(
-				'DELETE FROM ' . $wpdb->options . ' WHERE option_name LIKE %s OR option_name LIKE %s',
-				'_transient_knabbel_session_%',
-				'_transient_timeout_knabbel_session_%'
-			)
-		);
+
+	$option_names = $wpdb->get_col(
+		$wpdb->prepare(
+			'SELECT option_name FROM ' . $wpdb->options . ' WHERE option_name LIKE %s OR option_name LIKE %s',
+			$wpdb->esc_like( '_transient_knabbel_session_' ) . '%',
+			$wpdb->esc_like( '_transient_timeout_knabbel_session_' ) . '%'
+		)
+	);
+
+	foreach ( $option_names as $option_name ) {
+		if ( is_string( $option_name ) ) {
+			delete_option( $option_name );
+		}
+	}
 }

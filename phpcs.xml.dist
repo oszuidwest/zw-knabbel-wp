@@ -5,6 +5,7 @@
     <!-- Files to scan -->
     <file>zw-knabbel-wp.php</file>
     <file>includes</file>
+    <file>tests/e2e</file>
     <file>uninstall.php</file>
 
     <!-- Tooling -->
@@ -44,6 +45,16 @@
             <property name="lineLimit" value="160"/>
             <property name="absoluteLineLimit" value="0"/>
         </properties>
+    </rule>
+
+    <!-- The E2E runner is an executable test suite, not a class autoload target. -->
+    <rule ref="WordPress.Files.FileName.InvalidClassFileName">
+        <exclude-pattern>tests/e2e/suite.php</exclude-pattern>
+    </rule>
+
+    <!-- Exception messages are CLI diagnostics and are never rendered as HTML. -->
+    <rule ref="WordPress.Security.EscapeOutput.ExceptionNotEscaped">
+        <exclude-pattern>tests/e2e/suite.php</exclude-pattern>
     </rule>
 
     <exclude-pattern>vendor/*</exclude-pattern>
