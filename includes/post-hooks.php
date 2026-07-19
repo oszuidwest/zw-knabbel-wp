@@ -434,8 +434,6 @@ function restore_and_sync_story( int $post_id, string $story_id, string $title )
 		update_story_state(
 			$post_id,
 			array(
-				'status'          => StoryStatus::Error->value,
-				'message'         => $result['message'],
 				'last_sync_error' => build_story_sync_error( $result['message'], 'restore' ),
 			)
 		);
@@ -481,9 +479,8 @@ function restore_and_sync_story( int $post_id, string $story_id, string $title )
 /**
  * Pushes a story update to Babbel and handles the result.
  *
- * On failure, logs the error and leaves the story state untouched: the status
- * stays 'sent' since the story still exists in Babbel (unlike delete failures,
- * which set an error state).
+ * On failure, logs the error while preserving the lifecycle state: the story
+ * still exists in Babbel even though this synchronization attempt failed.
  *
  * @since 0.4.0
  *
@@ -501,7 +498,6 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 		update_story_state(
 			$post_id,
 			array(
-				'status'          => StoryStatus::Sent->value,
 				'message'         => $success_message,
 				'last_sync_error' => null,
 			)
