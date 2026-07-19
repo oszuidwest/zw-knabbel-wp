@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-19T13:04:56+00:00\n"
+"POT-Creation-Date: 2026-07-19T13:13:26+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: zw-knabbel-wp\n"
@@ -42,7 +42,7 @@ msgid "https://www.zuidwesttv.nl"
 msgstr ""
 
 #: includes/admin/metabox.php:70
-#: includes/admin/metabox.php:113
+#: includes/admin/metabox.php:115
 msgid "Radio News"
 msgstr ""
 
@@ -50,56 +50,70 @@ msgstr ""
 msgid "Knabbel Status"
 msgstr ""
 
-#: includes/admin/metabox.php:135
+#: includes/admin/metabox.php:121
+msgid "Babbel sync warning"
+msgstr ""
+
+#: includes/admin/metabox.php:145
 #: includes/admin/settings.php:619
-#: includes/admin/settings.php:794
+#: includes/admin/settings.php:795
 msgid "Status"
 msgstr ""
 
-#: includes/admin/metabox.php:139
+#: includes/admin/metabox.php:149
 #: includes/admin/settings.php:739
 msgid "Scheduled"
 msgstr ""
 
-#: includes/admin/metabox.php:140
+#: includes/admin/metabox.php:150
 #: includes/admin/settings.php:740
 msgid "Processing"
 msgstr ""
 
-#: includes/admin/metabox.php:141
+#: includes/admin/metabox.php:151
 #: includes/admin/settings.php:741
 msgid "Sent"
 msgstr ""
 
-#: includes/admin/metabox.php:142
+#: includes/admin/metabox.php:152
 #: includes/admin/settings.php:742
 msgid "Error"
 msgstr ""
 
-#: includes/admin/metabox.php:143
+#: includes/admin/metabox.php:153
 msgid "Deleted"
 msgstr ""
 
-#: includes/admin/metabox.php:145
+#: includes/admin/metabox.php:155
 msgid "—"
 msgstr ""
 
-#: includes/admin/metabox.php:151
+#: includes/admin/metabox.php:161
 msgid "Last status change:"
 msgstr ""
 
-#: includes/admin/metabox.php:161
+#: includes/admin/metabox.php:171
 msgid "Story ID"
 msgstr ""
 
-#: includes/admin/metabox.php:167
+#: includes/admin/metabox.php:177
 msgid "Scheduled:"
 msgstr ""
 
-#: includes/admin/metabox.php:176
+#: includes/admin/metabox.php:186
+#: includes/admin/settings.php:833
+msgid "Last sync error"
+msgstr ""
+
+#: includes/admin/metabox.php:192
+#: includes/admin/settings.php:838
+msgid "Operation"
+msgstr ""
+
+#: includes/admin/metabox.php:210
 #: includes/admin/settings.php:300
-#: includes/admin/settings.php:815
-#: includes/admin/settings.php:820
+#: includes/admin/settings.php:817
+#: includes/admin/settings.php:822
 msgid "Message"
 msgstr ""
 
@@ -306,37 +320,41 @@ msgstr ""
 msgid "Which days the story may be broadcast."
 msgstr ""
 
-#: includes/admin/settings.php:765
+#: includes/admin/settings.php:766
 msgid "Knabbel Story Debug Overview"
 msgstr ""
 
-#: includes/admin/settings.php:779
+#: includes/admin/settings.php:780
 msgid "Show"
 msgstr ""
 
-#: includes/admin/settings.php:785
+#: includes/admin/settings.php:786
 msgid "Article"
 msgstr ""
 
-#: includes/admin/settings.php:803
+#: includes/admin/settings.php:804
 msgid "Last status change"
 msgstr ""
 
-#: includes/admin/settings.php:810
-#: includes/admin/settings.php:825
+#: includes/admin/settings.php:811
+#: includes/admin/settings.php:827
 msgid "Babbel ID"
 msgstr ""
 
-#: includes/admin/settings.php:821
-#: zw-knabbel-wp.php:632
+#: includes/admin/settings.php:823
+#: zw-knabbel-wp.php:687
 msgid "Story is being processed..."
 msgstr ""
 
-#: includes/admin/settings.php:838
+#: includes/admin/settings.php:847
+msgid "Occurred"
+msgstr ""
+
+#: includes/admin/settings.php:863
 msgid "Retry"
 msgstr ""
 
-#: includes/admin/settings.php:843
+#: includes/admin/settings.php:868
 msgid "Refresh"
 msgstr ""
 
@@ -389,7 +407,7 @@ msgid "No story ID received from API"
 msgstr ""
 
 #: includes/babbel-api.php:316
-#: zw-knabbel-wp.php:687
+#: zw-knabbel-wp.php:742
 msgid "Story created successfully"
 msgstr ""
 
@@ -469,42 +487,39 @@ msgstr ""
 msgid "Story deleted (post trashed)"
 msgstr ""
 
-#: includes/post-hooks.php:451
+#: includes/post-hooks.php:450
+#: includes/post-hooks.php:470
 msgid "Story restored in Babbel"
 msgstr ""
 
-#: includes/post-hooks.php:470
-msgid "Story restored, but title sync failed"
-msgstr ""
-
-#: includes/post-hooks.php:634
+#: includes/post-hooks.php:640
 msgid "Processing already scheduled"
 msgstr ""
 
-#: includes/post-hooks.php:653
+#: includes/post-hooks.php:659
 msgid "Processing scheduled"
 msgstr ""
 
-#: includes/post-hooks.php:661
+#: includes/post-hooks.php:667
 msgid "Could not schedule action"
 msgstr ""
 
-#: zw-knabbel-wp.php:557
+#: zw-knabbel-wp.php:612
 msgid "Insufficient permissions"
 msgstr ""
 
-#: zw-knabbel-wp.php:596
+#: zw-knabbel-wp.php:651
 msgid "Already sent — skipping"
 msgstr ""
 
-#: zw-knabbel-wp.php:608
+#: zw-knabbel-wp.php:663
 msgid "Post not found"
 msgstr ""
 
-#: zw-knabbel-wp.php:621
+#: zw-knabbel-wp.php:676
 msgid "Send to Babbel is disabled for this post"
 msgstr ""
 
-#: zw-knabbel-wp.php:648
+#: zw-knabbel-wp.php:703
 msgid "Could not generate speech text"
 msgstr ""
