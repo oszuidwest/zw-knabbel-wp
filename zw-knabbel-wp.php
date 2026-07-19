@@ -225,7 +225,11 @@ function prepare_error_history( mixed $stored_errors ): array {
 }
 
 /**
- * Append an error to the shared history without losing concurrent writes.
+ * Append an error to the shared history using bounded optimistic retries.
+ *
+ * This is a diagnostic buffer rather than an audit log. A collision never
+ * overwrites another request's entry, while the small retry limit keeps error
+ * bursts from adding unbounded latency to the request that emitted the log.
  *
  * @since 0.4.0
  * @param array<string, mixed> $new_error Prepared error entry.
@@ -236,7 +240,7 @@ function append_recent_error( array $new_error ): void {
 	global $wpdb;
 
 	$option_name  = 'knabbel_recent_errors';
-	$max_attempts = 10;
+	$max_attempts = 3;
 
 	for ( $attempt = 0; $attempt < $max_attempts; ++$attempt ) {
 		// A direct read is required so the serialized value can be used as the
@@ -283,8 +287,6 @@ function append_recent_error( array $new_error ): void {
 				return;
 			}
 		}
-
-		usleep( ( $attempt + 1 ) * 1000 );
 	}
 }
 
