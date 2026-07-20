@@ -69,6 +69,7 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
+          cache-dependency-path: zw-knabbel-wp/package-lock.json
 
       - name: Install plugin dependencies
         working-directory: zw-knabbel-wp
