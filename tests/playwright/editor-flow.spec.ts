@@ -68,7 +68,9 @@ test.describe.serial('WordPress redacteursflow', () => {
 		}
 
 		await Promise.all([
-			page.waitForNavigation(),
+			page.waitForURL(
+				/\/wp-admin\/options-general\.php\?page=zw-knabbel-wp-settings/,
+			),
 			page.locator('button[form="knabbel-settings-form"]').click(),
 		]);
 		await expect(
@@ -204,7 +206,7 @@ test.describe.serial('WordPress redacteursflow', () => {
 	}) => {
 		await page.goto(`/wp-admin/post.php?post=${postID}&action=edit`);
 		await Promise.all([
-			page.waitForNavigation(),
+			page.waitForURL(/\/wp-admin\/edit\.php/),
 			page.locator('#delete-action .submitdelete').click(),
 		]);
 
