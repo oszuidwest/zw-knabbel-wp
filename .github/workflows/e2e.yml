@@ -6,6 +6,7 @@ name: Babbel E2E
     branches: [main]
     paths:
       - '**/*.php'
+      - 'assets/**'
       - 'composer.json'
       - 'composer.lock'
       - 'package.json'
@@ -15,16 +16,6 @@ name: Babbel E2E
       - 'tests/e2e/**'
       - '.github/workflows/e2e.yml'
   pull_request:
-    paths:
-      - '**/*.php'
-      - 'composer.json'
-      - 'composer.lock'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'playwright.config.ts'
-      - 'tests/playwright/**'
-      - 'tests/e2e/**'
-      - '.github/workflows/e2e.yml'
   schedule:
     - cron: '30 4 * * 0'
   workflow_dispatch:
@@ -80,7 +71,7 @@ jobs:
         run: npm ci
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('zw-knabbel-wp/package-lock.json') }}

@@ -11,7 +11,7 @@ updates:
     labels: ["dependencies", "composer"]
     rebase-strategy: "auto"
 
-  - package-ecosystem: "github-actions"
+  - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -19,6 +19,16 @@ updates:
       time: "07:10"
       timezone: "Europe/Amsterdam"
     open-pull-requests-limit: 10
-    labels: ["dependencies", "github-actions"]
+    labels: ["dependencies", "npm"]
     rebase-strategy: "auto"
 
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:20"
+      timezone: "Europe/Amsterdam"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "github-actions"]
+    rebase-strategy: "auto"

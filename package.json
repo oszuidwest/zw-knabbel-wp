@@ -3,13 +3,15 @@
   "private": true,
   "description": "WordPress plugin for Babbel API integration",
   "scripts": {
-    "lint": "biome check assets/",
-    "lint:fix": "biome check --write assets/",
+    "lint": "biome check assets/ && biome lint playwright.config.ts tests/playwright/ && tsc --noEmit",
+    "lint:fix": "biome check --write assets/ && biome lint --write playwright.config.ts tests/playwright/ && tsc --noEmit",
     "format": "biome format --write assets/",
     "test:e2e:browser": "playwright test"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.0",
-    "@playwright/test": "^1.61.1"
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^24.0.0",
+    "typescript": "^7.0.2"
   }
 }
