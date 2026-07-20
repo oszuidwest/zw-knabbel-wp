@@ -788,12 +788,25 @@ final class Knabbel_E2E_Suite {
 	 * @param string                $message Failure message prefix.
 	 */
 	private function assert_story_dates_in_window( array $story, array $before, array $after, string $message ): void {
-		foreach ( array( 'start_date', 'end_date' ) as $field ) {
-			$this->assert_true(
-				in_array( $this->date_only( $story[ $field ] ?? '' ), array( $before[ $field ], $after[ $field ] ), true ),
-				sprintf( '%s (%s)', $message, $field )
-			);
-		}
+		$actual   = array(
+			'start_date' => $this->date_only( $story['start_date'] ?? '' ),
+			'end_date'   => $this->date_only( $story['end_date'] ?? '' ),
+		);
+		$expected = array(
+			array(
+				'start_date' => $before['start_date'],
+				'end_date'   => $before['end_date'],
+			),
+			array(
+				'start_date' => $after['start_date'],
+				'end_date'   => $after['end_date'],
+			),
+		);
+
+		$this->assert_true(
+			in_array( $actual, $expected, true ),
+			$message
+		);
 	}
 
 	/**

@@ -37,10 +37,13 @@ function babbel_get_credentials(): array {
  * Build the transient key that caches the session for the configured API instance.
  *
  * @since 0.1.0
+ * @param array{base_url: string, username: string, password: string}|null $credentials Optional credential snapshot.
  * @return string Transient key.
+ *
+ * @phpstan-param BabbelCredentials|null $credentials
  */
-function babbel_get_session_cache_key(): string {
-	$credentials = babbel_get_credentials();
+function babbel_get_session_cache_key( ?array $credentials = null ): string {
+	$credentials ??= babbel_get_credentials();
 	return 'knabbel_session_' . md5( $credentials['base_url'] . $credentials['username'] );
 }
 
@@ -57,7 +60,7 @@ function babbel_get_session_cookies(): array|\WP_Error {
 		return new \WP_Error( 'missing_credentials', __( 'Username and password are required', 'zw-knabbel-wp' ) );
 	}
 
-	$cache_key      = babbel_get_session_cache_key();
+	$cache_key      = babbel_get_session_cache_key( $credentials );
 	$cached_cookies = get_transient( $cache_key );
 
 	if ( $cached_cookies && is_array( $cached_cookies ) ) {
