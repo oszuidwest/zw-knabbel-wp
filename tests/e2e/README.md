@@ -11,12 +11,15 @@ Prerequisites:
 
 - Docker with Docker Compose
 - Composer dependencies installed in this plugin repository
+- Node.js dependencies and the Playwright Chromium browser installed
 - A local `zwfm-babbel` checkout
 
 From the plugin root:
 
 ```bash
 composer install
+npm install
+npx playwright install chromium
 BABBEL_PATH=../zwfm-babbel tests/e2e/run.sh
 ```
 
@@ -29,5 +32,12 @@ project, removes it after the run, and writes combined container logs to
 
 The scenario catalog (E2E-001 through E2E-011) lives in the `run()` method of
 `suite.php`; the runner prints each scenario ID and title during execution.
+
+Before the PHP scenarios, Playwright drives the real WordPress admin UI in
+Chromium. The browser coverage saves and tests plugin settings, publishes and
+edits a post, disables and restores Babbel synchronization, cancels a scheduled
+post, and trashes and restores a sent post. The browser suite uses the classic
+WordPress post editor to keep the plugin-owned metabox flow deterministic; the
+test-only editor filter and queue controls are loaded as an isolated MU plugin.
 
 The credentials in the Compose file and suite are isolated test fixtures only.

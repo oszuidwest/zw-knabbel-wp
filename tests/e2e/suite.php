@@ -559,30 +559,13 @@ final class Knabbel_E2E_Suite {
 	/**
 	 * Run due actions through Action Scheduler's queue runner.
 	 *
+	 * Delegates to the shared helper in the knabbel-e2e-control MU plugin.
+	 *
 	 * @param string $hook Hook to execute.
 	 * @throws RuntimeException When an action does not complete successfully.
 	 */
 	private function run_action_scheduler( string $hook ): void {
-		$ids = as_get_scheduled_actions(
-			array(
-				'hook'         => $hook,
-				'group'        => self::ACTION_GROUP,
-				'status'       => ActionScheduler_Store::STATUS_PENDING,
-				'date'         => time(),
-				'date_compare' => '<=',
-				'per_page'     => -1,
-			),
-			'ids'
-		);
-
-		foreach ( $ids as $id ) {
-			ActionScheduler::runner()->process_action( $id, 'Knabbel E2E' );
-			$status = ActionScheduler::store()->get_status( $id );
-
-			if ( ActionScheduler_Store::STATUS_COMPLETE !== $status ) {
-				throw new RuntimeException( sprintf( 'Action Scheduler action %d finished with status %s.', $id, $status ) );
-			}
-		}
+		knabbel_e2e_run_due_actions( $hook );
 	}
 
 	/**
