@@ -5,3 +5,5 @@
 *.md
 !**/README.md
 /tests/e2e/artifacts/
+/playwright-report/
+/test-results/

@@ -22,6 +22,11 @@ if [[ ! -f "$repo_root/vendor/autoload.php" ]]; then
 	exit 2
 fi
 
+if [[ ! -f "$repo_root/node_modules/@playwright/test/package.json" ]]; then
+	echo "Playwright dependencies are missing. Run npm install first." >&2
+	exit 2
+fi
+
 command -v docker >/dev/null 2>&1 || {
 	echo "Docker is required for the E2E suite." >&2
 	exit 2
@@ -58,9 +63,14 @@ rm -rf "$artifact_dir"
 echo "Starting isolated WordPress and Babbel services..."
 "${compose[@]}" up --detach --build --wait --wait-timeout 240 babbel wordpress
 
+wordpress_address=$("${compose[@]}" port wordpress 80)
+babbel_address=$("${compose[@]}" port babbel 8080)
+wordpress_url="http://$wordpress_address"
+babbel_url="http://$babbel_address/api/v1"
+
 echo "Installing WordPress..."
 wp core install \
-	--url=http://wordpress \
+	--url="$wordpress_url" \
 	--title='Knabbel E2E' \
 	--admin_user=admin \
 	--admin_password=e2e-admin-password \
@@ -68,6 +78,11 @@ wp core install \
 	--skip-email
 wp option update timezone_string Europe/Amsterdam
 wp plugin activate zw-knabbel-wp
+
+echo "Running browser E2E scenarios..."
+PLAYWRIGHT_BASE_URL="$wordpress_url" \
+	PLAYWRIGHT_BABBEL_URL="$babbel_url" \
+	npm run test:e2e:browser
 
 echo "Running E2E regression suite..."
 wp eval 'require "/var/www/html/wp-content/plugins/zw-knabbel-wp/tests/e2e/suite.php";'

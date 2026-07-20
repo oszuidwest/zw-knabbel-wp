@@ -8,6 +8,10 @@ name: Babbel E2E
       - '**/*.php'
       - 'composer.json'
       - 'composer.lock'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'playwright.config.ts'
+      - 'tests/playwright/**'
       - 'tests/e2e/**'
       - '.github/workflows/e2e.yml'
   pull_request:
@@ -15,6 +19,10 @@ name: Babbel E2E
       - '**/*.php'
       - 'composer.json'
       - 'composer.lock'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'playwright.config.ts'
+      - 'tests/playwright/**'
       - 'tests/e2e/**'
       - '.github/workflows/e2e.yml'
   schedule:
@@ -56,9 +64,23 @@ jobs:
           coverage: none
           tools: composer:v2
 
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
       - name: Install plugin dependencies
         working-directory: zw-knabbel-wp
         run: composer install --no-dev --no-interaction --no-progress --prefer-dist
+
+      - name: Install browser test dependencies
+        working-directory: zw-knabbel-wp
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: zw-knabbel-wp
+        run: npx playwright install --with-deps chromium
 
       - name: Run E2E suite
         working-directory: zw-knabbel-wp
@@ -71,6 +93,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: babbel-e2e-logs
-          path: zw-knabbel-wp/tests/e2e/artifacts/
+          path: |
+            zw-knabbel-wp/tests/e2e/artifacts/
+            zw-knabbel-wp/playwright-report/
+            zw-knabbel-wp/test-results/
           if-no-files-found: ignore
           retention-days: 7

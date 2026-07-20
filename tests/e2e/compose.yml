@@ -37,6 +37,8 @@ services:
         define( 'WP_DEBUG_LOG', true );
         define( 'DISABLE_WP_CRON', true );
     volumes: *wordpress-volumes
+    ports:
+      - "127.0.0.1::80"
     depends_on:
       wordpress-db:
         condition: service_healthy
@@ -92,6 +94,8 @@ services:
     depends_on:
       babbel-db:
         condition: service_healthy
+    ports:
+      - "127.0.0.1::8080"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
       interval: 2s
