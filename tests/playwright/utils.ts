@@ -26,13 +26,16 @@ export interface BabbelStory {
 	};
 }
 
+export const WP_ADMIN = { username: 'admin', password: 'e2e-admin-password' };
+export const BABBEL_ADMIN = { username: 'admin', password: 'admin' };
+
 const babbelURL = process.env.PLAYWRIGHT_BABBEL_URL;
 let babbelContext: APIRequestContext | undefined;
 
 export async function login(page: Page): Promise<void> {
 	await page.goto('/wp-login.php');
-	await page.getByLabel('Username or Email Address').fill('admin');
-	await page.getByLabel('Password', { exact: true }).fill('e2e-admin-password');
+	await page.getByLabel('Username or Email Address').fill(WP_ADMIN.username);
+	await page.getByLabel('Password', { exact: true }).fill(WP_ADMIN.password);
 	await page.getByRole('button', { name: 'Log In' }).click();
 	await expect(page).toHaveURL(/\/wp-admin\//);
 }
@@ -74,29 +77,10 @@ export async function setBabbelEnabled(
 		'.knabbel-radionieuws-injected #knabbel_send_to_babbel',
 	);
 	await expect(checkbox).toBeVisible();
-
-	if (enabled) {
-		await checkbox.check({ force: true });
-	} else {
-		await checkbox.uncheck({ force: true });
-	}
+	await checkbox.setChecked(enabled, { force: true });
 }
 
-export async function runStoryActions(
-	page: Page,
-	postID: number,
-): Promise<ControlResult> {
-	return controlStory(page, postID, 'run');
-}
-
-export async function inspectStory(
-	page: Page,
-	postID: number,
-): Promise<ControlResult> {
-	return controlStory(page, postID, 'inspect');
-}
-
-async function controlStory(
+export async function controlStory(
 	page: Page,
 	postID: number,
 	operation: 'inspect' | 'run',
@@ -111,7 +95,7 @@ async function controlStory(
 		},
 	});
 
-	expect(response.status()).toBe(200);
+	expect(response.status(), await response.text()).toBe(200);
 	const body = (await response.json()) as {
 		success: boolean;
 		data: ControlResult;
@@ -119,17 +103,6 @@ async function controlStory(
 	expect(body.success).toBe(true);
 
 	return body.data;
-}
-
-export async function loginToBabbel(): Promise<void> {
-	const response = await babbelRequest('/sessions', {
-		method: 'POST',
-		data: {
-			username: 'admin',
-			password: 'admin',
-		},
-	});
-	expect(response.status()).toBe(201);
 }
 
 export async function getBabbelStory(
@@ -170,7 +143,11 @@ async function babbelRequest(
 	}
 
 	if (!babbelContext) {
-		babbelContext = await request.newContext({ baseURL: babbelURL });
+		babbelContext = await request.newContext();
+		const session = await babbelContext.post(`${babbelURL}/sessions`, {
+			data: BABBEL_ADMIN,
+		});
+		expect(session.status()).toBe(201);
 	}
 
 	return babbelContext.fetch(`${babbelURL}${path}`, options);

@@ -1,12 +1,10 @@
 import { expect, test } from '@playwright/test';
 import {
+	BABBEL_ADMIN,
+	controlStory,
 	countBabbelStoriesByTitle,
 	currentPostID,
 	getBabbelStory,
-	inspectStory,
-	login,
-	loginToBabbel,
-	runStoryActions,
 	savePost,
 	setBabbelEnabled,
 } from './utils';
@@ -24,10 +22,6 @@ test.describe.serial('WordPress redacteursflow', () => {
 	let storyID = '';
 	let generatedText = '';
 
-	test.beforeEach(async ({ page }) => {
-		await login(page);
-	});
-
 	test('beheerder configureert en test de integratie via Instellingen', async ({
 		page,
 	}) => {
@@ -35,30 +29,19 @@ test.describe.serial('WordPress redacteursflow', () => {
 			'/wp-admin/options-general.php?page=zw-knabbel-wp-settings',
 		);
 
-		await page
-			.locator('[name="knabbel_settings[api_base_url]"]')
-			.fill('http://babbel:8080/api/v1');
-		await page
-			.locator('[name="knabbel_settings[api_username]"]')
-			.fill('admin');
-		await page
-			.locator('[name="knabbel_settings[api_password]"]')
-			.fill('admin');
-		await page
-			.locator('[name="knabbel_settings[openai_api_key]"]')
-			.fill('e2e-openai-key');
-		await page
-			.locator('[name="knabbel_settings[openai_model]"]')
-			.fill('e2e-model');
-		await page
-			.locator('[name="knabbel_settings[few_shot_count]"]')
-			.fill('1');
-		await page
-			.locator('[name="knabbel_settings[start_days_offset]"]')
-			.fill('1');
-		await page
-			.locator('[name="knabbel_settings[end_days_offset]"]')
-			.fill('2');
+		const settings = {
+			api_base_url: 'http://babbel:8080/api/v1',
+			api_username: BABBEL_ADMIN.username,
+			api_password: BABBEL_ADMIN.password,
+			openai_api_key: 'e2e-openai-key',
+			openai_model: 'e2e-model',
+			few_shot_count: '1',
+			start_days_offset: '1',
+			end_days_offset: '2',
+		};
+		for (const [key, value] of Object.entries(settings)) {
+			await page.locator(`[name="knabbel_settings[${key}]"]`).fill(value);
+		}
 
 		const debugMode = page.locator(
 			'[name="knabbel_settings[debug_mode]"]',
@@ -78,7 +61,7 @@ test.describe.serial('WordPress redacteursflow', () => {
 		).toHaveValue('http://babbel:8080/api/v1');
 		await expect(debugMode).toBeChecked();
 
-		// The button's hover transform keeps Playwright's stability check moving.
+		// The button's `transition: all` keeps Playwright's stability check waiting.
 		await page.locator('#test-babbel-api').click({ force: true });
 		await expect(page.locator('#api-test-result')).toContainText(/admin/i);
 	});
@@ -96,7 +79,7 @@ test.describe.serial('WordPress redacteursflow', () => {
 		postID = currentPostID(page);
 		await expect(page.locator('.knabbel-status-badge.scheduled')).toBeVisible();
 
-		const result = await runStoryActions(page, postID);
+		const result = await controlStory(page, postID, 'run');
 		expect(result.pending).toBe(0);
 		expect(result.state.status).toBe('sent');
 		expect(result.state.story_id).toBeTruthy();
@@ -107,7 +90,6 @@ test.describe.serial('WordPress redacteursflow', () => {
 		await expect(page.locator('.knabbel-status-badge.sent')).toBeVisible();
 		await expect(page.locator('#knabbel_send_to_babbel')).toBeChecked();
 
-		await loginToBabbel();
 		const { response, story } = await getBabbelStory(storyID);
 		expect(response.status()).toBe(200);
 		expect(story?.title).toBe(originalTitle);
@@ -124,7 +106,6 @@ test.describe.serial('WordPress redacteursflow', () => {
 		await page.locator('#content').fill(updatedContent);
 		await savePost(page);
 
-		await loginToBabbel();
 		const { response, story } = await getBabbelStory(storyID);
 		expect(response.status()).toBe(200);
 		expect(story?.title).toBe(updatedTitle);
@@ -141,7 +122,6 @@ test.describe.serial('WordPress redacteursflow', () => {
 		await savePost(page);
 		await expect(page.locator('.knabbel-status-badge.deleted')).toBeVisible();
 
-		await loginToBabbel();
 		let remote = await getBabbelStory(storyID);
 		expect(remote.response.status()).toBe(404);
 
@@ -183,7 +163,7 @@ test.describe.serial('WordPress redacteursflow', () => {
 
 		await savePost(page);
 		const scheduledPostID = currentPostID(page);
-		let result = await inspectStory(page, scheduledPostID);
+		let result = await controlStory(page, scheduledPostID, 'inspect');
 		expect(result.pending).toBe(1);
 		expect(result.state.status).toBe('scheduled');
 
@@ -193,11 +173,10 @@ test.describe.serial('WordPress redacteursflow', () => {
 		await page.locator('.save-post-status').click({ force: true });
 		await savePost(page);
 
-		result = await inspectStory(page, scheduledPostID);
+		result = await controlStory(page, scheduledPostID, 'inspect');
 		expect(result.pending).toBe(0);
 		expect(result.state).toEqual([]);
 
-		await loginToBabbel();
 		expect(await countBabbelStoriesByTitle(scheduledTitle)).toBe(0);
 	});
 
@@ -210,7 +189,6 @@ test.describe.serial('WordPress redacteursflow', () => {
 			page.locator('#delete-action .submitdelete').click(),
 		]);
 
-		await loginToBabbel();
 		let remote = await getBabbelStory(storyID);
 		expect(remote.response.status()).toBe(404);
 

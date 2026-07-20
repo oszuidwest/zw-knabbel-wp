@@ -79,6 +79,12 @@ jobs:
         working-directory: zw-knabbel-wp
         run: npm ci
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('zw-knabbel-wp/package-lock.json') }}
+
       - name: Install Chromium
         working-directory: zw-knabbel-wp
         run: npx playwright install --with-deps chromium
