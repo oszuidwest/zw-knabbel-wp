@@ -58,7 +58,7 @@ jobs:
 
       - name: Install plugin dependencies
         working-directory: zw-knabbel-wp
-        run: composer install --no-interaction --no-progress --prefer-dist
+        run: composer install --no-dev --no-interaction --no-progress --prefer-dist
 
       - name: Run E2E suite
         working-directory: zw-knabbel-wp

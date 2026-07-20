@@ -27,22 +27,7 @@ project, removes it after the run, and writes combined container logs to
 
 ## Covered scenarios
 
-The regression suite checks:
-
-1. Plugin activation, recurring Action Scheduler setup, Babbel login, session
-   caching, and one-time recovery from an invalid session.
-2. Published story creation, payload fidelity, persisted state, and send-once
-   behavior.
-3. Selective title/content synchronization and recovery from invalid Babbel
-   credentials without leaking secrets.
-4. Checkbox-driven soft delete and restore.
-5. Scheduled, rescheduled, and published date calculations.
-6. Cancellation when a scheduled post returns to draft.
-7. Trash and untrash delete/restore behavior.
-8. OpenAI retry exhaustion without a remote side effect.
-9. Babbel create failure diagnostics.
-10. Few-shot synchronization of editor-corrected speech text and disabling the
-    cache.
-11. Deactivation cleanup of sessions, cached examples, and scheduled actions.
+The scenario catalog (E2E-001 through E2E-011) lives in the `run()` method of
+`suite.php`; the runner prints each scenario ID and title during execution.
 
 The credentials in the Compose file and suite are isolated test fixtures only.
