@@ -8,6 +8,7 @@ parameters:
     - vendor
   bootstrapFiles:
     - phpstan-bootstrap.php
+  scanFiles:
     - phpstan-bootstrap.stub
   parallel:
     maximumNumberOfProcesses: 1

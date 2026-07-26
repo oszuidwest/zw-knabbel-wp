@@ -292,11 +292,10 @@ function append_recent_error( array $new_error ): void {
 
 /**
  * Centralized WordPress native logging with structured data.
- * Replaces duplicate log_message() methods in BabbelApi and OpenAiHandler classes.
  *
  * @since 0.1.0
  * @param string               $level     Log level: 'error', 'warning', 'info'.
- * @param string               $component Component name: 'BabbelApi', 'OpenAiHandler', etc.
+ * @param string               $component Component name: 'BabbelApi', 'AiHandler', etc.
  * @param string               $message   Log message.
  * @param array<string, mixed> $context   Additional context data.
  *

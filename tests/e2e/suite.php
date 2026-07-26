@@ -123,7 +123,6 @@ final class Knabbel_E2E_Suite {
 		);
 
 		update_option( 'knabbel_settings', $settings );
-		update_option( 'connectors_ai_openai_api_key', 'e2e-openai-key' );
 		KnabbelWP\babbel_clear_session_cache();
 	}
 

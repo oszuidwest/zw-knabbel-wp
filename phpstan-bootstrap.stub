@@ -2,7 +2,9 @@
 /**
  * WordPress 7.0 AI Client stubs for static analysis.
  *
- * These can be removed once phpstan-wordpress supports WordPress 7.0.
+ * Registered under scanFiles in phpstan.neon, so this file is parsed for
+ * symbol discovery and never executed. These can be removed once
+ * phpstan-wordpress supports WordPress 7.0.
  *
  * @package KnabbelWP
  */
@@ -10,35 +12,27 @@
 declare(strict_types=1);
 
 namespace WordPress\AiClient\Messages\DTO {
-	if ( ! class_exists( Message::class ) ) {
-		class Message {
+	class Message {
+	}
+
+	class MessagePart {
+		public function __construct( mixed $content ) {
 		}
 	}
 
-	if ( ! class_exists( MessagePart::class ) ) {
-		class MessagePart {
-			public function __construct( mixed $content ) {
-			}
+	class UserMessage extends Message {
+		/**
+		 * @param list<MessagePart> $parts Message parts.
+		 */
+		public function __construct( array $parts ) {
 		}
 	}
 
-	if ( ! class_exists( UserMessage::class ) ) {
-		class UserMessage extends Message {
-			/**
-			 * @param list<MessagePart> $parts Message parts.
-			 */
-			public function __construct( array $parts ) {
-			}
-		}
-	}
-
-	if ( ! class_exists( ModelMessage::class ) ) {
-		class ModelMessage extends Message {
-			/**
-			 * @param list<MessagePart> $parts Message parts.
-			 */
-			public function __construct( array $parts ) {
-			}
+	class ModelMessage extends Message {
+		/**
+		 * @param list<MessagePart> $parts Message parts.
+		 */
+		public function __construct( array $parts ) {
 		}
 	}
 }
@@ -46,33 +40,29 @@ namespace WordPress\AiClient\Messages\DTO {
 namespace {
 	use WordPress\AiClient\Messages\DTO\Message;
 
-	if ( ! class_exists( 'WP_AI_Client_Prompt_Builder' ) ) {
-		class WP_AI_Client_Prompt_Builder {
-			public function with_history( Message ...$messages ): self {
-				return $this;
-			}
+	class WP_AI_Client_Prompt_Builder {
+		public function with_history( Message ...$messages ): self {
+			return $this;
+		}
 
-			public function using_system_instruction( string $instruction ): self {
-				return $this;
-			}
+		public function using_system_instruction( string $instruction ): self {
+			return $this;
+		}
 
-			public function using_max_tokens( int $max_tokens ): self {
-				return $this;
-			}
+		public function using_max_tokens( int $max_tokens ): self {
+			return $this;
+		}
 
-			public function using_temperature( float $temperature ): self {
-				return $this;
-			}
+		public function using_temperature( float $temperature ): self {
+			return $this;
+		}
 
-			public function generate_text(): string|\WP_Error {
-				return '';
-			}
+		public function generate_text(): string|\WP_Error {
+			return '';
 		}
 	}
 
-	if ( ! function_exists( 'wp_ai_client_prompt' ) ) {
-		function wp_ai_client_prompt( ?string $prompt = null ): WP_AI_Client_Prompt_Builder {
-			return new WP_AI_Client_Prompt_Builder();
-		}
+	function wp_ai_client_prompt( ?string $prompt = null ): WP_AI_Client_Prompt_Builder {
+		return new WP_AI_Client_Prompt_Builder();
 	}
 }

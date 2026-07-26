@@ -29,11 +29,24 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return string|null The generated content or null on failure.
  */
 function ai_generate_content( string $content ): ?string {
+	$options = get_option( 'knabbel_settings' );
+
+	// phpcs:ignore Generic.Files.LineLength.TooLong -- Prompt text should remain on a single line for clarity.
+	$default_instruction = "Transformeer naar natuurlijke radiospreektekst met:\n- Korte, heldere zinnen (max 15 woorden)\n- Spreektaal en radiofrases\n- Logische volgorde voor luisteraars\n- Duidelijke overgangen tussen punten\n- Actieve zinsbouw\n- Getallen uitgeschreven waar natuurlijk";
+
+	$speech_prompt = $options['speech_prompt'] ?? '';
+	$instruction   = is_string( $speech_prompt ) && '' !== trim( $speech_prompt )
+		? $speech_prompt
+		: $default_instruction;
+
+	$prompt  = ai_format_article_prompt( $content );
+	$history = ai_get_few_shot_history( (int) ( $options['few_shot_count'] ?? 5 ) );
+
 	$max_retries = 3;
 	$attempt     = 0;
 
 	while ( $attempt < $max_retries ) {
-		$result = ai_generate_content_once( $content );
+		$result = ai_generate_content_once( $prompt, $instruction, $history );
 
 		if ( null !== $result ) {
 			return $result;
@@ -55,23 +68,14 @@ function ai_generate_content( string $content ): ?string {
  * Make a single generation request through the WordPress AI Client.
  *
  * @since 0.1.0
- * @param string $content The source content.
+ * @param string        $prompt      The framed article prompt.
+ * @param string        $instruction The system instruction.
+ * @param list<Message> $history     Few-shot conversation history.
  * @return string|null The generated content or null on failure.
  */
-function ai_generate_content_once( string $content ): ?string {
-	$options = get_option( 'knabbel_settings', array() );
-	if ( ! is_array( $options ) ) {
-		$options = array();
-	}
-
-	// phpcs:ignore Generic.Files.LineLength.TooLong -- Prompt text should remain on a single line for clarity.
-	$default_instruction = "Transformeer naar natuurlijke radiospreektekst met:\n- Korte, heldere zinnen (max 15 woorden)\n- Spreektaal en radiofrases\n- Logische volgorde voor luisteraars\n- Duidelijke overgangen tussen punten\n- Actieve zinsbouw\n- Getallen uitgeschreven waar natuurlijk";
-	$instruction         = isset( $options['speech_prompt'] ) && is_string( $options['speech_prompt'] ) && '' !== trim( $options['speech_prompt'] )
-		? $options['speech_prompt']
-		: $default_instruction;
-
-	$result = wp_ai_client_prompt( "Artikel:\n\"\"\"\n" . $content . "\n\"\"\"" )
-		->with_history( ...ai_get_few_shot_history() )
+function ai_generate_content_once( string $prompt, string $instruction, array $history ): ?string {
+	$result = wp_ai_client_prompt( $prompt )
+		->with_history( ...$history )
 		->using_system_instruction( $instruction )
 		->using_max_tokens( 1000 )
 		->using_temperature( 0.7 )
@@ -100,46 +104,49 @@ function ai_generate_content_once( string $content ): ?string {
 }
 
 /**
+ * Wrap article text in the delimited frame shared by the live prompt and few-shot examples.
+ *
+ * Few-shot examples only steer the model when their framing matches the live prompt exactly.
+ *
+ * @since 0.4.0
+ * @param string $article The article text.
+ * @return string The framed prompt.
+ */
+function ai_format_article_prompt( string $article ): string {
+	return "Artikel:\n\"\"\"\n{$article}\n\"\"\"";
+}
+
+/**
  * Build few-shot conversation history for speech generation.
  *
- * Loads cached editor-corrected examples as native AI Client messages.
+ * Loads cached editor-corrected examples as native AI Client messages. The
+ * count is applied here so a lowered setting takes effect immediately, before
+ * the nightly sync rebuilds the cache.
  *
  * @since 0.3.0
+ * @param int $few_shot_count Maximum number of examples to include.
  * @return list<Message> Alternating user and model example messages.
  */
-function ai_get_few_shot_history(): array {
-	// Respect the setting immediately, even before the nightly sync clears the cache.
-	$settings = get_option( 'knabbel_settings', array() );
-	if ( ! is_array( $settings ) ) {
-		$settings = array();
-	}
-
-	$few_shot_count = (int) ( $settings['few_shot_count'] ?? 5 );
+function ai_get_few_shot_history( int $few_shot_count ): array {
 	if ( $few_shot_count <= 0 ) {
 		return array();
 	}
 
 	$examples = get_option( 'knabbel_few_shot_examples', array() );
-
-	if ( empty( $examples ) || ! is_array( $examples ) ) {
+	if ( ! is_array( $examples ) ) {
 		return array();
 	}
 
 	$history = array();
-	foreach ( $examples as $example ) {
-		if (
-			! is_array( $example )
-			|| ! isset( $example['input'], $example['output'] )
-			|| ! is_string( $example['input'] )
-			|| ! is_string( $example['output'] )
-			|| '' === trim( $example['input'] )
-			|| '' === trim( $example['output'] )
-		) {
+	foreach ( array_slice( $examples, 0, $few_shot_count ) as $example ) {
+		$input  = $example['input'] ?? null;
+		$output = $example['output'] ?? null;
+		if ( ! is_string( $input ) || '' === trim( $input ) || ! is_string( $output ) || '' === trim( $output ) ) {
 			continue;
 		}
 
-		$history[] = new UserMessage( array( new MessagePart( "Artikel:\n\"\"\"\n" . $example['input'] . "\n\"\"\"" ) ) );
-		$history[] = new ModelMessage( array( new MessagePart( $example['output'] ) ) );
+		$history[] = new UserMessage( array( new MessagePart( ai_format_article_prompt( $input ) ) ) );
+		$history[] = new ModelMessage( array( new MessagePart( $output ) ) );
 	}
 
 	return $history;
