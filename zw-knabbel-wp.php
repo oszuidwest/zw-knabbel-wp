@@ -98,8 +98,6 @@ function prepare_log_text_context( array $context ): array {
 		'context'    => 100,
 		'api_error'  => 500,
 		'json_error' => 500,
-		'model'      => 100,
-		'error_type' => 100,
 		'error_code' => 100,
 	);
 
@@ -125,14 +123,10 @@ function prepare_log_text_context( array $context ): array {
 function prepare_log_scalar_context( array $context ): array {
 	$safe_context = array();
 
-	foreach ( array( 'post_id', 'response_code', 'messages_count' ) as $key ) {
+	foreach ( array( 'post_id', 'response_code' ) as $key ) {
 		if ( isset( $context[ $key ] ) && is_numeric( $context[ $key ] ) ) {
 			$safe_context[ $key ] = (int) $context[ $key ];
 		}
-	}
-
-	if ( isset( $context['has_choices'] ) ) {
-		$safe_context['has_choices'] = (bool) $context['has_choices'];
 	}
 
 	return $safe_context;
@@ -146,23 +140,18 @@ function prepare_log_scalar_context( array $context ): array {
  * @return array<string, list<string>>
  */
 function prepare_log_list_context( array $context ): array {
-	$safe_context = array();
-
-	foreach ( array( 'fields', 'response_keys' ) as $key ) {
-		if ( ! isset( $context[ $key ] ) || ! is_array( $context[ $key ] ) ) {
-			continue;
-		}
-
-		$values = array();
-		foreach ( array_slice( $context[ $key ], 0, 20 ) as $value ) {
-			if ( is_scalar( $value ) ) {
-				$values[] = sanitize_key( (string) $value );
-			}
-		}
-		$safe_context[ $key ] = $values;
+	if ( ! isset( $context['fields'] ) || ! is_array( $context['fields'] ) ) {
+		return array();
 	}
 
-	return $safe_context;
+	$fields = array();
+	foreach ( array_slice( $context['fields'], 0, 20 ) as $field ) {
+		if ( is_scalar( $field ) ) {
+			$fields[] = sanitize_key( (string) $field );
+		}
+	}
+
+	return array( 'fields' => $fields );
 }
 
 /**
@@ -500,6 +489,7 @@ function calculate_story_dates( string $base_date = 'now' ): array {
  */
 function init(): void {
 	load_plugin_textdomain( 'zw-knabbel-wp', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+	cleanup_legacy_data();
 
 	// Register cron hook for async story processing (always, not just admin).
 	add_action( 'knabbel_process_story', __NAMESPACE__ . '\\process_story_async', 10, 1 );
@@ -603,11 +593,14 @@ function deactivate(): void {
  * @since 0.1.0
  */
 function cleanup_legacy_data(): void {
-	// Remove deprecated title_prompt from settings (removed in 0.3.0).
 	$settings = get_option( 'knabbel_settings' );
-	if ( is_array( $settings ) && isset( $settings['title_prompt'] ) ) {
-		unset( $settings['title_prompt'] );
-		update_option( 'knabbel_settings', $settings );
+	if ( ! is_array( $settings ) ) {
+		return;
+	}
+
+	$clean_settings = array_diff_key( $settings, array_flip( array( 'title_prompt', 'openai_api_key', 'openai_model' ) ) );
+	if ( $clean_settings !== $settings ) {
+		update_option( 'knabbel_settings', $clean_settings );
 	}
 }
 

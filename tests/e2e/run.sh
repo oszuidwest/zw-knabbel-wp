@@ -136,7 +136,9 @@ wp plugin activate zw-knabbel-wp
 wp option update connectors_ai_openai_api_key e2e-openai-key
 # The dollar-prefixed variables are evaluated by PHP inside the container.
 # shellcheck disable=SC2016
-wp eval '$settings = get_option( "knabbel_settings", array() ); if ( 1 !== ( $settings["start_days_offset"] ?? null ) || "draft" !== ( $settings["default_status"] ?? null ) ) { throw new RuntimeException( "Plugin activation defaults are incorrect." ); }'
+wp eval '$settings = get_option( "knabbel_settings", array() ); $settings["title_prompt"] = "legacy"; $settings["openai_api_key"] = "legacy-secret"; $settings["openai_model"] = "legacy-model"; update_option( "knabbel_settings", $settings );'
+# shellcheck disable=SC2016
+wp eval '$settings = get_option( "knabbel_settings", array() ); if ( array_intersect( array( "title_prompt", "openai_api_key", "openai_model" ), array_keys( $settings ) ) ) { throw new RuntimeException( "Legacy AI settings were not removed on init." ); } if ( 1 !== ( $settings["start_days_offset"] ?? null ) || "draft" !== ( $settings["default_status"] ?? null ) ) { throw new RuntimeException( "Plugin activation defaults are incorrect." ); }'
 
 echo "Running browser E2E scenarios..."
 PLAYWRIGHT_BASE_URL="$wordpress_url" \

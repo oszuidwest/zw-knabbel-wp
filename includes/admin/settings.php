@@ -238,7 +238,6 @@ function settings_page(): void {
 				<?php
 				render_babbel_api_card( $settings );
 				render_ai_card( $settings );
-				render_prompts_card( $settings );
 				render_defaults_card( $settings );
 				?>
 			</div>
@@ -470,6 +469,19 @@ function render_ai_card( array $settings ): void {
 
 			<div class="knabbel-field">
 				<label class="knabbel-field-label">
+					<?php esc_html_e( 'Speech Text Generation Prompt', 'zw-knabbel-wp' ); ?>
+				</label>
+				<textarea name="knabbel_settings[speech_prompt]"
+					class="knabbel-field-input"
+					rows="4"
+					placeholder="<?php echo esc_attr( AI_DEFAULT_INSTRUCTION ); ?>"><?php echo esc_textarea( $settings['speech_prompt'] ?? '' ); ?></textarea>
+				<p class="knabbel-field-description">
+					<?php esc_html_e( 'Prompt for converting to radio-friendly speech text. Leave empty for default prompt.', 'zw-knabbel-wp' ); ?>
+				</p>
+			</div>
+
+			<div class="knabbel-field">
+				<label class="knabbel-field-label">
 					<?php esc_html_e( 'Few-shot Examples', 'zw-knabbel-wp' ); ?>
 				</label>
 				<input type="number"
@@ -486,42 +498,6 @@ function render_ai_card( array $settings ): void {
 					);
 					?>
 				</p>
-			</div>
-		</div>
-	</div>
-	<?php
-}
-
-/**
- * Displays the AI Prompts settings card.
- *
- * @since 0.1.05
- * @param array<string, mixed> $settings Current settings.
- */
-function render_prompts_card( array $settings ): void {
-	?>
-	<div class="knabbel-settings-card full-width">
-		<div class="knabbel-card-title">
-			<span class="dashicons dashicons-format-chat card-icon"></span>
-			<h2><?php esc_html_e( 'AI Prompts', 'zw-knabbel-wp' ); ?></h2>
-		</div>
-		<div class="knabbel-card-content">
-			<p class="knabbel-card-description">
-				<?php esc_html_e( 'Customize the AI prompt for generating speech text.', 'zw-knabbel-wp' ); ?>
-			</p>
-
-			<div class="knabbel-field">
-				<label class="knabbel-field-label">
-					<?php esc_html_e( 'Speech Text Generation Prompt', 'zw-knabbel-wp' ); ?>
-				</label>
-					<textarea name="knabbel_settings[speech_prompt]"
-						class="knabbel-field-input"
-						rows="4"
-						<?php // phpcs:ignore Generic.Files.LineLength.TooLong -- Placeholder text with newlines ?>
-						placeholder="<?php echo esc_attr( "Transformeer naar natuurlijke radiospreektekst met:\n- Korte, heldere zinnen\n- Spreektaal en radiofrases\n- Logische volgorde voor luisteraars\n- Actieve zinsbouw\n- Getallen uitgeschreven waar natuurlijk" ); ?>"><?php echo esc_textarea( $settings['speech_prompt'] ?? '' ); ?></textarea>
-					<p class="knabbel-field-description">
-						<?php esc_html_e( 'Prompt for converting to radio-friendly speech text. Leave empty for default prompt.', 'zw-knabbel-wp' ); ?>
-					</p>
 			</div>
 		</div>
 	</div>

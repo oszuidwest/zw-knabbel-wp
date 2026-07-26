@@ -353,7 +353,9 @@ final class Knabbel_E2E_Suite {
 	 * Verify post trash hooks soft-delete and untrash restores the same record.
 	 */
 	private function test_trash_and_restore(): void {
-		$post_id  = $this->create_and_process_published_story( 'E2E prullenbak', 'Een gepubliceerd artikel wordt verwijderd en daarna veilig teruggezet.' );
+		$post_id = $this->create_enabled_draft( 'E2E prullenbak', 'Een gepubliceerd artikel wordt verwijderd en daarna veilig teruggezet.' );
+		$this->publish_and_process( $post_id );
+		$this->assert_story_status( $post_id, StoryStatus::Sent, 'Published fixture must reach sent state.' );
 		$state    = KnabbelWP\get_story_state( $post_id );
 		$story_id = (string) ( $state['story_id'] ?? '' );
 
@@ -473,22 +475,6 @@ final class Knabbel_E2E_Suite {
 		);
 		$this->assert_same( false, get_transient( KnabbelWP\babbel_get_session_cache_key() ), 'Deactivation must clear Babbel sessions.' );
 		$this->assert_same( false, get_option( 'knabbel_few_shot_examples', false ), 'Deactivation must clear few-shot data.' );
-	}
-
-	/**
-	 * Create and process one published story.
-	 *
-	 * @param string $title   Post title.
-	 * @param string $content Post content.
-	 * @return int Post ID.
-	 * @throws RuntimeException When WordPress cannot create the post.
-	 */
-	private function create_and_process_published_story( string $title, string $content ): int {
-		$post_id = $this->create_enabled_draft( $title, $content );
-		$this->publish_and_process( $post_id );
-		$this->assert_story_status( $post_id, StoryStatus::Sent, 'Published fixture must reach sent state.' );
-
-		return $post_id;
 	}
 
 	/**
