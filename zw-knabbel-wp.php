@@ -2,7 +2,7 @@
 /**
  * Plugin Name: ZuidWest Knabbel
  * Plugin URI: https://github.com/oszuidwest/zw-knabbel-wp
- * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Ondersteunt OpenAI GPT-modellen voor AI-gegenereerde content.
+ * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Gebruikt de WordPress AI Client voor AI-gegenereerde content.
  * Version: 0.4.0
  * Requires at least: 7.0
  * Requires PHP: 8.3
@@ -41,7 +41,7 @@ require_once KNABBEL_PLUGIN_DIR . 'vendor/woocommerce/action-scheduler/action-sc
 require_once KNABBEL_PLUGIN_DIR . 'includes/story-status.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/weekdays.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/babbel-api.php';
-require_once KNABBEL_PLUGIN_DIR . 'includes/openai-handler.php';
+require_once KNABBEL_PLUGIN_DIR . 'includes/ai-handler.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/few-shot-cache.php';
 
 /**
@@ -98,8 +98,6 @@ function prepare_log_text_context( array $context ): array {
 		'context'    => 100,
 		'api_error'  => 500,
 		'json_error' => 500,
-		'model'      => 100,
-		'error_type' => 100,
 		'error_code' => 100,
 	);
 
@@ -125,14 +123,10 @@ function prepare_log_text_context( array $context ): array {
 function prepare_log_scalar_context( array $context ): array {
 	$safe_context = array();
 
-	foreach ( array( 'post_id', 'response_code', 'messages_count' ) as $key ) {
+	foreach ( array( 'post_id', 'response_code' ) as $key ) {
 		if ( isset( $context[ $key ] ) && is_numeric( $context[ $key ] ) ) {
 			$safe_context[ $key ] = (int) $context[ $key ];
 		}
-	}
-
-	if ( isset( $context['has_choices'] ) ) {
-		$safe_context['has_choices'] = (bool) $context['has_choices'];
 	}
 
 	return $safe_context;
@@ -146,23 +140,18 @@ function prepare_log_scalar_context( array $context ): array {
  * @return array<string, list<string>>
  */
 function prepare_log_list_context( array $context ): array {
-	$safe_context = array();
-
-	foreach ( array( 'fields', 'response_keys' ) as $key ) {
-		if ( ! isset( $context[ $key ] ) || ! is_array( $context[ $key ] ) ) {
-			continue;
-		}
-
-		$values = array();
-		foreach ( array_slice( $context[ $key ], 0, 20 ) as $value ) {
-			if ( is_scalar( $value ) ) {
-				$values[] = sanitize_key( (string) $value );
-			}
-		}
-		$safe_context[ $key ] = $values;
+	if ( ! isset( $context['fields'] ) || ! is_array( $context['fields'] ) ) {
+		return array();
 	}
 
-	return $safe_context;
+	$fields = array();
+	foreach ( array_slice( $context['fields'], 0, 20 ) as $field ) {
+		if ( is_scalar( $field ) ) {
+			$fields[] = sanitize_key( (string) $field );
+		}
+	}
+
+	return array( 'fields' => $fields );
 }
 
 /**
@@ -292,11 +281,10 @@ function append_recent_error( array $new_error ): void {
 
 /**
  * Centralized WordPress native logging with structured data.
- * Replaces duplicate log_message() methods in BabbelApi and OpenAiHandler classes.
  *
  * @since 0.1.0
  * @param string               $level     Log level: 'error', 'warning', 'info'.
- * @param string               $component Component name: 'BabbelApi', 'OpenAiHandler', etc.
+ * @param string               $component Component name: 'BabbelApi', 'AiHandler', etc.
  * @param string               $message   Log message.
  * @param array<string, mixed> $context   Additional context data.
  *
@@ -501,6 +489,7 @@ function calculate_story_dates( string $base_date = 'now' ): array {
  */
 function init(): void {
 	load_plugin_textdomain( 'zw-knabbel-wp', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+	cleanup_legacy_data();
 
 	// Register cron hook for async story processing (always, not just admin).
 	add_action( 'knabbel_process_story', __NAMESPACE__ . '\\process_story_async', 10, 1 );
@@ -551,8 +540,6 @@ function activate(): void {
 			'api_base_url'      => 'https://babbel.example.com/api/v1',
 			'api_username'      => '',
 			'api_password'      => '',
-			'openai_api_key'    => '',
-			'openai_model'      => 'gpt-4.1-mini',
 			'speech_prompt'     => '',
 			'debug_mode'        => false,
 			// Story defaults.
@@ -606,11 +593,14 @@ function deactivate(): void {
  * @since 0.1.0
  */
 function cleanup_legacy_data(): void {
-	// Remove deprecated title_prompt from settings (removed in 0.3.0).
 	$settings = get_option( 'knabbel_settings' );
-	if ( is_array( $settings ) && isset( $settings['title_prompt'] ) ) {
-		unset( $settings['title_prompt'] );
-		update_option( 'knabbel_settings', $settings );
+	if ( ! is_array( $settings ) ) {
+		return;
+	}
+
+	$clean_settings = array_diff_key( $settings, array_flip( array( 'title_prompt', 'openai_api_key', 'openai_model' ) ) );
+	if ( $clean_settings !== $settings ) {
+		update_option( 'knabbel_settings', $clean_settings );
 	}
 }
 
@@ -708,7 +698,7 @@ function process_story_async( int|array $post_id_or_args ): void {
 	$title = $post->post_title;
 
 	// Generate speech text.
-	$speech_text = openai_generate_content( $content );
+	$speech_text = ai_generate_content( $content );
 	if ( null === $speech_text ) {
 		update_story_state(
 			$post_id,
