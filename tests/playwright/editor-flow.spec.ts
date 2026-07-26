@@ -209,15 +209,29 @@ test.describe
             expect(result.pending).toBe(1);
             expect(result.state.status).toBe('scheduled');
 
+            // WordPress uses jQuery slide animations for these classic-editor
+            // controls. Chromium can leave them at a fractional pixel in CI.
+            await page.evaluate(() => {
+                const jquery = (
+                    window as typeof window & {
+                        jQuery: { fx: { off: boolean } };
+                    }
+                ).jQuery;
+                jquery.fx.off = true;
+            });
             const postStatus = page.locator('#post_status');
-            await expect(async () => {
-                if (!(await postStatus.isVisible())) {
-                    await page.locator('.edit-post-status').click();
-                }
-                await expect(postStatus).toBeVisible({ timeout: 1_000 });
-            }).toPass({ timeout: 15_000 });
+            if (!(await postStatus.isVisible())) {
+                await page
+                    .locator('.edit-post-status')
+                    .evaluate((link: HTMLAnchorElement) => link.click());
+            }
+            await expect(postStatus).toBeVisible();
             await postStatus.selectOption('draft');
-            await page.locator('.save-post-status').click();
+            await expect(postStatus).toHaveValue('draft');
+            await page
+                .locator('.save-post-status')
+                .evaluate((link: HTMLAnchorElement) => link.click());
+            await expect(postStatus).toBeHidden();
             await savePost(page);
 
             result = await controlStory(page, scheduledPostID, 'inspect');
@@ -231,9 +245,11 @@ test.describe
             page,
         }) => {
             await page.goto(`/wp-admin/post.php?post=${postID}&action=edit`);
+            const trashLink = page.locator('#delete-action .submitdelete');
+            await expect(trashLink).toBeVisible();
             await Promise.all([
                 page.waitForURL(/\/wp-admin\/edit\.php/),
-                page.locator('#delete-action .submitdelete').click(),
+                trashLink.evaluate((link: HTMLAnchorElement) => link.click()),
             ]);
 
             let remote = await getBabbelStory(storyID);

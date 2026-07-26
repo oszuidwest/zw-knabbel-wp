@@ -63,7 +63,9 @@ truncate_wordpress_debug_log() {
 }
 
 assert_wordpress_debug_log_clean() {
-	collect_wordpress_debug_log
+	if ! collect_wordpress_debug_log; then
+		return 1
+	fi
 	# WP_DEBUG can capture ambient core errors. Fail only when the origin points into this plugin.
 	if grep -Ei 'PHP (warning|notice|deprecated|fatal error|parse error|recoverable fatal error).*/wp-content/plugins/zw-knabbel-wp/' \
 		"$wordpress_debug_log" >"$wordpress_php_errors"; then

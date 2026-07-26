@@ -4,6 +4,11 @@ x-wordpress-env: &wordpress-env
   WORDPRESS_DB_NAME: wordpress
   WORDPRESS_DB_USER: wordpress
   WORDPRESS_DB_PASSWORD: wordpress
+  WORDPRESS_DEBUG: "1"
+  WORDPRESS_CONFIG_EXTRA: |
+    define( 'WP_ENVIRONMENT_TYPE', 'local' );
+    define( 'WP_DEBUG_LOG', true );
+    define( 'DISABLE_WP_CRON', true );
 
 x-wordpress-volumes: &wordpress-volumes
   - wordpress-data:/var/www/html
@@ -31,11 +36,6 @@ services:
     image: wordpress:7.0.1-php8.3-apache
     environment:
       <<: *wordpress-env
-      WORDPRESS_DEBUG: "1"
-      WORDPRESS_CONFIG_EXTRA: |
-        define( 'WP_ENVIRONMENT_TYPE', 'local' );
-        define( 'WP_DEBUG_LOG', true );
-        define( 'DISABLE_WP_CRON', true );
     volumes: *wordpress-volumes
     ports:
       - "127.0.0.1::80"

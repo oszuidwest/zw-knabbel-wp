@@ -37,9 +37,41 @@ let babbelContextPromise: Promise<APIRequestContext> | undefined;
 
 export async function login(page: Page): Promise<void> {
     await page.goto('/wp-login.php');
-    await page.getByLabel('Username or Email Address').fill(WP_ADMIN.username);
-    await page.getByLabel('Password', { exact: true }).fill(WP_ADMIN.password);
-    await page.getByRole('button', { name: 'Log In' }).click();
+    const loginResponse = page.waitForResponse(
+        (response) =>
+            response.request().method() === 'POST' &&
+            new URL(response.url()).pathname === '/wp-login.php',
+    );
+    const [response] = await Promise.all([
+        loginResponse,
+        page
+            .locator('#loginform')
+            .evaluate((form: HTMLFormElement, credentials) => {
+                const username = form.elements.namedItem('log');
+                const password = form.elements.namedItem('pwd');
+                if (
+                    !(username instanceof HTMLInputElement) ||
+                    !(password instanceof HTMLInputElement)
+                ) {
+                    throw new Error('The login fields are unavailable.');
+                }
+
+                username.value = credentials.username;
+                password.value = credentials.password;
+                form.submit();
+            }, WP_ADMIN),
+    ]);
+    const status = response.status();
+    let failureMessage = 'Login failed.';
+    if (status >= 400) {
+        try {
+            failureMessage = await response.text();
+        } catch {
+            failureMessage =
+                'Login failed and its response body is unavailable.';
+        }
+    }
+    expect(status, failureMessage).toBeLessThan(400);
     await expect(page).toHaveURL(/\/wp-admin\//);
 }
 
@@ -97,9 +129,13 @@ export async function setBabbelEnabled(
     );
     await expect(checkbox).toBeVisible();
     await expect(checkbox).toBeEnabled();
-    // After an edit-screen reload, CI traces show that Playwright's stability
-    // check never settles for this injected control.
-    await checkbox.setChecked(enabled, { force: true });
+    // Chromium's click state can remain unchanged for this injected control,
+    // even when Playwright reports a completed forced click.
+    await checkbox.evaluate((input: HTMLInputElement, checked) => {
+        input.checked = checked;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, enabled);
     await expect(checkbox).toBeChecked({ checked: enabled });
 }
 
