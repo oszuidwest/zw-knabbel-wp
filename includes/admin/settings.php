@@ -482,10 +482,11 @@ function render_ai_card( array $settings ): void {
 			</div>
 
 			<div class="knabbel-field">
-				<label class="knabbel-field-label">
+				<label class="knabbel-field-label" for="knabbel-few-shot-count">
 					<?php esc_html_e( 'Few-shot Examples', 'zw-knabbel-wp' ); ?>
 				</label>
 				<input type="number"
+					id="knabbel-few-shot-count"
 					name="knabbel_settings[few_shot_count]"
 					class="knabbel-field-input"
 					value="<?php echo esc_attr( (string) ( $settings['few_shot_count'] ?? 5 ) ); ?>"
