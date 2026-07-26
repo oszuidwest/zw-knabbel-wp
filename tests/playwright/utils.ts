@@ -66,7 +66,17 @@ export async function savePost(page: Page): Promise<void> {
             button.form.requestSubmit(button);
         }),
     ]);
-    expect(response.status(), await response.text()).toBeLessThan(400);
+    const status = response.status();
+    let failureMessage = 'Post save failed.';
+    if (status >= 400) {
+        try {
+            failureMessage = await response.text();
+        } catch {
+            failureMessage =
+                'Post save failed and its response body is unavailable.';
+        }
+    }
+    expect(status, failureMessage).toBeLessThan(400);
     await expect(page).toHaveURL(/\/wp-admin\/post\.php\?post=\d+&action=edit/);
     await expect(page.locator('#publish')).toBeVisible();
 }
