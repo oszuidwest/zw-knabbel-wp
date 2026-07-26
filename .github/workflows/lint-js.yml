@@ -11,15 +11,13 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'biome.json'
+      - 'tsconfig.json'
   pull_request:
-    paths:
-      - '**/*.js'
-      - '**/*.ts'
-      - '**/*.css'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'biome.json'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

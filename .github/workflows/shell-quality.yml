@@ -7,8 +7,6 @@ name: Shell Quality
     paths:
       - '**.sh'
   pull_request:
-    paths:
-      - '**.sh'
   workflow_dispatch:
 
 concurrency:

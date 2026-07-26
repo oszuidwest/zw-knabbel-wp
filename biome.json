@@ -32,8 +32,10 @@
         "includes": [
             "**/assets/**/*.js",
             "**/assets/**/*.css",
-            "!**/vendor/**",
-            "!**/node_modules/**"
+            "playwright.config.ts",
+            "tests/playwright/**/*.ts",
+            "!**/vendor",
+            "!**/node_modules"
         ]
     }
 }

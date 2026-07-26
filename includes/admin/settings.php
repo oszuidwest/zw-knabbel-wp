@@ -676,12 +676,15 @@ function render_articles_overview(): void {
 
 	$query = new \WP_Query(
 		array(
-			'post_type'      => 'post',
-			'post_status'    => 'any',
-			'posts_per_page' => 25,
-			'orderby'        => 'date',
-			'order'          => 'DESC',
-			'meta_query'     => array(
+			'post_type'              => 'post',
+			'post_status'            => 'any',
+			'posts_per_page'         => 25,
+			'orderby'                => 'date',
+			'order'                  => 'DESC',
+			'no_found_rows'          => true,
+			'update_post_term_cache' => false,
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Bounded admin-only query; no pagination and post meta is primed for 25 results.
+			'meta_query'             => array(
 				array(
 					'key'     => '_zw_knabbel_story_state',
 					'compare' => 'EXISTS',

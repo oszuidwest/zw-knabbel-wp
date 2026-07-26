@@ -12,6 +12,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+if ( ! function_exists( 'wp_get_environment_type' ) || 'local' !== wp_get_environment_type() ) {
+	return;
+}
+
 add_filter(
 	'pre_http_request',
 	static function ( false|array|WP_Error $preempt, array $parsed_args, string $url ): false|array|WP_Error {
@@ -33,6 +37,7 @@ add_filter(
 					'choices' => array(
 						array(
 							'message' => array(
+								// Keep in sync with suite.php and editor-flow.spec.ts.
 								'content' => 'Deterministische E2E-radiospreektekst.',
 							),
 						),

@@ -14,16 +14,11 @@ on:
       - 'phpstan-bootstrap.php'
       - 'languages/**'
   pull_request:
-    paths:
-      - '**/*.php'
-      - 'composer.json'
-      - 'composer.lock'
-      - 'phpcs.xml'
-      - 'phpcs.xml.dist'
-      - 'phpstan.neon'
-      - 'phpstan-bootstrap.php'
-      - 'languages/**'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
