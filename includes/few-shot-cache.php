@@ -3,7 +3,7 @@
  * Few-shot example cache for AI prompt improvement
  *
  * Syncs editor-corrected stories from the Babbel API with their original WordPress
- * source content to build few-shot examples for OpenAI speech text generation.
+ * source content to build few-shot examples for AI speech text generation.
  *
  * @package KnabbelWP
  * @since   0.3.0
@@ -60,7 +60,7 @@ function few_shot_unschedule_sync(): void {
  *
  * Fetches recent editor-reviewed stories, matches them with their original
  * WordPress posts, calculates edit-intensity scores, and caches the best
- * examples for use in OpenAI prompts.
+ * examples for use in AI prompts.
  *
  * @since 0.3.0
  */

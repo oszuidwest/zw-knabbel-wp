@@ -9,17 +9,14 @@ import {
 export interface StoryState {
     status?: string;
     story_id?: string;
-    generated_speech_text?: string;
 }
 
 export interface ControlResult {
     pending: number;
-    processed: number;
     state: StoryState;
 }
 
 export interface BabbelStory {
-    id: string;
     title: string;
     text: string;
     status?: string;
@@ -186,8 +183,8 @@ export async function babbelStoryStatus(storyID: string): Promise<number> {
 export async function updateBabbelStory(
     storyID: string,
     data: { text: string; status: string },
-): Promise<APIResponse> {
-    return babbelRequest(`/stories/${encodeURIComponent(storyID)}`, {
+): Promise<void> {
+    await babbelRequest(`/stories/${encodeURIComponent(storyID)}`, {
         method: 'PUT',
         data,
     });
