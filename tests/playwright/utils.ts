@@ -33,7 +33,7 @@ export const WP_ADMIN = { username: 'admin', password: 'e2e-admin-password' };
 export const BABBEL_ADMIN = { username: 'admin', password: 'admin' };
 
 const babbelURL = process.env.PLAYWRIGHT_BABBEL_URL;
-let babbelContext: APIRequestContext | undefined;
+let babbelContextPromise: Promise<APIRequestContext> | undefined;
 
 export async function login(page: Page): Promise<void> {
     await page.goto('/wp-login.php');
@@ -168,8 +168,10 @@ export async function countBabbelStoriesByTitle(
 }
 
 export async function disposeBabbelContext(): Promise<void> {
-    await babbelContext?.dispose();
-    babbelContext = undefined;
+    const contextPromise = babbelContextPromise;
+    babbelContextPromise = undefined;
+    const context = await contextPromise?.catch(() => undefined);
+    await context?.dispose();
 }
 
 async function babbelRequest(
@@ -180,19 +182,33 @@ async function babbelRequest(
         throw new Error('PLAYWRIGHT_BABBEL_URL is required.');
     }
 
-    if (!babbelContext) {
-        const context = await request.newContext();
-        const session = await context.post(`${babbelURL}/sessions`, {
-            data: BABBEL_ADMIN,
-        });
-        const body = await session.text();
-        try {
-            expect(session.status(), body).toBe(201);
-        } catch (error) {
-            await context.dispose();
-            throw error;
+    if (!babbelContextPromise) {
+        babbelContextPromise = (async () => {
+            const context = await request.newContext();
+            try {
+                const session = await context.post(`${babbelURL}/sessions`, {
+                    data: BABBEL_ADMIN,
+                });
+                const body = await session.text();
+                expect(session.status(), body).toBe(201);
+
+                return context;
+            } catch (error) {
+                await context.dispose();
+                throw error;
+            }
+        })();
+    }
+
+    const contextPromise = babbelContextPromise;
+    let babbelContext: APIRequestContext;
+    try {
+        babbelContext = await contextPromise;
+    } catch (error) {
+        if (babbelContextPromise === contextPromise) {
+            babbelContextPromise = undefined;
         }
-        babbelContext = context;
+        throw error;
     }
 
     return babbelContext.fetch(`${babbelURL}${path}`, options);

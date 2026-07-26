@@ -9,6 +9,11 @@ interface BrowserErrorFixtures {
     browserErrors: string[];
 }
 
+const allowedBrowserErrors = [
+    // WordPress admin navigation can skip Chrome View Transitions without affecting the page update.
+    /^pageerror: Transition was skipped$/,
+];
+
 function collectBrowserErrors(page: Page, errors: string[]): void {
     page.on('pageerror', (error) => {
         errors.push(`pageerror: ${error.message}`);
@@ -28,9 +33,16 @@ export const test = base.extend<BrowserErrorFixtures>({
             const errors: string[] = [];
             collectBrowserErrors(page, errors);
             await use(errors);
-            expect(errors, 'Browser JavaScript errors must be empty.').toEqual(
-                [],
+            const unexpectedErrors = errors.filter(
+                (error) =>
+                    !allowedBrowserErrors.some((pattern) =>
+                        pattern.test(error),
+                    ),
             );
+            expect(
+                unexpectedErrors,
+                'Unexpected browser JavaScript errors must be empty.',
+            ).toEqual([]);
         },
         { auto: true },
     ],

@@ -54,11 +54,20 @@ collect_wordpress_debug_log() {
 	fi
 }
 
+truncate_wordpress_debug_log() {
+	if ! "${compose[@]}" exec -T wordpress sh -c \
+		'if [ -f /var/www/html/wp-content/debug.log ]; then : > /var/www/html/wp-content/debug.log; fi'; then
+		echo "Could not truncate the WordPress debug log." >&2
+		return 1
+	fi
+}
+
 assert_wordpress_debug_log_clean() {
 	collect_wordpress_debug_log
-	if grep -Ei 'PHP (warning|notice|deprecated|fatal error|parse error|recoverable fatal error)' \
+	# WP_DEBUG can capture ambient core errors. Fail only when the origin points into this plugin.
+	if grep -Ei 'PHP (warning|notice|deprecated|fatal error|parse error|recoverable fatal error).*/wp-content/plugins/zw-knabbel-wp/' \
 		"$wordpress_debug_log" >"$wordpress_php_errors"; then
-		echo "WordPress emitted PHP errors:" >&2
+		echo "The zw-knabbel-wp plugin emitted PHP errors:" >&2
 		cat "$wordpress_php_errors" >&2
 		return 1
 	else
@@ -68,6 +77,7 @@ assert_wordpress_debug_log_clean() {
 			return 1
 		fi
 	fi
+	truncate_wordpress_debug_log
 }
 
 cleanup() {
