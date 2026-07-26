@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ZuidWest Knabbel 0.4.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/zw-knabbel-wp\n"
-"POT-Creation-Date: 2026-07-26T21:35:38+00:00\n"
+"POT-Creation-Date: 2026-07-26T21:45:31+00:00\n"
 "PO-Revision-Date: 2026-07-26T20:34:04+00:00\n"
 "Last-Translator: Remon Mens\n"
 "Language-Team: Dutch\n"
@@ -54,24 +54,24 @@ msgstr "Knabbel Status"
 msgid "Babbel sync warning"
 msgstr ""
 
-#: includes/admin/metabox.php:145 includes/admin/settings.php:559
-#: includes/admin/settings.php:738
+#: includes/admin/metabox.php:145 includes/admin/settings.php:560
+#: includes/admin/settings.php:739
 msgid "Status"
 msgstr "Status"
 
-#: includes/admin/metabox.php:149 includes/admin/settings.php:682
+#: includes/admin/metabox.php:149 includes/admin/settings.php:683
 msgid "Scheduled"
 msgstr "Ingepland"
 
-#: includes/admin/metabox.php:150 includes/admin/settings.php:683
+#: includes/admin/metabox.php:150 includes/admin/settings.php:684
 msgid "Processing"
 msgstr "Bezig"
 
-#: includes/admin/metabox.php:151 includes/admin/settings.php:684
+#: includes/admin/metabox.php:151 includes/admin/settings.php:685
 msgid "Sent"
 msgstr "Verzonden"
 
-#: includes/admin/metabox.php:152 includes/admin/settings.php:685
+#: includes/admin/metabox.php:152 includes/admin/settings.php:686
 msgid "Error"
 msgstr "Fout"
 
@@ -95,23 +95,22 @@ msgstr "Verhaal-ID"
 msgid "Scheduled:"
 msgstr "Ingepland:"
 
-#: includes/admin/metabox.php:186 includes/admin/settings.php:776
+#: includes/admin/metabox.php:186 includes/admin/settings.php:777
 msgid "Last sync error"
 msgstr ""
 
-#: includes/admin/metabox.php:192 includes/admin/settings.php:781
+#: includes/admin/metabox.php:192 includes/admin/settings.php:782
 msgid "Operation"
 msgstr ""
 
 #: includes/admin/metabox.php:210 includes/admin/settings.php:297
-#: includes/admin/settings.php:760 includes/admin/settings.php:765
+#: includes/admin/settings.php:761 includes/admin/settings.php:766
 msgid "Message"
 msgstr "Bericht"
 
 #: includes/admin/settings.php:37
-#, fuzzy
 msgid "You do not have sufficient permissions to perform this action."
-msgstr "Je hebt onvoldoende rechten om deze pagina te bekijken."
+msgstr "Je hebt onvoldoende rechten om deze actie uit te voeren."
 
 #: includes/admin/settings.php:65
 msgid "ZuidWest Knabbel Settings"
@@ -134,9 +133,8 @@ msgid "An error occurred"
 msgstr "Er is een fout opgetreden"
 
 #: includes/admin/settings.php:219
-#, fuzzy
 msgid "Recent errors cleared."
-msgstr "Er is een fout opgetreden"
+msgstr "Recente fouten gewist."
 
 #: includes/admin/settings.php:223
 msgid "Recent errors could not be cleared. Please try again."
@@ -223,7 +221,7 @@ msgstr "AI-providers beheren"
 msgid "Speech Text Generation Prompt"
 msgstr "Prompt voor spreektekstgeneratie"
 
-#: includes/admin/settings.php:479
+#: includes/admin/settings.php:480
 msgid ""
 "Prompt for converting to radio-friendly speech text. Leave empty for default "
 "prompt."
@@ -231,11 +229,11 @@ msgstr ""
 "Prompt voor het converteren naar radiogeschikte spreektekst. Laat leeg voor "
 "standaardprompt."
 
-#: includes/admin/settings.php:485
+#: includes/admin/settings.php:486
 msgid "Few-shot Examples"
 msgstr "Few-shot voorbeelden"
 
-#: includes/admin/settings.php:495
+#: includes/admin/settings.php:496
 msgid ""
 "Number of editor-corrected examples to include in the speech prompt (0 to "
 "disable, max 20). Synced nightly from Babbel."
@@ -244,99 +242,99 @@ msgstr ""
 "om uit te schakelen, max 20). Wordt elke nacht gesynchroniseerd vanuit "
 "Babbel."
 
-#: includes/admin/settings.php:515
+#: includes/admin/settings.php:516
 msgid "Sun"
 msgstr "Zo"
 
-#: includes/admin/settings.php:516
+#: includes/admin/settings.php:517
 msgid "Mon"
 msgstr "Ma"
 
-#: includes/admin/settings.php:517
+#: includes/admin/settings.php:518
 msgid "Tue"
 msgstr "Di"
 
-#: includes/admin/settings.php:518
+#: includes/admin/settings.php:519
 msgid "Wed"
 msgstr "Wo"
 
-#: includes/admin/settings.php:519
+#: includes/admin/settings.php:520
 msgid "Thu"
 msgstr "Do"
 
-#: includes/admin/settings.php:520
+#: includes/admin/settings.php:521
 msgid "Fri"
 msgstr "Vr"
 
-#: includes/admin/settings.php:521
+#: includes/admin/settings.php:522
 msgid "Sat"
 msgstr "Za"
 
-#: includes/admin/settings.php:528
+#: includes/admin/settings.php:529
 msgid "Story Defaults"
 msgstr "Standaardinstellingen verhaal"
 
-#: includes/admin/settings.php:533
+#: includes/admin/settings.php:534
 msgid "Start Date (days from now)"
 msgstr "Startdatum (dagen vanaf nu)"
 
-#: includes/admin/settings.php:541
+#: includes/admin/settings.php:542
 msgid "Number of days from publication for start date."
 msgstr "Aantal dagen vanaf publicatie voor startdatum."
 
-#: includes/admin/settings.php:546
+#: includes/admin/settings.php:547
 msgid "End Date (days from now)"
 msgstr "Einddatum (dagen vanaf nu)"
 
-#: includes/admin/settings.php:554
+#: includes/admin/settings.php:555
 msgid "Number of days from publication for end date."
 msgstr "Aantal dagen vanaf publicatie voor einddatum."
 
-#: includes/admin/settings.php:568
+#: includes/admin/settings.php:569
 msgid "Active"
 msgstr "Actief"
 
-#: includes/admin/settings.php:573
+#: includes/admin/settings.php:574
 msgid "Days"
 msgstr "Dagen"
 
-#: includes/admin/settings.php:591
+#: includes/admin/settings.php:592
 msgid "Which days the story may be broadcast."
 msgstr "Op welke dagen het verhaal uitgezonden mag worden."
 
-#: includes/admin/settings.php:709
+#: includes/admin/settings.php:710
 msgid "Knabbel Story Debug Overview"
 msgstr "Knabbel verhaal debug-overzicht"
 
-#: includes/admin/settings.php:723
+#: includes/admin/settings.php:724
 msgid "Show"
 msgstr "Tonen"
 
-#: includes/admin/settings.php:729
+#: includes/admin/settings.php:730
 msgid "Article"
 msgstr "Artikel"
 
-#: includes/admin/settings.php:747
+#: includes/admin/settings.php:748
 msgid "Last status change"
 msgstr "Laatste statuswijziging"
 
-#: includes/admin/settings.php:754 includes/admin/settings.php:770
+#: includes/admin/settings.php:755 includes/admin/settings.php:771
 msgid "Babbel ID"
 msgstr "Babbel ID"
 
-#: includes/admin/settings.php:766 zw-knabbel-wp.php:691
+#: includes/admin/settings.php:767 zw-knabbel-wp.php:691
 msgid "Story is being processed..."
 msgstr "Verhaal wordt verwerkt..."
 
-#: includes/admin/settings.php:790
+#: includes/admin/settings.php:791
 msgid "Occurred"
 msgstr ""
 
-#: includes/admin/settings.php:806
+#: includes/admin/settings.php:807
 msgid "Retry"
 msgstr "Opnieuw verzenden"
 
-#: includes/admin/settings.php:811
+#: includes/admin/settings.php:812
 msgid "Refresh"
 msgstr "Vernieuwen"
 

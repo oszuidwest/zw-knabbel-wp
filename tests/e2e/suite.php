@@ -375,6 +375,19 @@ final class Knabbel_E2E_Suite {
 	 */
 	private function test_ai_failure(): void {
 		$title = 'E2E AI-providerfout';
+		update_option( 'knabbel_e2e_ai_call_count', 0, false );
+		add_filter( 'wp_supports_ai', '__return_false' );
+		try {
+			$this->assert_same(
+				null,
+				KnabbelWP\ai_generate_content( 'Unsupported AI must fail without a provider request.' ),
+				'Unsupported text generation must fail immediately.'
+			);
+			$this->assert_same( 0, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Unsupported text generation must not call the provider.' );
+		} finally {
+			remove_filter( 'wp_supports_ai', '__return_false' );
+		}
+
 		update_option( 'knabbel_e2e_ai_mode', 'error', false );
 		update_option( 'knabbel_e2e_ai_call_count', 0, false );
 

@@ -57,11 +57,17 @@ function ai_generate_content( string $content ): ?string {
 
 	$max_attempts = 3;
 	for ( $attempt = 1; $attempt <= $max_attempts; ++$attempt ) {
-		$result = wp_ai_client_prompt( $messages )
+		$prompt = wp_ai_client_prompt( $messages )
 			->using_system_instruction( $instruction )
 			->using_max_tokens( 1000 )
-			->using_temperature( 0.7 )
-			->generate_text();
+			->using_temperature( 0.7 );
+
+		if ( 1 === $attempt && ! $prompt->is_supported_for_text_generation() ) {
+			log( 'error', 'AiHandler', 'WordPress AI Client does not support text generation for this prompt' );
+			return null;
+		}
+
+		$result = $prompt->generate_text();
 
 		if ( is_wp_error( $result ) ) {
 			log(

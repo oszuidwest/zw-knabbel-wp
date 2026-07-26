@@ -468,10 +468,11 @@ function render_ai_card( array $settings ): void {
 			</p>
 
 			<div class="knabbel-field">
-				<label class="knabbel-field-label">
+				<label class="knabbel-field-label" for="knabbel-speech-prompt">
 					<?php esc_html_e( 'Speech Text Generation Prompt', 'zw-knabbel-wp' ); ?>
 				</label>
-				<textarea name="knabbel_settings[speech_prompt]"
+				<textarea id="knabbel-speech-prompt"
+					name="knabbel_settings[speech_prompt]"
 					class="knabbel-field-input"
 					rows="4"
 					placeholder="<?php echo esc_attr( AI_DEFAULT_INSTRUCTION ); ?>"><?php echo esc_textarea( $settings['speech_prompt'] ?? '' ); ?></textarea>

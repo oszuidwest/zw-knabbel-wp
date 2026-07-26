@@ -76,6 +76,9 @@ test.describe
             await expect(
                 page.getByRole('link', { name: 'Manage AI providers' }),
             ).toHaveAttribute('href', /options-connectors\.php$/);
+            await expect(
+                page.getByLabel('Speech Text Generation Prompt'),
+            ).toBeVisible();
 
             // The button's `transition: all` keeps Playwright's stability check waiting.
             await page.locator('#test-babbel-api').click({ force: true });
