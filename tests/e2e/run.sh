@@ -43,16 +43,26 @@ compose=(docker compose --project-name "$project_name" --file "$script_dir/compo
 # Drain the container log into the artifact, so each phase only reports its own
 # errors and a later collection can never clobber an earlier diagnostic.
 collect_wordpress_debug_log() {
-	mkdir -p "$artifact_dir"
+	if ! mkdir -p "$artifact_dir"; then
+		echo "Could not create the E2E artifact directory." >&2
+		return 1
+	fi
+
 	# The dollar-prefixed variables are evaluated by sh inside the container.
 	# shellcheck disable=SC2016
-	"${compose[@]}" exec -T wordpress sh -c \
+	if ! "${compose[@]}" exec -T wordpress sh -eu -c \
 		'log=/var/www/html/wp-content/debug.log; if [ -f "$log" ]; then cat "$log"; : >"$log"; fi' \
-		>>"$wordpress_debug_log"
+		>>"$wordpress_debug_log"; then
+		echo "Could not collect the WordPress debug log." >&2
+		return 1
+	fi
 }
 
 assert_wordpress_debug_log_clean() {
-	collect_wordpress_debug_log
+	if ! collect_wordpress_debug_log; then
+		return 1
+	fi
+
 	# WP_DEBUG can capture ambient core errors. Fail only when the origin points into this plugin.
 	local grep_status=0
 	grep -Ei 'PHP (warning|notice|deprecated|fatal error|parse error|recoverable fatal error).*/wp-content/plugins/zw-knabbel-wp/' \

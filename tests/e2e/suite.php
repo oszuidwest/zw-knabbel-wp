@@ -182,7 +182,7 @@ final class Knabbel_E2E_Suite {
 		$this->update_post( $post_id, array( 'post_title' => $title ) );
 		$this->assert_same( 1, $this->story_action_count( $post_id ), 'Repeated saves must not duplicate the pending action.' );
 
-		$this->run_action_scheduler( self::STORY_HOOK );
+		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
 		$dates_after = KnabbelWP\calculate_story_dates( 'now' );
 		$state       = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'The worker must mark a created story sent.' );
@@ -287,7 +287,7 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( $first_date, get_post( $post_id )->post_date ?? null, 'Scheduled fixture must retain its local publication date.' );
 		$this->assert_same( 'future', get_post_status( $post_id ), 'Scheduled fixture must retain future status before processing.' );
 		$this->assert_same( 1, $this->story_action_count( $post_id ), 'Scheduling must enqueue one worker action.' );
-		$this->run_action_scheduler( self::STORY_HOOK );
+		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
 
 		$state    = KnabbelWP\get_story_state( $post_id );
 		$story_id = (string) ( $state['story_id'] ?? '' );
@@ -336,7 +336,7 @@ final class Knabbel_E2E_Suite {
 		$this->update_post( $post_id, array( 'post_status' => 'draft' ) );
 		$this->assert_same( 0, $this->story_action_count( $post_id ), 'Returning to draft must cancel pending work.' );
 		$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), 'Cancellation before processing must clear local story state.' );
-		$this->run_action_scheduler( self::STORY_HOOK, 0 );
+		$this->run_action_scheduler( self::STORY_HOOK, 0, array( 'post_id' => $post_id ) );
 		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'Canceled work must never create a Babbel story.' );
 	}
 
@@ -532,7 +532,7 @@ final class Knabbel_E2E_Suite {
 	 */
 	private function publish_and_process( int $post_id ): void {
 		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
-		$this->run_action_scheduler( self::STORY_HOOK );
+		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
 	}
 
 	/**
@@ -558,16 +558,17 @@ final class Knabbel_E2E_Suite {
 	 *
 	 * Delegates to the shared helper in the knabbel-e2e-control MU plugin.
 	 *
-	 * @param string $hook           Hook to execute.
-	 * @param int    $expected_count Expected number of actions to process.
+	 * @param string                    $hook           Hook to execute.
+	 * @param int                       $expected_count Expected number of actions to process.
+	 * @param array<string, mixed>|null $args           Optional exact action arguments.
 	 * @throws RuntimeException When an action does not complete successfully.
 	 */
-	private function run_action_scheduler( string $hook, int $expected_count = 1 ): void {
+	private function run_action_scheduler( string $hook, int $expected_count = 1, ?array $args = null ): void {
 		if ( ! function_exists( 'knabbel_e2e_run_due_actions' ) ) {
 			throw new RuntimeException( 'The Knabbel E2E control MU plugin is required. Check the tests/e2e/compose.yml mount.' );
 		}
 
-		$processed = knabbel_e2e_run_due_actions( $hook, self::ACTION_GROUP );
+		$processed = knabbel_e2e_run_due_actions( $hook, self::ACTION_GROUP, $args );
 		$this->assert_same( $expected_count, $processed, sprintf( 'Expected %d due action(s) for hook %s.', $expected_count, $hook ) );
 	}
 
