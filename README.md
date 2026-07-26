@@ -1,70 +1,57 @@
 # ZuidWest Knabbel
 
-WordPress plugin that automatically sends posts to the [Babbel API](https://github.com/oszuidwest/zwfm-babbel) for radio news.
+Publishes selected WordPress posts as radio stories in the [Babbel API](https://github.com/oszuidwest/zwfm-babbel), with speech text generated through the WordPress AI Client.
 
-## Features
+## What it does
 
-- **ACF Integration**: Injects a "Radio News" checkbox into a specific ACF field group
-- **WordPress AI Client**: Converts article text to radio-friendly speech text through any compatible AI provider
-- **Few-shot Learning**: Learns from editor corrections to improve speech text quality over time
-- **Title Sync**: Uses the WordPress post title as Babbel story title and keeps it in sync on edits
-- **Settings Page**: Configurable prompts, API settings, and story defaults
-- **Async Processing**: Uses Action Scheduler for reliable background processing
+- adds a **Radionieuws** checkbox to the configured ACF field group
+- generates provider-independent speech text through the WordPress AI Client
+- creates, updates, deletes, and restores the matching Babbel story
+- learns from editor-corrected Babbel text through nightly few-shot synchronization
+- processes publication work asynchronously with Action Scheduler
 
 ## Requirements
 
 - WordPress 7.0+
 - PHP 8.3 or 8.4
 - [Advanced Custom Fields](https://www.advancedcustomfields.com/) (ACF)
-- An AI provider configured under **Settings > Connectors**
+- A compatible AI provider configured under **Settings > Connectors**
 - A running instance of the [Babbel API](https://github.com/oszuidwest/zwfm-babbel)
 
-## Installation
+## Setup
 
-1. Download the latest release ZIP from [GitHub Releases](https://github.com/oszuidwest/zw-knabbel-wp/releases)
-2. Upload via WordPress Admin > Plugins > Add New > Upload Plugin
-3. Activate the plugin
-4. Configure via Settings > ZuidWest Knabbel
-
-## Usage
-
-1. Configure the plugin via Settings > ZuidWest Knabbel
-2. When editing a post, check "Radionieuws" in the ACF metabox
-3. On publish, the plugin automatically:
-   - Uses the post title as the Babbel story title
-   - Converts content to speech text via the WordPress AI Client
-   - Creates a story in the Babbel API
-4. Title and date changes are synced to Babbel when you update the post
+1. Install the latest ZIP from [GitHub Releases](https://github.com/oszuidwest/zw-knabbel-wp/releases).
+2. Activate the plugin and configure an AI provider under **Settings > Connectors**.
+3. Configure Babbel and story defaults under **Settings > ZuidWest Knabbel**.
+4. Enable **Radionieuws** on a post; publishing queues the story for generation and delivery.
 
 ## Development
 
-### Linting & QA
-
 ```bash
-# PHP
 composer install
+npm install
 vendor/bin/phpcs
 vendor/bin/phpstan analyse
-
-# JS/CSS
-npm install
 npm run lint
-npm run lint:fix
+shellcheck tests/e2e/run.sh
 ```
 
-### Translations
+Run the isolated WordPress 7.0.2 and Babbel regression suite with:
 
 ```bash
-# Update POT file (requires wp-cli)
-wp i18n make-pot . languages/zw-knabbel-wp.pot --slug=zw-knabbel-wp --domain=zw-knabbel-wp
+BABBEL_PATH=../zwfm-babbel tests/e2e/run.sh
+```
 
-# Compile MO file after editing PO
+## Translations
+
+```bash
+wp i18n make-pot . languages/zw-knabbel-wp.pot --slug=zw-knabbel-wp --domain=zw-knabbel-wp
 msgfmt -o languages/zw-knabbel-wp-nl_NL.mo languages/zw-knabbel-wp-nl_NL.po
 ```
 
-### Release
+## Release
 
-The GitHub Action reads the version from `zw-knabbel-wp.php` and creates a release on workflow dispatch. The workflow builds `zw-knabbel-wp-{version}.zip` and attaches it to the GitHub Release.
+The release workflow reads the version from `zw-knabbel-wp.php`, builds `zw-knabbel-wp-{version}.zip`, and attaches it to the GitHub Release.
 
 ## License
 
