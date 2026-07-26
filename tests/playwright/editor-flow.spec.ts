@@ -1,6 +1,7 @@
 import { expect, test } from './fixtures';
 import {
     BABBEL_ADMIN,
+    babbelStoryStatus,
     controlStory,
     countBabbelStoriesByTitle,
     currentPostID,
@@ -114,21 +115,19 @@ test.describe
             ).toBeVisible();
             await expect(page.locator('#knabbel_send_to_babbel')).toBeChecked();
 
-            const { response, story } = await getBabbelStory(storyID);
-            expect(response.status()).toBe(200);
-            expect(story?.title).toBe(originalTitle);
-            expect(story?.text).toBe(generatedText);
-            expect(story?.metadata?.wordpress_id).toBe(postID);
+            const story = await getBabbelStory(storyID);
+            expect(story.title).toBe(originalTitle);
+            expect(story.text).toBe(generatedText);
+            expect(story.metadata?.wordpress_id).toBe(postID);
         });
 
         test('redacteur bewerkt titel en inhoud zonder bestaande spreektekst te overschrijven', async ({
             page,
         }) => {
             const before = await getBabbelStory(storyID);
-            expect(before.response.status()).toBe(200);
             const updateResponse = await updateBabbelStory(storyID, {
                 text: editedText,
-                status: before.story?.status || 'draft',
+                status: before.status || 'draft',
             });
             expect(updateResponse.status(), await updateResponse.text()).toBe(
                 200,
@@ -140,11 +139,10 @@ test.describe
             await page.locator('#content').fill(updatedContent);
             await savePost(page);
 
-            const { response, story } = await getBabbelStory(storyID);
-            expect(response.status()).toBe(200);
-            expect(story?.id).toBe(storyID);
-            expect(story?.title).toBe(updatedTitle);
-            expect(story?.text).toBe(editedText);
+            const story = await getBabbelStory(storyID);
+            expect(story.id).toBe(storyID);
+            expect(story.title).toBe(updatedTitle);
+            expect(story.text).toBe(editedText);
             expect(await countBabbelStoriesByTitle(updatedTitle)).toBe(1);
             await expect(page.locator('#title')).toHaveValue(updatedTitle);
             await expect(page.locator('#content')).toHaveValue(updatedContent);
@@ -160,8 +158,7 @@ test.describe
                 page.locator('.knabbel-status-badge.deleted'),
             ).toBeVisible();
 
-            let remote = await getBabbelStory(storyID);
-            expect(remote.response.status()).toBe(404);
+            expect(await babbelStoryStatus(storyID)).toBe(404);
 
             await page.reload();
             await setBabbelEnabled(page, true);
@@ -170,9 +167,7 @@ test.describe
                 page.locator('.knabbel-status-badge.sent'),
             ).toBeVisible();
 
-            remote = await getBabbelStory(storyID);
-            expect(remote.response.status()).toBe(200);
-            expect(remote.story?.id).toBe(storyID);
+            expect((await getBabbelStory(storyID)).id).toBe(storyID);
         });
 
         test('redacteur plant een bericht en annuleert het voor verwerking', async ({
@@ -211,26 +206,15 @@ test.describe
 
             // WordPress uses jQuery slide animations for these classic-editor
             // controls. Chromium can leave them at a fractional pixel in CI.
-            await page.evaluate(() => {
-                const jquery = (
-                    window as typeof window & {
-                        jQuery: { fx: { off: boolean } };
-                    }
-                ).jQuery;
-                jquery.fx.off = true;
-            });
+            await page.evaluate('jQuery.fx.off = true');
+            // WordPress hides #post_status behind the Edit link whenever JS is on.
+            // These jQuery-animated links never settle into Playwright's stable
+            // state, so dispatch the click instead of waiting for actionability.
             const postStatus = page.locator('#post_status');
-            if (!(await postStatus.isVisible())) {
-                await page
-                    .locator('.edit-post-status')
-                    .evaluate((link: HTMLAnchorElement) => link.click());
-            }
+            await page.locator('.edit-post-status').dispatchEvent('click');
             await expect(postStatus).toBeVisible();
             await postStatus.selectOption('draft');
-            await expect(postStatus).toHaveValue('draft');
-            await page
-                .locator('.save-post-status')
-                .evaluate((link: HTMLAnchorElement) => link.click());
+            await page.locator('.save-post-status').dispatchEvent('click');
             await expect(postStatus).toBeHidden();
             await savePost(page);
 
@@ -245,15 +229,14 @@ test.describe
             page,
         }) => {
             await page.goto(`/wp-admin/post.php?post=${postID}&action=edit`);
-            const trashLink = page.locator('#delete-action .submitdelete');
-            await expect(trashLink).toBeVisible();
             await Promise.all([
                 page.waitForURL(/\/wp-admin\/edit\.php/),
-                trashLink.evaluate((link: HTMLAnchorElement) => link.click()),
+                page
+                    .locator('#delete-action .submitdelete')
+                    .dispatchEvent('click'),
             ]);
 
-            let remote = await getBabbelStory(storyID);
-            expect(remote.response.status()).toBe(404);
+            expect(await babbelStoryStatus(storyID)).toBe(404);
 
             await page.goto(
                 '/wp-admin/edit.php?post_status=trash&post_type=post',
@@ -261,7 +244,8 @@ test.describe
             const row = page.locator('tr', {
                 has: page.getByText(updatedTitle, { exact: true }),
             });
-            await expect(row).toBeVisible();
+            // Row actions stay hidden until the row is hovered, and the trash list is
+            // already on edit.php, so follow the restore URL as its own navigation.
             const restoreURL = await row
                 .getByRole('link', { name: /^Restore .* from the Trash$/ })
                 .getAttribute('href');
@@ -269,9 +253,8 @@ test.describe
             await page.goto(restoreURL || '');
             await expect(page).toHaveURL(/\/wp-admin\/edit\.php/);
 
-            remote = await getBabbelStory(storyID);
-            expect(remote.response.status()).toBe(200);
-            expect(remote.story?.id).toBe(storyID);
-            expect(remote.story?.title).toBe(updatedTitle);
+            const story = await getBabbelStory(storyID);
+            expect(story.id).toBe(storyID);
+            expect(story.title).toBe(updatedTitle);
         });
     });

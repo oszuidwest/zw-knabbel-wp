@@ -12,8 +12,9 @@ export default defineConfig({
     // The serial editor flow shares one WordPress post and Babbel story.
     workers: 1,
     forbidOnly: Boolean(process.env.CI),
-    retries: process.env.CI ? 1 : 0,
-    failOnFlakyTests: Boolean(process.env.CI),
+    // No retries: the suite is deterministic, and a serial retry would re-run the
+    // whole group against state the failed attempt already mutated.
+    retries: 0,
     timeout: 60_000,
     expect: { timeout: 15_000 },
     reporter: process.env.CI ? [['github'], ['html']] : 'list',

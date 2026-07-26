@@ -1,46 +1,34 @@
-import {
-    test as base,
-    type ConsoleMessage,
-    expect,
-    type Page,
-} from '@playwright/test';
-
-interface BrowserErrorFixtures {
-    browserErrors: string[];
-}
+import { test as base, expect } from '@playwright/test';
 
 const allowedBrowserErrors = [
     // WordPress admin navigation can skip Chrome View Transitions without affecting the page update.
     /^pageerror: Transition was skipped$/,
 ];
 
-function collectBrowserErrors(page: Page, errors: string[]): void {
-    page.on('pageerror', (error) => {
-        errors.push(`pageerror: ${error.message}`);
-    });
-    page.on('console', (message: ConsoleMessage) => {
-        if (message.type() === 'error') {
-            errors.push(`console.error: ${message.text()}`);
-        }
-    });
-}
-
 export { expect };
 
-export const test = base.extend<BrowserErrorFixtures>({
-    browserErrors: [
+export const test = base.extend<{ assertNoBrowserErrors: undefined }>({
+    assertNoBrowserErrors: [
         async ({ page }, use) => {
             const errors: string[] = [];
-            collectBrowserErrors(page, errors);
-            await use(errors);
-            const unexpectedErrors = errors.filter(
-                (error) =>
-                    !allowedBrowserErrors.some((pattern) =>
-                        pattern.test(error),
-                    ),
+            page.on('pageerror', (error) =>
+                errors.push(`pageerror: ${error.message}`),
             );
+            page.on('console', (message) => {
+                if (message.type() === 'error') {
+                    errors.push(`console.error: ${message.text()}`);
+                }
+            });
+
+            await use(undefined);
+
             expect(
-                unexpectedErrors,
+                errors.filter(
+                    (error) =>
+                        !allowedBrowserErrors.some((pattern) =>
+                            pattern.test(error),
+                        ),
+                ),
                 'Unexpected browser JavaScript errors must be empty.',
             ).toEqual([]);
         },

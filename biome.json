@@ -34,8 +34,8 @@
             "**/assets/**/*.css",
             "playwright.config.ts",
             "tests/playwright/**/*.ts",
-            "!**/vendor/**",
-            "!**/node_modules/**"
+            "!**/vendor",
+            "!**/node_modules"
         ]
     }
 }

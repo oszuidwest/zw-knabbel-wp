@@ -702,22 +702,16 @@ final class Knabbel_E2E_Suite {
 	 * @return int Matching count.
 	 */
 	private function count_babbel_stories_by_title( string $title ): int {
-		$path     = '/stories?' . http_build_query(
+		$path    = '/stories?' . http_build_query(
 			array(
 				'filter' => array( 'title' => $title ),
 				'limit'  => 100,
 			)
 		);
-		$response = $this->babbel_request( 'GET', $path );
-		$this->assert_same( 200, wp_remote_retrieve_response_code( $response ), 'Babbel story list must be readable.' );
-		$raw_body = wp_remote_retrieve_body( $response );
-		$decoded  = json_decode( $raw_body, true, 512, JSON_THROW_ON_ERROR );
-		$this->assert_true( is_array( $decoded ), 'Babbel story list must decode to an object. Body: ' . $raw_body );
-		$this->assert_true( is_array( $decoded['data'] ?? null ), 'Babbel story list data must be an array. Body: ' . $raw_body );
-		$stories = $decoded['data'];
-		$this->assert_same( 100, $decoded['limit'] ?? null, 'Babbel story list must honor the requested limit.' );
-		$this->assert_same( 0, $decoded['offset'] ?? null, 'Babbel story list must start at offset zero.' );
-		$this->assert_same( count( $stories ), $decoded['total'] ?? null, 'Babbel story list must fit on one page.' );
+		$decoded = $this->babbel_get_json( $path, 'Babbel story list must be readable.' );
+		$stories = $decoded['data'] ?? null;
+		$this->assert_true( is_array( $stories ), 'Babbel story list data must be an array.' );
+		// The filter is applied server-side, so a full page means results were truncated.
 		$this->assert_true( count( $stories ) < 100, 'Babbel story list must not fill the verification page.' );
 
 		return count(

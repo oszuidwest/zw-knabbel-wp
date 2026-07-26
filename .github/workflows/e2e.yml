@@ -72,14 +72,24 @@ jobs:
         run: npm ci
 
       - name: Cache Playwright browsers
+        id: playwright-cache
         uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('zw-knabbel-wp/package-lock.json') }}
+          restore-keys: playwright-${{ runner.os }}-
+
+      # OS packages live outside the cached directory and the runner is ephemeral,
+      # so system dependencies must be installed on every run. Only the browser
+      # binaries themselves come from the cache.
+      - name: Install Chromium system dependencies
+        working-directory: zw-knabbel-wp
+        run: npx playwright install-deps chromium
 
       - name: Install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: zw-knabbel-wp
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Run E2E suite
         working-directory: zw-knabbel-wp

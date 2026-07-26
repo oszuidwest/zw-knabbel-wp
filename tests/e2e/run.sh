@@ -40,73 +40,52 @@ export BABBEL_PATH="$babbel_path"
 
 compose=(docker compose --project-name "$project_name" --file "$script_dir/compose.yml")
 
+# Drain the container log into the artifact, so each phase only reports its own
+# errors and a later collection can never clobber an earlier diagnostic.
 collect_wordpress_debug_log() {
-	if ! mkdir -p "$artifact_dir"; then
-		echo "Could not create E2E artifact directory: $artifact_dir" >&2
-		return 1
-	fi
-
-	if ! "${compose[@]}" exec -T wordpress sh -c \
-		'if [ -f /var/www/html/wp-content/debug.log ]; then cat /var/www/html/wp-content/debug.log; fi' \
-		>"$wordpress_debug_log"; then
-		echo "Could not collect the WordPress debug log." >&2
-		return 1
-	fi
-}
-
-truncate_wordpress_debug_log() {
-	if ! "${compose[@]}" exec -T wordpress sh -c \
-		'if [ -f /var/www/html/wp-content/debug.log ]; then : > /var/www/html/wp-content/debug.log; fi'; then
-		echo "Could not truncate the WordPress debug log." >&2
-		return 1
-	fi
+	mkdir -p "$artifact_dir"
+	# The dollar-prefixed variables are evaluated by sh inside the container.
+	# shellcheck disable=SC2016
+	"${compose[@]}" exec -T wordpress sh -c \
+		'log=/var/www/html/wp-content/debug.log; if [ -f "$log" ]; then cat "$log"; : >"$log"; fi' \
+		>>"$wordpress_debug_log"
 }
 
 assert_wordpress_debug_log_clean() {
-	if ! collect_wordpress_debug_log; then
-		return 1
-	fi
+	collect_wordpress_debug_log
 	# WP_DEBUG can capture ambient core errors. Fail only when the origin points into this plugin.
-	if grep -Ei 'PHP (warning|notice|deprecated|fatal error|parse error|recoverable fatal error).*/wp-content/plugins/zw-knabbel-wp/' \
-		"$wordpress_debug_log" >"$wordpress_php_errors"; then
+	local grep_status=0
+	grep -Ei 'PHP (warning|notice|deprecated|fatal error|parse error|recoverable fatal error).*/wp-content/plugins/zw-knabbel-wp/' \
+		"$wordpress_debug_log" >"$wordpress_php_errors" || grep_status=$?
+
+	if ((grep_status == 0)); then
 		echo "The zw-knabbel-wp plugin emitted PHP errors:" >&2
 		cat "$wordpress_php_errors" >&2
 		return 1
-	else
-		grep_exit_code=$?
-		if ((grep_exit_code > 1)); then
-			echo "Could not inspect the WordPress debug log." >&2
-			return 1
-		fi
 	fi
-	truncate_wordpress_debug_log
+
+	# grep exits 1 when there is simply nothing to report; anything above that is a
+	# real failure and must never read as a clean log.
+	if ((grep_status > 1)); then
+		echo "Could not inspect the WordPress debug log." >&2
+		return 1
+	fi
 }
 
 cleanup() {
-	cleanup_exit_code=$?
+	status=$?
 	trap - EXIT
 
-	if ((cleanup_exit_code != 0)); then
-		if mkdir -p "$artifact_dir"; then
-			if ! "${compose[@]}" ps --all; then
-				echo "Could not collect Docker service status." >&2
-			fi
-			if ! "${compose[@]}" logs --no-color >"$artifact_dir/docker.log" 2>&1; then
-				echo "Could not collect Docker logs." >&2
-			fi
-			if [[ -f "$artifact_dir/docker.log" ]] && ! tail -n 300 "$artifact_dir/docker.log"; then
-				echo "Could not print the Docker log tail." >&2
-			fi
-			if ! collect_wordpress_debug_log; then
-				echo "WordPress debug log collection failed during cleanup." >&2
-			fi
-		else
-			echo "Could not create E2E artifact directory during cleanup." >&2
-		fi
+	if ((status != 0)); then
+		mkdir -p "$artifact_dir" || true
+		"${compose[@]}" ps --all || true
+		"${compose[@]}" logs --no-color >"$artifact_dir/docker.log" 2>&1 || true
+		tail -n 300 "$artifact_dir/docker.log" || true
+		collect_wordpress_debug_log || true
 	fi
 
 	"${compose[@]}" down --volumes --remove-orphans >/dev/null 2>&1 || true
-	exit "$cleanup_exit_code"
+	exit "$status"
 }
 trap cleanup EXIT
 

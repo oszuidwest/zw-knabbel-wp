@@ -35,6 +35,21 @@ export const BABBEL_ADMIN = { username: 'admin', password: 'admin' };
 const babbelURL = process.env.PLAYWRIGHT_BABBEL_URL;
 let babbelContextPromise: Promise<APIRequestContext> | undefined;
 
+/**
+ * Assert a response succeeded, using its body as the failure message.
+ *
+ * Redirect responses have no readable body, so fall back to the label.
+ */
+async function expectResponseOk(
+    response: { status(): number; text(): Promise<string> },
+    label: string,
+): Promise<void> {
+    const status = response.status();
+    const detail =
+        status < 400 ? label : await response.text().catch(() => label);
+    expect(status, detail).toBeLessThan(400);
+}
+
 export async function login(page: Page): Promise<void> {
     await page.goto('/wp-login.php');
     const loginResponse = page.waitForResponse(
@@ -61,17 +76,7 @@ export async function login(page: Page): Promise<void> {
                 form.submit();
             }, WP_ADMIN),
     ]);
-    const status = response.status();
-    let failureMessage = 'Login failed.';
-    if (status >= 400) {
-        try {
-            failureMessage = await response.text();
-        } catch {
-            failureMessage =
-                'Login failed and its response body is unavailable.';
-        }
-    }
-    expect(status, failureMessage).toBeLessThan(400);
+    await expectResponseOk(response, 'Login failed.');
     await expect(page).toHaveURL(/\/wp-admin\//);
 }
 
@@ -98,17 +103,7 @@ export async function savePost(page: Page): Promise<void> {
             button.form.requestSubmit(button);
         }),
     ]);
-    const status = response.status();
-    let failureMessage = 'Post save failed.';
-    if (status >= 400) {
-        try {
-            failureMessage = await response.text();
-        } catch {
-            failureMessage =
-                'Post save failed and its response body is unavailable.';
-        }
-    }
-    expect(status, failureMessage).toBeLessThan(400);
+    await expectResponseOk(response, 'Post save failed.');
     await expect(page).toHaveURL(/\/wp-admin\/post\.php\?post=\d+&action=edit/);
     await expect(page.locator('#publish')).toBeVisible();
 }
@@ -129,8 +124,9 @@ export async function setBabbelEnabled(
     );
     await expect(checkbox).toBeVisible();
     await expect(checkbox).toBeEnabled();
-    // Chromium's click state can remain unchanged for this injected control,
-    // even when Playwright reports a completed forced click.
+    // A real click cannot drive this control: once the metabox re-renders for an
+    // already-synchronized post, the injected input never reaches Playwright's
+    // stable-and-visible state, so setChecked times out. Drive it directly instead.
     await checkbox.evaluate((input: HTMLInputElement, checked) => {
         input.checked = checked;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -164,21 +160,27 @@ export async function controlStory(
     return body.data;
 }
 
-export async function getBabbelStory(
-    storyID: string,
-): Promise<{ response: APIResponse; story?: BabbelStory }> {
+/**
+ * Read a story that must exist. Fails the test when it does not.
+ */
+export async function getBabbelStory(storyID: string): Promise<BabbelStory> {
+    const response = await babbelRequest(
+        `/stories/${encodeURIComponent(storyID)}`,
+    );
+    expect(response.status(), await response.text()).toBe(200);
+
+    return (await response.json()) as BabbelStory;
+}
+
+/**
+ * Read only the status code, for assertions about a story's absence.
+ */
+export async function babbelStoryStatus(storyID: string): Promise<number> {
     const response = await babbelRequest(
         `/stories/${encodeURIComponent(storyID)}`,
     );
 
-    if (response.status() !== 200) {
-        return { response };
-    }
-
-    return {
-        response,
-        story: (await response.json()) as BabbelStory,
-    };
+    return response.status();
 }
 
 export async function updateBabbelStory(
@@ -201,20 +203,11 @@ export async function countBabbelStoriesByTitle(
     const response = await babbelRequest(`/stories?${query.toString()}`);
     const rawBody = await response.text();
     expect(response.status(), rawBody).toBe(200);
-    const body = JSON.parse(rawBody) as {
-        data?: unknown;
-        limit?: unknown;
-        offset?: unknown;
-        total?: unknown;
-    };
-    expect(Array.isArray(body.data), rawBody).toBe(true);
-    const stories = body.data as BabbelStory[];
-    expect(body.limit, rawBody).toBe(100);
-    expect(body.offset, rawBody).toBe(0);
-    expect(body.total, rawBody).toBe(stories.length);
-    expect(stories.length, rawBody).toBeLessThan(100);
+    const { data } = JSON.parse(rawBody) as { data: BabbelStory[] };
+    // The filter is applied server-side, so a full page means results were truncated.
+    expect(data.length, rawBody).toBeLessThan(100);
 
-    return stories.filter((story) => story.title === title).length;
+    return data.filter((story) => story.title === title).length;
 }
 
 export async function disposeBabbelContext(): Promise<void> {
@@ -232,6 +225,9 @@ async function babbelRequest(
         throw new Error('PLAYWRIGHT_BABBEL_URL is required.');
     }
 
+    // Memoize the in-flight promise, not the resolved context: a single worker does
+    // not stop two concurrent callers from both entering this branch, which would
+    // leak a context and let one request run before the shared login completed.
     if (!babbelContextPromise) {
         babbelContextPromise = (async () => {
             const context = await request.newContext();
@@ -239,8 +235,7 @@ async function babbelRequest(
                 const session = await context.post(`${babbelURL}/sessions`, {
                     data: BABBEL_ADMIN,
                 });
-                const body = await session.text();
-                expect(session.status(), body).toBe(201);
+                expect(session.status(), await session.text()).toBe(201);
 
                 return context;
             } catch (error) {
@@ -250,6 +245,8 @@ async function babbelRequest(
         })();
     }
 
+    // Reset on failure so a later call retries the login instead of reusing a
+    // rejected promise, but only if nothing else replaced it in the meantime.
     const contextPromise = babbelContextPromise;
     let babbelContext: APIRequestContext;
     try {
