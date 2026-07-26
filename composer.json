@@ -3,7 +3,7 @@
   "description": "WordPress plugin integrating with ZWFM Babbel API for radio news automation",
   "type": "wordpress-plugin",
   "license": "MIT",
-  "keywords": ["wordpress", "plugin", "radio", "news", "automation", "openai"],
+  "keywords": ["wordpress", "plugin", "radio", "news", "automation", "ai", "connectors"],
   "authors": [
     {
       "name": "Streekomroep ZuidWest",

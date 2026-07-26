@@ -3,7 +3,8 @@
 This suite validates the complete WordPress-to-Babbel synchronization flow in
 isolated Docker containers. It runs WordPress 7.0.1 on PHP 8.3, a real Babbel
 API built from a local checkout, separate MySQL databases, Action Scheduler,
-and a deterministic WordPress HTTP stub for OpenAI.
+the official OpenAI provider plugin, and a deterministic HTTP stub for the
+WordPress AI Client.
 
 ## Run locally
 

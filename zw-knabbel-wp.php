@@ -2,7 +2,7 @@
 /**
  * Plugin Name: ZuidWest Knabbel
  * Plugin URI: https://github.com/oszuidwest/zw-knabbel-wp
- * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Ondersteunt OpenAI GPT-modellen voor AI-gegenereerde content.
+ * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Gebruikt de WordPress AI Client voor AI-gegenereerde content.
  * Version: 0.4.0
  * Requires at least: 7.0
  * Requires PHP: 8.3
@@ -41,7 +41,7 @@ require_once KNABBEL_PLUGIN_DIR . 'vendor/woocommerce/action-scheduler/action-sc
 require_once KNABBEL_PLUGIN_DIR . 'includes/story-status.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/weekdays.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/babbel-api.php';
-require_once KNABBEL_PLUGIN_DIR . 'includes/openai-handler.php';
+require_once KNABBEL_PLUGIN_DIR . 'includes/ai-handler.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/few-shot-cache.php';
 
 /**
@@ -551,8 +551,6 @@ function activate(): void {
 			'api_base_url'      => 'https://babbel.example.com/api/v1',
 			'api_username'      => '',
 			'api_password'      => '',
-			'openai_api_key'    => '',
-			'openai_model'      => 'gpt-4.1-mini',
 			'speech_prompt'     => '',
 			'debug_mode'        => false,
 			// Story defaults.
@@ -708,7 +706,7 @@ function process_story_async( int|array $post_id_or_args ): void {
 	$title = $post->post_title;
 
 	// Generate speech text.
-	$speech_text = openai_generate_content( $content );
+	$speech_text = ai_generate_content( $content );
 	if ( null === $speech_text ) {
 		update_story_state(
 			$post_id,

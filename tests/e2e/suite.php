@@ -25,7 +25,7 @@ final class Knabbel_E2E_Suite {
 	private const STORY_HOOK      = 'knabbel_process_story';
 	private const FEW_SHOT_HOOK   = 'knabbel_sync_few_shot_examples';
 	private const ACTION_GROUP    = 'zw-knabbel-wp';
-	// Keep in sync with the OpenAI MU plugin and editor-flow.spec.ts.
+	// Keep in sync with the AI Client MU plugin and editor-flow.spec.ts.
 	private const GENERATED_TEXT = 'Deterministische E2E-radiospreektekst.';
 
 	/**
@@ -67,7 +67,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-005', 'scheduled post dates update when scheduled and published', $this->test_scheduled_story_lifecycle( ... ) );
 		$this->run_case( 'E2E-006', 'unscheduling cancels pending processing without creating a story', $this->test_pending_schedule_cancellation( ... ) );
 		$this->run_case( 'E2E-007', 'trash and untrash delete and restore the same story', $this->test_trash_and_restore( ... ) );
-		$this->run_case( 'E2E-008', 'OpenAI failure retries without creating a Babbel story', $this->test_openai_failure( ... ) );
+		$this->run_case( 'E2E-008', 'AI provider failure retries without creating a Babbel story', $this->test_ai_failure( ... ) );
 		$this->run_case( 'E2E-009', 'Babbel create failure is visible and preserves diagnostics safely', $this->test_babbel_create_failure( ... ) );
 		$this->run_case( 'E2E-010', 'few-shot queue learns editor changes and honors disable', $this->test_few_shot_sync( ... ) );
 		$this->run_case( 'E2E-011', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
@@ -108,8 +108,6 @@ final class Knabbel_E2E_Suite {
 				'api_base_url'      => self::BABBEL_BASE_URL,
 				'api_username'      => 'admin',
 				'api_password'      => $password,
-				'openai_api_key'    => 'e2e-openai-key',
-				'openai_model'      => 'e2e-model',
 				'start_days_offset' => 1,
 				'end_days_offset'   => 2,
 				'default_status'    => 'draft',
@@ -125,6 +123,7 @@ final class Knabbel_E2E_Suite {
 		);
 
 		update_option( 'knabbel_settings', $settings );
+		update_option( 'connectors_ai_openai_api_key', 'e2e-openai-key' );
 		KnabbelWP\babbel_clear_session_cache();
 	}
 
@@ -133,6 +132,11 @@ final class Knabbel_E2E_Suite {
 	 */
 	private function test_bootstrap_and_authentication(): void {
 		$this->assert_true( defined( 'KNABBEL_VERSION' ), 'The plugin bootstrap must be loaded.' );
+		$this->assert_true( wp_is_connector_registered( 'openai' ), 'WordPress must register the OpenAI connector.' );
+		$this->assert_true(
+			wp_ai_client_prompt( 'Verify text generation support.' )->is_supported_for_text_generation(),
+			'The WordPress AI Client must discover a configured text-generation model.'
+		);
 
 		KnabbelWP\few_shot_schedule_sync();
 		$this->assert_same(
@@ -168,8 +172,23 @@ final class Knabbel_E2E_Suite {
 	 * Verify publish scheduling, queue execution, payload fidelity and send-once safety.
 	 */
 	private function test_published_story_creation(): void {
-		$title   = 'E2E gepubliceerd – één';
-		$content = 'Dit artikel bevat voldoende woorden om de volledige publicatieketen betrouwbaar te testen.';
+		$title          = 'E2E gepubliceerd – één';
+		$content        = 'Dit artikel bevat voldoende woorden om de volledige publicatieketen betrouwbaar te testen.';
+		$example_input  = 'Voorbeeldartikel voor de native AI Client-gespreksgeschiedenis.';
+		$example_output = 'Voorbeeld van gecorrigeerde radiospreektekst.';
+
+		update_option(
+			'knabbel_few_shot_examples',
+			array(
+				array(
+					'input'      => $example_input,
+					'output'     => $example_output,
+					'edit_score' => 25.0,
+					'word_count' => 8,
+				),
+			),
+			false
+		);
 
 		$post_id = $this->create_enabled_draft( $title, $content );
 		$this->assert_same( 0, $this->story_action_count( $post_id ), 'Enabling a draft must not schedule processing.' );
@@ -188,6 +207,16 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'The worker must mark a created story sent.' );
 		$this->assert_not_empty( $state['story_id'] ?? '', 'The worker must persist the Babbel story ID.' );
 		$this->assert_same( self::GENERATED_TEXT, $state['generated_speech_text'] ?? null, 'The generated speech text must be persisted.' );
+		$ai_request = get_option( 'knabbel_e2e_ai_last_request', array() );
+		$this->assert_true( is_array( $ai_request ), 'The native AI provider request must be observable.' );
+		$this->assert_same( 'gpt-4.1-mini', $ai_request['model'] ?? null, 'WordPress must select the provider model advertised by the connector.' );
+		$this->assert_same( 1000, $ai_request['max_output_tokens'] ?? null, 'The native AI request must retain the output token limit.' );
+		$this->assert_same( 0.7, $ai_request['temperature'] ?? null, 'The native AI request must retain the configured temperature.' );
+		$request_input = wp_json_encode( $ai_request['input'] ?? array() );
+		$this->assert_true( is_string( $request_input ), 'The native AI request input must be JSON-encodable.' );
+		$this->assert_string_contains( $example_input, $request_input, 'The native AI request must include the few-shot user example.' );
+		$this->assert_string_contains( $example_output, $request_input, 'The native AI request must include the few-shot model example.' );
+		delete_option( 'knabbel_few_shot_examples' );
 
 		$story = $this->get_babbel_story( (string) $state['story_id'] );
 		$this->assert_same( $title, $story['title'] ?? null, 'Babbel must receive the raw WordPress title.' );
@@ -360,21 +389,21 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify retry count and no remote side effect when OpenAI is unavailable.
+	 * Verify retry count and no remote side effect when the AI provider is unavailable.
 	 */
-	private function test_openai_failure(): void {
-		$title = 'E2E OpenAI fout';
-		update_option( 'knabbel_e2e_openai_mode', 'error', false );
-		update_option( 'knabbel_e2e_openai_call_count', 0, false );
+	private function test_ai_failure(): void {
+		$title = 'E2E AI-providerfout';
+		update_option( 'knabbel_e2e_ai_mode', 'error', false );
+		update_option( 'knabbel_e2e_ai_call_count', 0, false );
 
-		$post_id = $this->create_enabled_draft( $title, 'OpenAI faalt deterministisch zodat foutafhandeling en retries aantoonbaar blijven.' );
+		$post_id = $this->create_enabled_draft( $title, 'De AI-provider faalt deterministisch zodat foutafhandeling en retries aantoonbaar blijven.' );
 		$this->publish_and_process( $post_id );
 
-		$this->assert_story_status( $post_id, StoryStatus::Error, 'OpenAI exhaustion must mark processing as error.' );
-		$this->assert_same( 3, (int) get_option( 'knabbel_e2e_openai_call_count', 0 ), 'OpenAI must be attempted exactly three times.' );
-		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'OpenAI failure must not create a Babbel story.' );
+		$this->assert_story_status( $post_id, StoryStatus::Error, 'AI provider exhaustion must mark processing as error.' );
+		$this->assert_same( 3, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'The AI provider must be attempted exactly three times.' );
+		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'AI provider failure must not create a Babbel story.' );
 
-		update_option( 'knabbel_e2e_openai_mode', 'success', false );
+		update_option( 'knabbel_e2e_ai_mode', 'success', false );
 	}
 
 	/**

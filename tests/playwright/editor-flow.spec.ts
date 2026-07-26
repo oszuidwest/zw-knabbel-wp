@@ -19,7 +19,7 @@ const originalContent =
     'Dit artikel wordt volledig via de WordPress-editor gepubliceerd en naar Babbel gestuurd.';
 const updatedContent =
     'De redacteur heeft de inhoud via de WordPress-editor aangepast.';
-// Keep in sync with the OpenAI MU plugin and tests/e2e/suite.php.
+// Keep in sync with the AI Client MU plugin and tests/e2e/suite.php.
 const generatedText = 'Deterministische E2E-radiospreektekst.';
 const editedText =
     'Dit is een handmatig aangepaste E2E-radiospreektekst die behouden moet blijven.';
@@ -44,8 +44,6 @@ test.describe
                 api_base_url: 'http://babbel:8080/api/v1',
                 api_username: BABBEL_ADMIN.username,
                 api_password: BABBEL_ADMIN.password,
-                openai_api_key: 'e2e-openai-key',
-                openai_model: 'e2e-model',
                 few_shot_count: '1',
                 start_days_offset: '1',
                 end_days_offset: '2',
@@ -75,6 +73,9 @@ test.describe
                 page.locator('[name="knabbel_settings[api_base_url]"]'),
             ).toHaveValue('http://babbel:8080/api/v1');
             await expect(debugMode).toBeChecked();
+            await expect(
+                page.getByRole('link', { name: 'Manage AI providers' }),
+            ).toHaveAttribute('href', /options-connectors\.php$/);
 
             // The button's `transition: all` keeps Playwright's stability check waiting.
             await page.locator('#test-babbel-api').click({ force: true });

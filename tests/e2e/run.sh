@@ -118,6 +118,9 @@ wordpress_url="http://$wordpress_address"
 babbel_url="http://$babbel_address/api/v1"
 
 echo "Installing WordPress..."
+"${compose[@]}" exec -T wordpress sh -eu -c \
+	'mkdir -p /var/www/html/wp-content/uploads /var/www/html/wp-content/upgrade &&
+	chown www-data:www-data /var/www/html/wp-content /var/www/html/wp-content/plugins /var/www/html/wp-content/uploads /var/www/html/wp-content/upgrade'
 # Keep the admin fixture credentials in sync with tests/playwright/utils.ts.
 wp core install \
 	--url="$wordpress_url" \
@@ -128,7 +131,9 @@ wp core install \
 	--locale=en_US \
 	--skip-email
 wp option update timezone_string Europe/Amsterdam
+wp plugin install ai-provider-for-openai --version=1.0.3 --activate
 wp plugin activate zw-knabbel-wp
+wp option update connectors_ai_openai_api_key e2e-openai-key
 # The dollar-prefixed variables are evaluated by PHP inside the container.
 # shellcheck disable=SC2016
 wp eval '$settings = get_option( "knabbel_settings", array() ); if ( 1 !== ( $settings["start_days_offset"] ?? null ) || "draft" !== ( $settings["default_status"] ?? null ) ) { throw new RuntimeException( "Plugin activation defaults are incorrect." ); }'

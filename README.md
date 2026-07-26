@@ -5,7 +5,7 @@ WordPress plugin that automatically sends posts to the [Babbel API](https://gith
 ## Features
 
 - **ACF Integration**: Injects a "Radio News" checkbox into a specific ACF field group
-- **OpenAI Integration**: Converts article text to radio-friendly speech text using GPT models
+- **WordPress AI Client**: Converts article text to radio-friendly speech text through any compatible AI provider
 - **Few-shot Learning**: Learns from editor corrections to improve speech text quality over time
 - **Title Sync**: Uses the WordPress post title as Babbel story title and keeps it in sync on edits
 - **Settings Page**: Configurable prompts, API settings, and story defaults
@@ -16,7 +16,7 @@ WordPress plugin that automatically sends posts to the [Babbel API](https://gith
 - WordPress 7.0+
 - PHP 8.3 or 8.4
 - [Advanced Custom Fields](https://www.advancedcustomfields.com/) (ACF)
-- OpenAI API access
+- An AI provider configured under **Settings > Connectors**
 - A running instance of the [Babbel API](https://github.com/oszuidwest/zwfm-babbel)
 
 ## Installation
@@ -32,7 +32,7 @@ WordPress plugin that automatically sends posts to the [Babbel API](https://gith
 2. When editing a post, check "Radionieuws" in the ACF metabox
 3. On publish, the plugin automatically:
    - Uses the post title as the Babbel story title
-   - Converts content to speech text via OpenAI
+   - Converts content to speech text via the WordPress AI Client
    - Creates a story in the Babbel API
 4. Title and date changes are synced to Babbel when you update the post
 

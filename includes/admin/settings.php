@@ -89,8 +89,6 @@ function settings_register_settings(): void {
 				'api_base_url'      => '',
 				'api_username'      => '',
 				'api_password'      => '',
-				'openai_api_key'    => '',
-				'openai_model'      => 'gpt-4.1-mini',
 				'speech_prompt'     => '',
 				'debug_mode'        => false,
 				'start_days_offset' => 1,
@@ -125,7 +123,7 @@ function sanitize_settings( array $input ): array {
 	}
 
 	// Text fields.
-	$text_fields = array( 'api_username', 'api_password', 'openai_api_key', 'openai_model' );
+	$text_fields = array( 'api_username', 'api_password' );
 	foreach ( $text_fields as $field ) {
 		if ( isset( $input[ $field ] ) ) {
 			$sanitized[ $field ] = sanitize_text_field( $input[ $field ] );
@@ -239,7 +237,7 @@ function settings_page(): void {
 			<div class="knabbel-settings-grid">
 				<?php
 				render_babbel_api_card( $settings );
-				render_openai_card( $settings );
+				render_ai_card( $settings );
 				render_prompts_card( $settings );
 				render_defaults_card( $settings );
 				?>
@@ -450,78 +448,44 @@ function render_babbel_api_card( array $settings ): void {
 }
 
 /**
- * Displays the OpenAI settings card.
+ * Displays the AI settings card.
  *
  * @since 0.1.05
  * @param array<string, mixed> $settings Current settings.
  */
-function render_openai_card( array $settings ): void {
+function render_ai_card( array $settings ): void {
 	?>
 	<div class="knabbel-settings-card">
 		<div class="knabbel-card-title">
 			<span class="dashicons dashicons-lightbulb card-icon"></span>
-			<h2><?php esc_html_e( 'OpenAI', 'zw-knabbel-wp' ); ?></h2>
+			<h2><?php esc_html_e( 'AI Generation', 'zw-knabbel-wp' ); ?></h2>
 		</div>
 		<div class="knabbel-card-content">
 			<p class="knabbel-card-description">
-				<?php esc_html_e( 'Configure OpenAI for generating speech text.', 'zw-knabbel-wp' ); ?>
+				<?php esc_html_e( 'WordPress selects a suitable model from your configured AI providers.', 'zw-knabbel-wp' ); ?>
+				<a href="<?php echo esc_url( admin_url( 'options-connectors.php' ) ); ?>">
+					<?php esc_html_e( 'Manage AI providers', 'zw-knabbel-wp' ); ?>
+				</a>
 			</p>
 
 			<div class="knabbel-field">
 				<label class="knabbel-field-label">
-					<?php esc_html_e( 'OpenAI API Key', 'zw-knabbel-wp' ); ?>
-					<span class="required">*</span>
+					<?php esc_html_e( 'Few-shot Examples', 'zw-knabbel-wp' ); ?>
 				</label>
-				<input type="password"
-					name="knabbel_settings[openai_api_key]"
+				<input type="number"
+					name="knabbel_settings[few_shot_count]"
 					class="knabbel-field-input"
-					value="<?php echo esc_attr( $settings['openai_api_key'] ?? '' ); ?>"
-					placeholder="sk-..." />
+					value="<?php echo esc_attr( (string) ( $settings['few_shot_count'] ?? 5 ) ); ?>"
+					min="0"
+					max="20" />
 				<p class="knabbel-field-description">
 					<?php
-					printf(
-						/* translators: %s: URL to OpenAI API keys page */
-						esc_html__( 'Your OpenAI API key. Available at %s', 'zw-knabbel-wp' ),
-						'<a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>'
+					esc_html_e(
+						'Number of editor-corrected examples to include in the speech prompt (0 to disable, max 20). Synced nightly from Babbel.',
+						'zw-knabbel-wp'
 					);
 					?>
 				</p>
-			</div>
-
-			<div class="knabbel-field-row">
-				<div class="knabbel-field">
-					<label class="knabbel-field-label">
-						<?php esc_html_e( 'OpenAI Model', 'zw-knabbel-wp' ); ?>
-					</label>
-					<input type="text"
-						name="knabbel_settings[openai_model]"
-						class="knabbel-field-input"
-						value="<?php echo esc_attr( $settings['openai_model'] ?? 'gpt-4.1-mini' ); ?>"
-						placeholder="gpt-4.1-mini" />
-					<p class="knabbel-field-description">
-						<?php esc_html_e( 'The OpenAI model for text generation (e.g., gpt-4.1-mini, gpt-4o-mini, gpt-4o).', 'zw-knabbel-wp' ); ?>
-					</p>
-				</div>
-
-				<div class="knabbel-field">
-					<label class="knabbel-field-label">
-						<?php esc_html_e( 'Few-shot Examples', 'zw-knabbel-wp' ); ?>
-					</label>
-					<input type="number"
-						name="knabbel_settings[few_shot_count]"
-						class="knabbel-field-input"
-						value="<?php echo esc_attr( (string) ( $settings['few_shot_count'] ?? 5 ) ); ?>"
-						min="0"
-						max="20" />
-					<p class="knabbel-field-description">
-						<?php
-						esc_html_e(
-							'Number of editor-corrected examples to include in the speech prompt (0 to disable, max 20). Synced nightly from Babbel.',
-							'zw-knabbel-wp'
-						);
-						?>
-					</p>
-				</div>
 			</div>
 		</div>
 	</div>
