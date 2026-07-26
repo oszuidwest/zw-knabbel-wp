@@ -52,9 +52,9 @@
         <exclude-pattern>tests/e2e/suite.php</exclude-pattern>
     </rule>
 
-    <!-- Exception messages are CLI diagnostics and are never rendered as HTML. -->
+    <!-- E2E exception messages are test diagnostics and are never rendered as HTML. -->
     <rule ref="WordPress.Security.EscapeOutput.ExceptionNotEscaped">
-        <exclude-pattern>tests/e2e/suite.php</exclude-pattern>
+        <exclude-pattern>tests/e2e/*</exclude-pattern>
     </rule>
 
     <exclude-pattern>vendor/*</exclude-pattern>

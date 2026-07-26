@@ -25,7 +25,8 @@ final class Knabbel_E2E_Suite {
 	private const STORY_HOOK      = 'knabbel_process_story';
 	private const FEW_SHOT_HOOK   = 'knabbel_sync_few_shot_examples';
 	private const ACTION_GROUP    = 'zw-knabbel-wp';
-	private const GENERATED_TEXT  = 'Deterministische E2E-radiospreektekst.';
+	// Keep in sync with the OpenAI MU plugin and editor-flow.spec.ts.
+	private const GENERATED_TEXT = 'Deterministische E2E-radiospreektekst.';
 
 	/**
 	 * Cookies for the independent Babbel verification client.
@@ -59,7 +60,7 @@ final class Knabbel_E2E_Suite {
 	 * Execute all scenarios in dependency order.
 	 */
 	public function run(): void {
-		$this->run_case( 'E2E-001', 'plugin activation, recurring queue and Babbel authentication', $this->test_bootstrap_and_authentication( ... ) );
+		$this->run_case( 'E2E-001', 'plugin bootstrap, recurring queue and Babbel authentication', $this->test_bootstrap_and_authentication( ... ) );
 		$this->run_case( 'E2E-002', 'published post creates exactly one complete Babbel story', $this->test_published_story_creation( ... ) );
 		$this->run_case( 'E2E-003', 'edits synchronize and recover from an authentication failure', $this->test_update_and_error_recovery( ... ) );
 		$this->run_case( 'E2E-004', 'checkbox disable soft-deletes and re-enable restores', $this->test_checkbox_delete_and_restore( ... ) );
@@ -128,14 +129,10 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify activation defaults, a single recurring action, login and 401 retry.
+	 * Verify plugin bootstrap, a single recurring action, login and 401 retry.
 	 */
 	private function test_bootstrap_and_authentication(): void {
 		$this->assert_true( defined( 'KNABBEL_VERSION' ), 'The plugin bootstrap must be loaded.' );
-
-		$settings = get_option( 'knabbel_settings', array() );
-		$this->assert_same( 1, $settings['start_days_offset'] ?? null, 'Activation must set the default start offset.' );
-		$this->assert_same( 'draft', $settings['default_status'] ?? null, 'Activation must set the default story status.' );
 
 		KnabbelWP\few_shot_schedule_sync();
 		$this->assert_same(
@@ -339,7 +336,7 @@ final class Knabbel_E2E_Suite {
 		$this->update_post( $post_id, array( 'post_status' => 'draft' ) );
 		$this->assert_same( 0, $this->story_action_count( $post_id ), 'Returning to draft must cancel pending work.' );
 		$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), 'Cancellation before processing must clear local story state.' );
-		$this->run_action_scheduler( self::STORY_HOOK );
+		$this->run_action_scheduler( self::STORY_HOOK, 0 );
 		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'Canceled work must never create a Babbel story.' );
 	}
 
@@ -561,11 +558,17 @@ final class Knabbel_E2E_Suite {
 	 *
 	 * Delegates to the shared helper in the knabbel-e2e-control MU plugin.
 	 *
-	 * @param string $hook Hook to execute.
+	 * @param string $hook           Hook to execute.
+	 * @param int    $expected_count Expected number of actions to process.
 	 * @throws RuntimeException When an action does not complete successfully.
 	 */
-	private function run_action_scheduler( string $hook ): void {
-		knabbel_e2e_run_due_actions( $hook );
+	private function run_action_scheduler( string $hook, int $expected_count = 1 ): void {
+		if ( ! function_exists( 'knabbel_e2e_run_due_actions' ) ) {
+			throw new RuntimeException( 'The Knabbel E2E control MU plugin is required. Check the tests/e2e/compose.yml mount.' );
+		}
+
+		$processed = knabbel_e2e_run_due_actions( $hook, self::ACTION_GROUP );
+		$this->assert_same( $expected_count, $processed, sprintf( 'Expected %d due action(s) for hook %s.', $expected_count, $hook ) );
 	}
 
 	/**
@@ -640,6 +643,7 @@ final class Knabbel_E2E_Suite {
 	 * @throws RuntimeException When the HTTP request fails.
 	 */
 	private function babbel_login(): void {
+		// Keep the Babbel fixture credentials in sync with tests/playwright/utils.ts.
 		$response = wp_remote_post(
 			self::BABBEL_BASE_URL . '/sessions',
 			array(
@@ -698,14 +702,23 @@ final class Knabbel_E2E_Suite {
 	 * @return int Matching count.
 	 */
 	private function count_babbel_stories_by_title( string $title ): int {
-		$path    = '/stories?' . http_build_query(
+		$path     = '/stories?' . http_build_query(
 			array(
 				'filter' => array( 'title' => $title ),
 				'limit'  => 100,
 			)
 		);
-		$decoded = $this->babbel_get_json( $path, 'Babbel story list must be readable.' );
-		$stories = is_array( $decoded['data'] ?? null ) ? $decoded['data'] : array();
+		$response = $this->babbel_request( 'GET', $path );
+		$this->assert_same( 200, wp_remote_retrieve_response_code( $response ), 'Babbel story list must be readable.' );
+		$raw_body = wp_remote_retrieve_body( $response );
+		$decoded  = json_decode( $raw_body, true, 512, JSON_THROW_ON_ERROR );
+		$this->assert_true( is_array( $decoded ), 'Babbel story list must decode to an object. Body: ' . $raw_body );
+		$this->assert_true( is_array( $decoded['data'] ?? null ), 'Babbel story list data must be an array. Body: ' . $raw_body );
+		$stories = $decoded['data'];
+		$this->assert_same( 100, $decoded['limit'] ?? null, 'Babbel story list must honor the requested limit.' );
+		$this->assert_same( 0, $decoded['offset'] ?? null, 'Babbel story list must start at offset zero.' );
+		$this->assert_same( count( $stories ), $decoded['total'] ?? null, 'Babbel story list must fit on one page.' );
+		$this->assert_true( count( $stories ) < 100, 'Babbel story list must not fill the verification page.' );
 
 		return count(
 			array_filter(

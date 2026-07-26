@@ -12,6 +12,7 @@ name: Babbel E2E
       - 'package.json'
       - 'package-lock.json'
       - 'playwright.config.ts'
+      - 'tsconfig.json'
       - 'tests/playwright/**'
       - 'tests/e2e/**'
       - '.github/workflows/e2e.yml'
@@ -86,8 +87,8 @@ jobs:
           BABBEL_PATH: ${{ github.workspace }}/zwfm-babbel
         run: tests/e2e/run.sh
 
-      - name: Upload failure logs
-        if: failure()
+      - name: Upload E2E artifacts
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: babbel-e2e-logs
@@ -95,5 +96,5 @@ jobs:
             zw-knabbel-wp/tests/e2e/artifacts/
             zw-knabbel-wp/playwright-report/
             zw-knabbel-wp/test-results/
-          if-no-files-found: ignore
+          if-no-files-found: warn
           retention-days: 7

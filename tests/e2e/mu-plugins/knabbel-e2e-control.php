@@ -1,7 +1,7 @@
 <?php
 /**
- * Plugin Name: Knabbel E2E Browser Control
- * Description: Deterministic editor and Action Scheduler controls for browser E2E tests.
+ * Plugin Name: Knabbel E2E Control
+ * Description: Deterministic editor and Action Scheduler controls for PHP and browser E2E tests.
  *
  * @package KnabbelWP
  */
@@ -12,6 +12,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+if ( ! function_exists( 'wp_get_environment_type' ) || 'local' !== wp_get_environment_type() ) {
+	return;
+}
+
+// The browser suite exercises the plugin's classic metabox integration.
 add_filter(
 	'use_block_editor_for_post_type',
 	static fn( bool $use_block_editor, string $post_type ): bool => 'post' === $post_type ? false : $use_block_editor,
@@ -44,14 +49,16 @@ add_action(
  *
  * Shared by the AJAX control endpoint below and tests/e2e/suite.php.
  *
- * @param string                    $hook Action hook to run.
- * @param array<string, mixed>|null $args Optional exact action arguments.
+ * @param string                    $hook  Action hook to run.
+ * @param string                    $group Action Scheduler group to query.
+ * @param array<string, mixed>|null $args  Optional exact action arguments.
+ * @return int Number of actions processed.
  * @throws RuntimeException When an action does not complete successfully.
  */
-function knabbel_e2e_run_due_actions( string $hook, ?array $args = null ): void {
+function knabbel_e2e_run_due_actions( string $hook, string $group, ?array $args = null ): int {
 	$query = array(
 		'hook'         => $hook,
-		'group'        => 'zw-knabbel-wp',
+		'group'        => $group,
 		'status'       => ActionScheduler_Store::STATUS_PENDING,
 		'date'         => time(),
 		'date_compare' => '<=',
@@ -62,14 +69,26 @@ function knabbel_e2e_run_due_actions( string $hook, ?array $args = null ): void 
 		$query['args'] = $args;
 	}
 
+	$processed = 0;
 	foreach ( as_get_scheduled_actions( $query, 'ids' ) as $action_id ) {
 		ActionScheduler::runner()->process_action( $action_id, 'Knabbel E2E' );
 		$status = ActionScheduler::store()->get_status( $action_id );
 
 		if ( ActionScheduler_Store::STATUS_COMPLETE !== $status ) {
-			throw new RuntimeException( sprintf( 'Action Scheduler action %d finished with status %s.', (int) $action_id, esc_html( $status ) ) );
+			$messages = array_map(
+				static fn( ActionScheduler_LogEntry $entry ): string => $entry->get_message(),
+				ActionScheduler::logger()->get_logs( $action_id )
+			);
+			$logs     = array() === $messages ? 'none' : implode( ' | ', $messages );
+			throw new RuntimeException(
+				sprintf( 'Action Scheduler action %d finished with status %s. Logs: %s', (int) $action_id, $status, $logs )
+			);
 		}
+
+		++$processed;
 	}
+
+	return $processed;
 }
 
 add_action(
@@ -88,10 +107,11 @@ add_action(
 			wp_send_json_error( array( 'message' => 'A valid post ID is required.' ), 400 );
 		}
 
+		$processed = 0;
 		if ( 'run' === $operation ) {
 			try {
-				knabbel_e2e_run_due_actions( 'knabbel_process_story', array( 'post_id' => $post_id ) );
-			} catch ( RuntimeException $e ) {
+				$processed = knabbel_e2e_run_due_actions( 'knabbel_process_story', 'zw-knabbel-wp', array( 'post_id' => $post_id ) );
+			} catch ( Throwable $e ) {
 				wp_send_json_error( array( 'message' => $e->getMessage() ), 500 );
 			}
 		} elseif ( 'inspect' !== $operation ) {
@@ -111,8 +131,9 @@ add_action(
 
 		wp_send_json_success(
 			array(
-				'pending' => count( $pending ),
-				'state'   => KnabbelWP\get_story_state( $post_id ),
+				'pending'   => count( $pending ),
+				'processed' => $processed,
+				'state'     => (object) KnabbelWP\get_story_state( $post_id ),
 			)
 		);
 	}

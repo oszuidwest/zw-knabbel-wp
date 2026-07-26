@@ -19,7 +19,7 @@ From the plugin root:
 ```bash
 composer install
 npm install
-npx playwright install chromium
+npx playwright install --with-deps chromium
 BABBEL_PATH=../zwfm-babbel tests/e2e/run.sh
 ```
 
@@ -37,7 +37,13 @@ Before the PHP scenarios, Playwright drives the real WordPress admin UI in
 Chromium. The browser coverage saves and tests plugin settings, publishes and
 edits a post, disables and restores Babbel synchronization, cancels a scheduled
 post, and trashes and restores a sent post. The browser suite uses the classic
-WordPress post editor to keep the plugin-owned metabox flow deterministic; the
-test-only editor filter and queue controls are loaded as an isolated MU plugin.
+WordPress post editor to keep the plugin-owned metabox flow deterministic. The
+PHP and browser suites share test-only editor and queue controls loaded as an MU
+plugin.
+
+The runner invokes `npm run test:e2e:browser` with the discovered WordPress and
+Babbel URLs. To run Playwright against already-running services, set
+`PLAYWRIGHT_BASE_URL` to the WordPress origin and `PLAYWRIGHT_BABBEL_URL` to the
+Babbel `/api/v1` URL before running that npm command.
 
 The credentials in the Compose file and suite are isolated test fixtures only.

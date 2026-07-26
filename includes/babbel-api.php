@@ -763,7 +763,7 @@ function babbel_fetch_recent_stories( int $limit = 20 ): array|\WP_Error {
 function babbel_cleanup_sessions(): void {
 	global $wpdb;
 
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- No cached API supports prefix transient lookup.
+	// A direct query is required because no core API enumerates transients by prefix.
 	$option_names = $wpdb->get_col(
 		$wpdb->prepare(
 			'SELECT option_name FROM ' . $wpdb->options . ' WHERE option_name LIKE %s',
