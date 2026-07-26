@@ -96,7 +96,11 @@ export async function setBabbelEnabled(
         '.knabbel-radionieuws-injected #knabbel_send_to_babbel',
     );
     await expect(checkbox).toBeVisible();
-    await checkbox.setChecked(enabled);
+    await expect(checkbox).toBeEnabled();
+    // After an edit-screen reload, CI traces show that Playwright's stability
+    // check never settles for this injected control.
+    await checkbox.setChecked(enabled, { force: true });
+    await expect(checkbox).toBeChecked({ checked: enabled });
 }
 
 export async function controlStory(
