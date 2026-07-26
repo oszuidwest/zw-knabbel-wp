@@ -39,14 +39,14 @@ function ai_generate_content( string $content ): ?string {
 		? $speech_prompt
 		: $default_instruction;
 
-	$prompt  = ai_format_article_prompt( $content );
-	$history = ai_get_few_shot_history( (int) ( $options['few_shot_count'] ?? 5 ) );
+	$messages   = ai_get_few_shot_history( (int) ( $options['few_shot_count'] ?? 5 ) );
+	$messages[] = new UserMessage( array( new MessagePart( ai_format_article_prompt( $content ) ) ) );
 
 	$max_retries = 3;
 	$attempt     = 0;
 
 	while ( $attempt < $max_retries ) {
-		$result = ai_generate_content_once( $prompt, $instruction, $history );
+		$result = ai_generate_content_once( $messages, $instruction );
 
 		if ( null !== $result ) {
 			return $result;
@@ -68,14 +68,12 @@ function ai_generate_content( string $content ): ?string {
  * Make a single generation request through the WordPress AI Client.
  *
  * @since 0.1.0
- * @param string        $prompt      The framed article prompt.
+ * @param list<Message> $messages    The few-shot history and article prompt.
  * @param string        $instruction The system instruction.
- * @param list<Message> $history     Few-shot conversation history.
  * @return string|null The generated content or null on failure.
  */
-function ai_generate_content_once( string $prompt, string $instruction, array $history ): ?string {
-	$result = wp_ai_client_prompt( $prompt )
-		->with_history( ...$history )
+function ai_generate_content_once( array $messages, string $instruction ): ?string {
+	$result = wp_ai_client_prompt( $messages )
 		->using_system_instruction( $instruction )
 		->using_max_tokens( 1000 )
 		->using_temperature( 0.7 )

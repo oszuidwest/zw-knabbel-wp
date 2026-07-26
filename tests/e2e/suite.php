@@ -180,10 +180,8 @@ final class Knabbel_E2E_Suite {
 			'knabbel_few_shot_examples',
 			array(
 				array(
-					'input'      => $example_input,
-					'output'     => $example_output,
-					'edit_score' => 25.0,
-					'word_count' => 8,
+					'input'  => $example_input,
+					'output' => $example_output,
 				),
 			),
 			false

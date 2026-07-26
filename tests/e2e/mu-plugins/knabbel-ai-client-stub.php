@@ -71,13 +71,9 @@ add_filter(
 
 		return knabbel_e2e_json_response(
 			array(
-				'id'     => 'resp_knabbel_e2e',
-				'status' => 'completed',
 				'output' => array(
 					array(
 						'type'    => 'message',
-						'role'    => 'assistant',
-						'status'  => 'completed',
 						'content' => array(
 							array(
 								'type' => 'output_text',
@@ -86,11 +82,6 @@ add_filter(
 							),
 						),
 					),
-				),
-				'usage'  => array(
-					'input_tokens'  => 10,
-					'output_tokens' => 5,
-					'total_tokens'  => 15,
 				),
 			)
 		);
