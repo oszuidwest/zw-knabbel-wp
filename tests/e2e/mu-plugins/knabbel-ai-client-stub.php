@@ -12,65 +12,33 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! function_exists( 'wp_get_environment_type' ) || 'local' !== wp_get_environment_type() ) {
+if ( 'local' !== wp_get_environment_type() ) {
 	return;
-}
-
-/**
- * Build a deterministic HTTP API success response with a JSON body.
- *
- * @param array<string, mixed> $body Response body to JSON-encode.
- * @return array<string, mixed> WordPress HTTP API response array.
- */
-function knabbel_e2e_json_response( array $body ): array {
-	return array(
-		'headers'  => array( 'content-type' => 'application/json' ),
-		'body'     => wp_json_encode( $body ),
-		'response' => array(
-			'code'    => 200,
-			'message' => 'OK',
-		),
-		'cookies'  => array(),
-		'filename' => null,
-	);
 }
 
 add_filter(
 	'pre_http_request',
 	static function ( false|array|WP_Error $preempt, array $parsed_args, string $url ): false|array|WP_Error {
 		if ( 'https://api.openai.com/v1/models' === $url ) {
-			return knabbel_e2e_json_response(
-				array(
-					'data' => array(
-						array( 'id' => 'gpt-4.1-mini' ),
-					),
-				)
-			);
-		}
+			$body = array( 'data' => array( array( 'id' => 'gpt-4.1-mini' ) ) );
+		} elseif ( 'https://api.openai.com/v1/responses' === $url ) {
+			$headers = $parsed_args['headers'] ?? array();
+			if ( ! is_array( $headers ) || 'Bearer e2e-openai-key' !== ( array_change_key_case( $headers, CASE_LOWER )['authorization'] ?? '' ) ) {
+				return new WP_Error( 'knabbel_e2e_ai_auth_error', 'The Connector credential did not reach the AI provider' );
+			}
 
-		if ( 'https://api.openai.com/v1/responses' !== $url ) {
-			return $preempt;
-		}
+			update_option( 'knabbel_e2e_ai_call_count', (int) get_option( 'knabbel_e2e_ai_call_count', 0 ) + 1, false );
 
-		$headers = $parsed_args['headers'] ?? array();
-		if ( ! is_array( $headers ) || 'Bearer e2e-openai-key' !== ( array_change_key_case( $headers, CASE_LOWER )['authorization'] ?? '' ) ) {
-			return new WP_Error( 'knabbel_e2e_ai_auth_error', 'The Connector credential did not reach the AI provider' );
-		}
+			if ( 'error' === get_option( 'knabbel_e2e_ai_mode', 'success' ) ) {
+				return new WP_Error( 'knabbel_e2e_ai_error', 'Deterministic AI provider failure' );
+			}
 
-		$call_count = (int) get_option( 'knabbel_e2e_ai_call_count', 0 );
-		update_option( 'knabbel_e2e_ai_call_count', $call_count + 1, false );
+			$request_body = json_decode( (string) ( $parsed_args['body'] ?? '' ), true );
+			if ( is_array( $request_body ) ) {
+				update_option( 'knabbel_e2e_ai_last_request', $request_body, false );
+			}
 
-		if ( 'error' === get_option( 'knabbel_e2e_ai_mode', 'success' ) ) {
-			return new WP_Error( 'knabbel_e2e_ai_error', 'Deterministic AI provider failure' );
-		}
-
-		$request_body = json_decode( (string) ( $parsed_args['body'] ?? '' ), true );
-		if ( is_array( $request_body ) ) {
-			update_option( 'knabbel_e2e_ai_last_request', $request_body, false );
-		}
-
-		return knabbel_e2e_json_response(
-			array(
+			$body = array(
 				'output' => array(
 					array(
 						'type'    => 'message',
@@ -83,7 +51,18 @@ add_filter(
 						),
 					),
 				),
-			)
+			);
+		} else {
+			return $preempt;
+		}
+
+		return array(
+			'headers'  => array( 'content-type' => 'application/json' ),
+			'body'     => wp_json_encode( $body ),
+			'response' => array(
+				'code'    => 200,
+				'message' => 'OK',
+			),
 		);
 	},
 	10,
