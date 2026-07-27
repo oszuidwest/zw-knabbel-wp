@@ -681,7 +681,10 @@ textarea.knabbel-field-input {
     font-weight: 500;
     border-radius: 4px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s,
+        color 0.15s;
     border: 1px solid;
     text-decoration: none;
 }

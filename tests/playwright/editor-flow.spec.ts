@@ -81,8 +81,7 @@ test.describe
             ).toBeVisible();
             await expect(page.getByLabel('Few-shot Examples')).toBeVisible();
 
-            // The button's `transition: all` keeps Playwright's stability check waiting.
-            await page.locator('#test-babbel-api').click({ force: true });
+            await page.locator('#test-babbel-api').click();
             await expect(page.locator('#api-test-result')).toHaveClass(
                 /success/,
             );
