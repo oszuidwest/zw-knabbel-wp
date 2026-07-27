@@ -508,6 +508,7 @@ final class Knabbel_E2E_Suite {
 		$dates = KnabbelWP\calculate_story_dates( $future_date );
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'The enabled future post must reach sent state.' );
 		$this->assert_same( $dates['start_date'], $this->date_only( $story['start_date'] ?? '' ), 'Future enable must retain scheduled dates.' );
+		$this->assert_same( 1, $this->count_babbel_stories_by_title( $future_title ), 'Future enable must create exactly one story.' );
 	}
 
 	/**
@@ -607,6 +608,7 @@ final class Knabbel_E2E_Suite {
 		$state = KnabbelWP\get_story_state( $delete_id );
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Re-adding checkbox meta must restore the story.' );
 		$this->assert_same( $story_id, (string) ( $state['story_id'] ?? '' ), 'Meta restore must reuse the original story ID.' );
+		$this->assert_babbel_response_code( 200, 'GET', '/stories/' . $story_id );
 
 		$toggle_title = 'E2E snelle checkboxwissel';
 		$toggle_id    = $this->create_draft(
