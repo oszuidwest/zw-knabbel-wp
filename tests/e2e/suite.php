@@ -567,7 +567,7 @@ final class Knabbel_E2E_Suite {
 	 * Verify all non-publish transitions away from future remove sent stories.
 	 */
 	private function test_sent_story_unscheduling(): void {
-		foreach ( array( 'draft', 'pending', 'private' ) as $new_status ) {
+		foreach ( array( 'draft', 'pending', 'private', 'trash' ) as $new_status ) {
 			$title   = 'E2E verzonden planning naar ' . $new_status;
 			$post_id = $this->create_enabled_draft(
 				$title,
@@ -580,7 +580,11 @@ final class Knabbel_E2E_Suite {
 			$story_id = (string) ( $state['story_id'] ?? '' );
 			$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Precondition: scheduled story must be sent.' );
 
-			$this->update_post( $post_id, array( 'post_status' => $new_status ) );
+			if ( 'trash' === $new_status ) {
+				wp_trash_post( $post_id );
+			} else {
+				$this->update_post( $post_id, array( 'post_status' => $new_status ) );
+			}
 			$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Future to ' . $new_status . ' must mark the story deleted.' );
 			$this->assert_same( 0, $this->story_action_count( $post_id ), 'Future to ' . $new_status . ' must leave no pending action.' );
 			$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
