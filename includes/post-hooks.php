@@ -41,7 +41,7 @@ function register_post_hooks(): void {
  * requested change has succeeded, so reconciliation can read the current
  * checkbox value directly.
  *
- * @since 0.2.0
+ * @since 0.5.0
  *
  * @param int|int[] $meta_id  Meta ID, or deleted meta IDs.
  * @param int       $post_id  Post ID.
@@ -52,7 +52,7 @@ function handle_checkbox_meta_changed( $meta_id, $post_id, $meta_key ): void {
 		return;
 	}
 
-	sync_story_state( (int) $post_id );
+	sync_story_state( $post_id );
 }
 
 /**
@@ -69,14 +69,6 @@ function handle_checkbox_meta_changed( $meta_id, $post_id, $meta_key ): void {
  * @param \WP_Post|null $post_before Post object before the update, or null for new posts.
  */
 function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Post $post_before ): void {
-	if ( 'post' !== $post->post_type ) {
-		return;
-	}
-
-	if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
-		return;
-	}
-
 	sync_story_state( $post_id, $post_before );
 }
 
@@ -94,11 +86,8 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
  */
 function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 	$post = get_post( $post_id );
+	// Revisions and autosaves have post type 'revision', so this also excludes them.
 	if ( ! $post || 'post' !== $post->post_type ) {
-		return;
-	}
-
-	if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
 		return;
 	}
 
@@ -110,20 +99,15 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 	$is_untrash     = null !== $post_before && 'trash' === $post_before->post_status && 'trash' !== $post->post_status;
 	$is_unscheduled = null !== $post_before
 		&& 'future' === $post_before->post_status
-		&& ! in_array( $post->post_status, array( 'publish', 'future', 'trash' ), true );
-	$is_activated   = null !== $post_before
+		&& ! $active_status;
+	// Status changed into publish/future, except the publish→future demotion.
+	$is_activated  = null !== $post_before
 		&& $active_status
-		&& (
-			( 'future' === $post->post_status && ! in_array( $post_before->post_status, array( 'future', 'publish' ), true ) )
-			|| ( 'publish' === $post->post_status && 'publish' !== $post_before->post_status )
-		);
-	$should_remove  = ! $send_to_babbel || 'trash' === $post->post_status || $is_unscheduled;
+		&& $post_before->post_status !== $post->post_status
+		&& ! ( 'publish' === $post_before->post_status && 'future' === $post->post_status );
+	$should_remove = ! $send_to_babbel || 'trash' === $post->post_status || $is_unscheduled;
 
 	if ( $should_remove ) {
-		if ( $state ) {
-			\as_unschedule_all_actions( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
-		}
-
 		if ( $story_id && in_array( $status, array( StoryStatus::Sent->value, StoryStatus::Error->value ), true ) ) {
 			if ( ! $send_to_babbel ) {
 				$message = __( 'Story deleted from Babbel', 'zw-knabbel-wp' );
@@ -138,12 +122,14 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 
 			push_story_delete( $post_id, $story_id, $message, $context );
 		} elseif ( in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
+			// Only these states can have a pending processing action.
+			\as_unschedule_all_actions( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
 			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
 		}
 		return;
 	}
 
-	$should_restore = $is_untrash || ( $active_status && ( null === $post_before || $is_activated ) );
+	$should_restore = $is_untrash || $is_activated || ( null === $post_before && $active_status );
 	if ( $story_id && StoryStatus::Deleted->value === $status && $should_restore ) {
 		restore_and_sync_story( $post_id, $story_id, $post->post_title );
 		return;
