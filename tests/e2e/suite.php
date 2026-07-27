@@ -622,8 +622,8 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 0, $this->story_action_count( $toggle_id ), 'Disable must cancel the queued action.' );
 		$this->assert_same( array(), KnabbelWP\get_story_state( $toggle_id ), 'Disable must clear the queued lifecycle state.' );
 		update_post_meta( $toggle_id, '_zw_knabbel_send_to_babbel', 1 );
-		update_post_meta( $toggle_id, '_zw_knabbel_send_to_babbel', 1 );
-		$this->assert_same( 1, $this->story_action_count( $toggle_id ), 'Repeated enable must retain exactly one action.' );
+		KnabbelWP\handle_checkbox_change( $toggle_id, false, true );
+		$this->assert_same( 1, $this->story_action_count( $toggle_id ), 'A duplicate enable event must retain exactly one action.' );
 
 		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $toggle_id ) );
 		$this->assert_same( 1, $this->count_babbel_stories_by_title( $toggle_title ), 'Rapid toggles must create exactly one story.' );
