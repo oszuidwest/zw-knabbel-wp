@@ -216,13 +216,10 @@ function metabox_render_status( \WP_Post $post ): void {
 }
 
 /**
- * Saves metabox data and handles checkbox state changes.
+ * Saves metabox data.
  *
- * This function handles:
- * - Saving the checkbox meta value
- * - Delegating checkbox state changes to the shared synchronization handler
- *
- * Story creation is handled by handle_post_saved() to support scheduled posts.
+ * The post-meta and post-save hooks reconcile story state after WordPress has
+ * persisted the checkbox and post status.
  *
  * @since 0.1.0
  *
@@ -254,15 +251,7 @@ function metabox_save( int $post_id ): void {
 		return;
 	}
 
-	// Get previous checkbox state before updating.
-	$was_enabled = (bool) get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true );
-
 	// Save new checkbox state.
-	// Set flag to prevent meta hooks from double-processing this change.
-	$send_to_babbel                    = isset( $_POST['knabbel_send_to_babbel'] ) ? 1 : 0;
-	$GLOBALS['knabbel_skip_meta_sync'] = true;
+	$send_to_babbel = isset( $_POST['knabbel_send_to_babbel'] ) ? 1 : 0;
 	update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', $send_to_babbel );
-	unset( $GLOBALS['knabbel_skip_meta_sync'] );
-
-	handle_checkbox_change( $post_id, $was_enabled, (bool) $send_to_babbel );
 }
