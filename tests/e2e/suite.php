@@ -44,6 +44,13 @@ final class Knabbel_E2E_Suite {
 	private int $assertion_count = 0;
 
 	/**
+	 * Number of scenarios completed successfully.
+	 *
+	 * @var int
+	 */
+	private int $case_count = 0;
+
+	/**
 	 * WordPress ID of the shared published fixture.
 	 *
 	 * @var int
@@ -80,7 +87,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-017', 'delete and restore failures remain retryable', $this->test_delete_and_restore_failures( ... ) );
 		$this->run_case( 'E2E-018', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
-		WP_CLI::success( sprintf( '18 E2E scenarios passed with %d assertions.', $this->assertion_count ) );
+		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
 	}
 
 	/**
@@ -95,6 +102,7 @@ final class Knabbel_E2E_Suite {
 
 		try {
 			$callback();
+			++$this->case_count;
 			WP_CLI::log( sprintf( '[%s] PASS', $id ) );
 		} catch ( Throwable $throwable ) {
 			WP_CLI::error( sprintf( '[%s] FAIL: %s', $id, $throwable->getMessage() ) );
@@ -683,6 +691,7 @@ final class Knabbel_E2E_Suite {
 		$this->configure_plugin();
 		$retry_title = 'E2E verwijder- en herstelfout hersteld';
 		$this->update_post( $post_id, array( 'post_title' => $retry_title ) );
+		// Reset the checkbox edge so the next enable retries the failed restore.
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$state = KnabbelWP\get_story_state( $post_id );
