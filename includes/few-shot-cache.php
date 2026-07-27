@@ -51,7 +51,8 @@ function few_shot_schedule_sync(): void {
  * @since 0.3.0
  */
 function few_shot_unschedule_sync(): void {
-	\as_unschedule_all_actions( 'knabbel_sync_few_shot_examples', array(), 'zw-knabbel-wp' );
+	// Hook-only takes the bulk-cancel path; passing args or a group forces an exact args match.
+	\as_unschedule_all_actions( 'knabbel_sync_few_shot_examples' );
 	delete_option( 'knabbel_few_shot_examples' );
 }
 

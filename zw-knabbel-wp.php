@@ -578,8 +578,9 @@ function activate(): void {
 function deactivate(): void {
 	babbel_cleanup_sessions();
 
-	// Clear Action Scheduler jobs.
-	\as_unschedule_all_actions( 'knabbel_process_story', array(), 'zw-knabbel-wp' );
+	// Clear Action Scheduler jobs. Hook-only takes the bulk-cancel path; passing
+	// args or a group forces an exact args match and would skip per-post actions.
+	\as_unschedule_all_actions( 'knabbel_process_story' );
 
 	// Clear few-shot sync schedule and cached data.
 	few_shot_unschedule_sync();
