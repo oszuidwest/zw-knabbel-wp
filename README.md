@@ -7,7 +7,7 @@ Publishes selected WordPress posts as radio stories in the [Babbel API](https://
 - adds a native **Radionieuws** control to the Publish box in the Classic Editor
 - generates provider-independent speech text through the WordPress AI Client
 - creates, updates, deletes, and restores the matching Babbel story
-- uses a nightly mix of eight Babbel examples from the last three months: three directly accepted and five editor-adjusted texts when available
+- refreshes a nightly pool of Babbel examples from the last three months, then selects eight per AI request: three directly accepted and five editor-adjusted texts when available
 - excludes the current WordPress post from its own few-shot examples
 - processes publication work asynchronously with Action Scheduler
 
