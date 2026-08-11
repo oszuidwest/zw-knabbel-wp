@@ -543,6 +543,7 @@ function default_settings(): array {
 		'api_base_url'      => '',
 		'api_username'      => '',
 		'api_password'      => '',
+		'ai_model'          => '',
 		'speech_prompt'     => '',
 		'debug_mode'        => false,
 		// Story defaults.

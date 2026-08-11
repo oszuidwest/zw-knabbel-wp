@@ -20,7 +20,12 @@ add_filter(
 	'pre_http_request',
 	static function ( false|array|WP_Error $preempt, array $parsed_args, string $url ): false|array|WP_Error {
 		if ( 'https://api.openai.com/v1/models' === $url ) {
-			$body = array( 'data' => array( array( 'id' => 'gpt-4.1-mini' ) ) );
+			$body = array(
+				'data' => array(
+					array( 'id' => 'gpt-4.1-mini' ),
+					array( 'id' => 'gpt-4.1' ),
+				),
+			);
 		} elseif ( 'https://api.openai.com/v1/responses' === $url ) {
 			$headers = $parsed_args['headers'] ?? array();
 			if ( ! is_array( $headers ) || 'Bearer e2e-openai-key' !== ( array_change_key_case( $headers, CASE_LOWER )['authorization'] ?? '' ) ) {
