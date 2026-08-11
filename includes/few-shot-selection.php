@@ -13,6 +13,10 @@ declare(strict_types=1);
 
 namespace KnabbelWP;
 
+if ( ! defined( 'ABSPATH' ) && 'cli' !== PHP_SAPI ) {
+	exit;
+}
+
 const KNABBEL_FEW_SHOT_COUNT = 8;
 // Share of directly accepted examples in the mix; 8 examples yield 3 accepted and 5 edited.
 const KNABBEL_FEW_SHOT_ACCEPTED_RATIO = 0.4;

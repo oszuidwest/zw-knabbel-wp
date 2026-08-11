@@ -7,7 +7,7 @@
 
 declare(strict_types=1);
 
-if ( 'cli' !== PHP_SAPI ) {
+if ( ! defined( 'ABSPATH' ) && 'cli' !== PHP_SAPI ) {
 	exit;
 }
 
