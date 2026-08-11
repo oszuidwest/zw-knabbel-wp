@@ -116,13 +116,23 @@ export async function setBabbelEnabled(
     page: Page,
     enabled: boolean,
 ): Promise<void> {
-    const checkbox = page.locator(
-        '#knabbel-radionieuws #knabbel_send_to_babbel',
-    );
-    await expect(checkbox).toBeVisible();
+    const checkbox = page.locator('#knabbel_send_to_babbel');
+    const toggle = page.locator('.misc-pub-knabbel .knabbel-submitbox-toggle');
+
+    await expect(toggle).toBeVisible();
     await expect(checkbox).toBeEnabled();
-    await checkbox.setChecked(enabled);
+
+    if ((await checkbox.isChecked()) !== enabled) {
+        await toggle.click();
+    }
     await expect(checkbox).toBeChecked({ checked: enabled });
+    await expect(
+        toggle.locator(
+            enabled
+                ? '.knabbel-submitbox-toggle-enabled'
+                : '.knabbel-submitbox-toggle-disabled',
+        ),
+    ).toBeVisible();
 }
 
 export async function controlStory(
