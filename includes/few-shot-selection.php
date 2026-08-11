@@ -215,6 +215,34 @@ function select_diverse_examples( array $candidates, int $max_count ): array {
 }
 
 /**
+ * Splits candidates into directly accepted and meaningfully edited pools.
+ *
+ * Edited candidates below the accepted threshold are dropped when their
+ * provenance still reflects an older cache format.
+ *
+ * @since 0.7.0
+ * @param array<int, array<string, mixed>> $candidates Candidate examples.
+ * @return array{0: array<int, array<string, mixed>>, 1: array<int, array<string, mixed>>} Accepted and edited pools.
+ *
+ * @phpstan-param list<FewShotCandidate> $candidates
+ * @phpstan-return array{0: list<FewShotCandidate>, 1: list<FewShotCandidate>}
+ */
+function partition_few_shot_candidates( array $candidates ): array {
+	$accepted = array();
+	$edited   = array();
+
+	foreach ( $candidates as $candidate ) {
+		if ( 'accepted' === $candidate['provenance'] ) {
+			$accepted[] = $candidate;
+		} elseif ( $candidate['edit_score'] >= KNABBEL_FEW_SHOT_ACCEPTED_MAX_SCORE ) {
+			$edited[] = $candidate;
+		}
+	}
+
+	return array( $accepted, $edited );
+}
+
+/**
  * Selects roughly 40% directly accepted and 60% editor-adjusted examples.
  *
  * @since 0.7.0
@@ -230,18 +258,7 @@ function select_example_mix( array $candidates, int $max_count ): array {
 		return array();
 	}
 
-	$accepted = array_values(
-		array_filter(
-			$candidates,
-			static fn ( array $candidate ): bool => 'accepted' === $candidate['provenance']
-		)
-	);
-	$edited   = array_values(
-		array_filter(
-			$candidates,
-			static fn ( array $candidate ): bool => 'edited' === $candidate['provenance']
-		)
-	);
+	list( $accepted, $edited ) = partition_few_shot_candidates( $candidates );
 
 	$accepted_target = min( count( $accepted ), max( 1, (int) round( $max_count * KNABBEL_FEW_SHOT_ACCEPTED_RATIO ) ) );
 	$selected        = array_merge(
@@ -253,7 +270,7 @@ function select_example_mix( array $candidates, int $max_count ): array {
 		$selected_ids = array_fill_keys( array_column( $selected, 'post_id' ), true );
 		$remaining    = array_values(
 			array_filter(
-				$candidates,
+				array_merge( $accepted, $edited ),
 				static fn ( array $candidate ): bool => ! isset( $selected_ids[ $candidate['post_id'] ] )
 			)
 		);

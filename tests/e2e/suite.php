@@ -179,11 +179,13 @@ final class Knabbel_E2E_Suite {
 	 * Verifies the complete publish flow.
 	 */
 	private function test_published_story_creation(): void {
-		$title          = 'E2E gepubliceerd – één';
-		$content        = 'Dit artikel bevat voldoende woorden om de volledige publicatieketen betrouwbaar te testen.';
-		$example_input  = 'Voorbeeldartikel voor de native AI Client-gespreksgeschiedenis.';
-		$example_output = 'Voorbeeld van gecorrigeerde radiospreektekst.';
-		$post_id        = $this->create_enabled_draft( $title, $content );
+		$title                   = 'E2E gepubliceerd – één';
+		$content                 = 'Dit artikel bevat voldoende woorden om de volledige publicatieketen betrouwbaar te testen.';
+		$accepted_example_input  = 'Direct geaccepteerd voorbeeldartikel voor de native AI Client-gespreksgeschiedenis.';
+		$accepted_example_output = 'Direct geaccepteerde radiospreektekst.';
+		$example_input           = 'Voorbeeldartikel voor de native AI Client-gespreksgeschiedenis.';
+		$example_output          = 'Voorbeeld van gecorrigeerde radiospreektekst.';
+		$post_id                 = $this->create_enabled_draft( $title, $content );
 
 		update_option(
 			'knabbel_few_shot_examples',
@@ -195,6 +197,16 @@ final class Knabbel_E2E_Suite {
 					'edit_score'          => 0.0,
 					'original_word_count' => 7,
 					'output_word_count'   => 7,
+					'sentence_count'      => 1,
+					'provenance'          => 'accepted',
+				),
+				array(
+					'post_id'             => $post_id + 1001,
+					'input'               => $accepted_example_input,
+					'output'              => $accepted_example_output,
+					'edit_score'          => 0.0,
+					'original_word_count' => 5,
+					'output_word_count'   => 4,
 					'sentence_count'      => 1,
 					'provenance'          => 'accepted',
 				),
@@ -231,7 +243,35 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 1000, $ai_request['max_output_tokens'] ?? null, 'The native AI request must retain the output token limit.' );
 		$this->assert_same( 0.7, $ai_request['temperature'] ?? null, 'The native AI request must retain the configured temperature.' );
 		$this->assert_same( 'gpt-4.1', $ai_request['model'] ?? null, 'The native AI request must use the configured model preference.' );
-		$request_input = (string) wp_json_encode( $ai_request['input'] ?? array() );
+		$request_messages = $ai_request['input'] ?? array();
+		$this->assert_true( is_array( $request_messages ), 'The native AI request input must contain structured messages.' );
+		$this->assert_same( 'user', $request_messages[0]['role'] ?? null, 'The accepted example must start with a user message.' );
+		$this->assert_same(
+			sprintf( KnabbelWP\AI_EXAMPLE_PROMPT, 'VOORBEELD DAT DE REDACTIE DIRECT HEEFT GEACCEPTEERD' )
+				. "\n\n" . sprintf( KnabbelWP\AI_ARTICLE_PROMPT, $accepted_example_input ),
+			$request_messages[0]['content'][0]['text'] ?? null,
+			'The accepted example label must precede its input.'
+		);
+		$this->assert_same( 'assistant', $request_messages[1]['role'] ?? null, 'The accepted example output must follow as an assistant message.' );
+		$this->assert_same(
+			$accepted_example_output,
+			$request_messages[1]['content'][0]['text'] ?? null,
+			'The accepted example output must immediately follow its input.'
+		);
+		$this->assert_same( 'user', $request_messages[2]['role'] ?? null, 'The edited example must start with a user message.' );
+		$this->assert_same(
+			sprintf( KnabbelWP\AI_EXAMPLE_PROMPT, 'VOORBEELD DAT DE REDACTIE HEEFT AANGEPAST' )
+				. "\n\n" . sprintf( KnabbelWP\AI_ARTICLE_PROMPT, $example_input ),
+			$request_messages[2]['content'][0]['text'] ?? null,
+			'The edited example label must precede its input.'
+		);
+		$this->assert_same( 'assistant', $request_messages[3]['role'] ?? null, 'The edited example output must follow as an assistant message.' );
+		$this->assert_same(
+			$example_output,
+			$request_messages[3]['content'][0]['text'] ?? null,
+			'The edited example output must immediately follow its input.'
+		);
+		$request_input = (string) wp_json_encode( $request_messages );
 		$this->assert_string_contains( $example_input, $request_input, 'The native AI request must include the few-shot user example.' );
 		$this->assert_string_contains( $example_output, $request_input, 'The native AI request must include the few-shot model example.' );
 		$this->assert_false(
@@ -415,7 +455,7 @@ final class Knabbel_E2E_Suite {
 		try {
 			$this->assert_same(
 				null,
-				KnabbelWP\ai_generate_content( 'Unsupported AI must fail without a provider request.' ),
+				KnabbelWP\ai_generate_content( 'Unsupported AI must fail without a provider request.', 0 ),
 				'Unsupported text generation must fail immediately.'
 			);
 			$this->assert_same( 0, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Unsupported text generation must not call the provider.' );

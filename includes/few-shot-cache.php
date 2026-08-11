@@ -90,32 +90,30 @@ function sync_few_shot_examples(): void {
 		return;
 	}
 
-	$candidates = build_few_shot_candidates( $stories );
+	list( $accepted, $edited ) = partition_few_shot_candidates( build_few_shot_candidates( $stories ) );
 
-	if ( empty( $candidates ) ) {
+	// Keep one spare per pool: per-post exclusion removes at most one entry,
+	// so a full selection stays possible even when one pool must supply it alone.
+	$accepted_pool = select_diverse_examples( $accepted, KNABBEL_FEW_SHOT_COUNT + 1 );
+	$edited_pool   = select_diverse_examples( $edited, KNABBEL_FEW_SHOT_COUNT + 1 );
+	$pool          = array_merge( $accepted_pool, $edited_pool );
+
+	if ( empty( $pool ) ) {
 		log( 'info', 'FewShotCache', 'No valid recent few-shot candidates found' );
 		delete_option( 'knabbel_few_shot_examples' );
 		return;
 	}
 
 	// Store the candidate pool without autoloading it. Selection is post-specific.
-	update_option( 'knabbel_few_shot_examples', $candidates, false );
-
-	$accepted_count = count(
-		array_filter(
-			$candidates,
-			static fn ( array $candidate ): bool => 'accepted' === $candidate['provenance']
-		)
-	);
+	update_option( 'knabbel_few_shot_examples', $pool, false );
 
 	log(
 		'info',
 		'FewShotCache',
 		'Few-shot candidate cache updated',
 		array(
-			'candidates_found' => count( $candidates ),
-			'accepted_found'   => $accepted_count,
-			'edited_found'     => count( $candidates ) - $accepted_count,
+			'accepted_cached' => count( $accepted_pool ),
+			'edited_cached'   => count( $edited_pool ),
 		)
 	);
 }
@@ -211,7 +209,7 @@ function get_few_shot_examples( int $excluded_post_id = 0 ): array {
 		}
 
 		$normalized = normalize_few_shot_candidate( $candidate );
-		if ( null === $normalized || ( $excluded_post_id > 0 && $normalized['post_id'] === $excluded_post_id ) ) {
+		if ( null === $normalized || $normalized['post_id'] === $excluded_post_id ) {
 			continue;
 		}
 		$candidates[] = $normalized;

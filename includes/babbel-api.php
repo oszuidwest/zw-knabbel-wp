@@ -16,8 +16,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const BABBEL_RECENT_STORY_LIMIT = 100;
-
 /**
  * Returns the configured Babbel API credentials.
  *
@@ -687,7 +685,7 @@ function babbel_fetch_recent_stories( string $created_after ): array|\WP_Error {
 	$endpoint = add_query_arg(
 		array(
 			'sort'                    => '-updated_at',
-			'limit'                   => BABBEL_RECENT_STORY_LIMIT,
+			'limit'                   => 100,
 			'filter[status][ne]'      => 'draft',
 			'filter[created_at][gte]' => $created_after,
 		),
@@ -744,7 +742,12 @@ function babbel_fetch_recent_stories( string $created_after ): array|\WP_Error {
 		return new \WP_Error( 'json_error', __( 'Invalid API response', 'zw-knabbel-wp' ) );
 	}
 
-	$stories = $decoded['data'] ?? array();
+	if ( ! is_array( $decoded ) || ! isset( $decoded['data'] ) || ! is_array( $decoded['data'] ) ) {
+		log( 'error', 'BabbelApi', 'Invalid story collection in Babbel API response' );
+		return new \WP_Error( 'invalid_response', __( 'Invalid API response', 'zw-knabbel-wp' ) );
+	}
+
+	$stories = array_values( array_filter( $decoded['data'], 'is_array' ) );
 
 	log(
 		'info',
@@ -753,7 +756,7 @@ function babbel_fetch_recent_stories( string $created_after ): array|\WP_Error {
 		array( 'count' => count( $stories ) )
 	);
 
-	return array_values( $stories );
+	return $stories;
 }
 
 /**
