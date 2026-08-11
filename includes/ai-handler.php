@@ -30,6 +30,8 @@ const AI_ARTICLE_PROMPT      = "Artikel:\n\"\"\"\n%s\n\"\"\"";
 /**
  * Get configured AI models that support text generation.
  *
+ * Model keys are "provider/model" setting values as understood by ai_parse_model_setting().
+ *
  * @since 0.6.0
  * @return array<string, array{label: string, models: array<string, string>}>
  */
@@ -47,7 +49,7 @@ function ai_get_available_models(): array {
 			$provider_models = array();
 
 			foreach ( $provider_models_metadata->getModels() as $model ) {
-				$provider_models[ $model->getId() ] = $model->getName();
+				$provider_models[ $provider->getId() . '/' . $model->getId() ] = $model->getName();
 			}
 
 			if ( array() !== $provider_models ) {
@@ -59,9 +61,26 @@ function ai_get_available_models(): array {
 		}
 
 		return $models;
-	} catch ( \Throwable ) {
+	} catch ( \Throwable $e ) {
+		log( 'error', 'AiHandler', 'Could not list AI models', array( 'error' => $e->getMessage() ) );
 		return array();
 	}
+}
+
+/**
+ * Parse a "provider/model" ai_model setting value into a model preference tuple.
+ *
+ * @since 0.6.0
+ * @param mixed $value The stored setting value.
+ * @return array{0: string, 1: string}|null Provider and model ID, or null when unset or malformed.
+ */
+function ai_parse_model_setting( mixed $value ): ?array {
+	if ( ! is_string( $value ) ) {
+		return null;
+	}
+
+	$parts = explode( '/', $value, 2 );
+	return 2 === count( $parts ) && ! in_array( '', $parts, true ) ? $parts : null;
 }
 
 /**
@@ -95,18 +114,16 @@ function ai_generate_content( string $content ): ?string {
 	}
 	$messages[] = new UserMessage( array( new MessagePart( sprintf( AI_ARTICLE_PROMPT, $content ) ) ) );
 
+	$model_preference = ai_parse_model_setting( $options['ai_model'] ?? '' );
+
 	$max_attempts = 3;
 	for ( $attempt = 1; $attempt <= $max_attempts; ++$attempt ) {
-		$prompt        = wp_ai_client_prompt( $messages )
+		$prompt = wp_ai_client_prompt( $messages )
 			->using_system_instruction( $instruction )
 			->using_max_tokens( 1000 )
 			->using_temperature( 0.7 );
-		$model_setting = $options['ai_model'] ?? '';
-		if ( is_string( $model_setting ) && str_contains( $model_setting, '/' ) ) {
-			list( $provider_id, $model_id ) = explode( '/', $model_setting, 2 );
-			if ( '' !== $provider_id && '' !== $model_id ) {
-				$prompt = $prompt->using_model_preference( array( $provider_id, $model_id ) );
-			}
+		if ( null !== $model_preference ) {
+			$prompt = $prompt->using_model_preference( $model_preference );
 		}
 
 		if ( 1 === $attempt && ! $prompt->is_supported_for_text_generation() ) {

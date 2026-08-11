@@ -124,11 +124,17 @@ function sanitize_settings( array $input ): array {
 	}
 
 	// Text fields.
-	$text_fields = array( 'api_username', 'api_password', 'ai_model' );
+	$text_fields = array( 'api_username', 'api_password' );
 	foreach ( $text_fields as $field ) {
 		if ( isset( $input[ $field ] ) ) {
 			$sanitized[ $field ] = sanitize_text_field( $input[ $field ] );
 		}
+	}
+
+	// Model select: empty means automatic, anything else must be "provider/model".
+	if ( isset( $input['ai_model'] ) ) {
+		$ai_model              = sanitize_text_field( $input['ai_model'] );
+		$sanitized['ai_model'] = null !== ai_parse_model_setting( $ai_model ) ? $ai_model : '';
 	}
 
 	// Textarea fields (prompts) - preserve newlines.
@@ -476,10 +482,9 @@ function render_ai_card( array $settings ): void {
 					</label>
 					<select id="knabbel-ai-model" name="knabbel_settings[ai_model]" class="knabbel-field-input">
 						<option value=""><?php esc_html_e( 'Automatic', 'zw-knabbel-wp' ); ?></option>
-						<?php foreach ( $ai_models as $provider_id => $provider_data ) : ?>
+						<?php foreach ( $ai_models as $provider_data ) : ?>
 							<optgroup label="<?php echo esc_attr( $provider_data['label'] ); ?>">
-								<?php foreach ( $provider_data['models'] as $model_id => $model_name ) : ?>
-									<?php $model_value = $provider_id . '/' . $model_id; ?>
+								<?php foreach ( $provider_data['models'] as $model_value => $model_name ) : ?>
 									<option value="<?php echo esc_attr( $model_value ); ?>" <?php selected( $settings['ai_model'] ?? '', $model_value ); ?>>
 										<?php echo esc_html( $model_name ); ?>
 									</option>
@@ -492,6 +497,7 @@ function render_ai_card( array $settings ): void {
 					</p>
 				</div>
 			<?php else : ?>
+				<?php // The hidden field preserves the stored value: sanitize_settings() drops keys absent from the form. ?>
 				<input type="hidden" name="knabbel_settings[ai_model]" value="<?php echo esc_attr( $settings['ai_model'] ?? '' ); ?>" />
 				<p class="knabbel-field-description">
 					<?php esc_html_e( 'No configured text generation models are available.', 'zw-knabbel-wp' ); ?>
