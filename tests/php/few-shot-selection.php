@@ -7,8 +7,14 @@
 
 declare(strict_types=1);
 
-// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- Required by the plugin bootstrap guard.
-define( 'ABSPATH', __DIR__ . '/' );
+if ( ! defined( 'ABSPATH' ) && 'cli' !== PHP_SAPI ) {
+	exit;
+}
+
+if ( ! defined( 'ABSPATH' ) ) {
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- Required by the plugin bootstrap guard.
+	define( 'ABSPATH', __DIR__ . '/' );
+}
 
 require_once dirname( __DIR__, 2 ) . '/includes/few-shot-cache.php';
 
