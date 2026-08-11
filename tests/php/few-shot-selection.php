@@ -72,6 +72,10 @@ require_once dirname( __DIR__, 2 ) . '/includes/few-shot-cache.php';
 		'Selection must return all valid examples when fewer than eight are available.'
 	);
 	$ensure(
+		array() === KnabbelWP\select_example_mix( $candidates, 0 ),
+		'A zero example count must select nothing.'
+	);
+	$ensure(
 		null === KnabbelWP\normalize_few_shot_candidate(
 			array(
 				'post_id' => 99,

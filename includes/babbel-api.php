@@ -674,11 +674,11 @@ function babbel_restore_story( string $story_id ): array {
  * edited first), which are most likely to have been reviewed by editors.
  *
  * @since 0.3.0
- * @param int         $limit         Maximum number of stories to fetch (default 20).
+ * @param int         $limit         Maximum number of stories to fetch, clamped to 1..BABBEL_RECENT_STORY_LIMIT.
  * @param string|null $created_after Optional inclusive ISO 8601 creation cutoff.
  * @return array<int, array<string, mixed>>|\WP_Error Array of story objects or WP_Error on failure.
  */
-function babbel_fetch_recent_stories( int $limit = 20, ?string $created_after = null ): array|\WP_Error {
+function babbel_fetch_recent_stories( int $limit = BABBEL_RECENT_STORY_LIMIT, ?string $created_after = null ): array|\WP_Error {
 	$credentials = babbel_get_credentials();
 
 	if ( empty( $credentials['base_url'] ) ) {

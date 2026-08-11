@@ -99,15 +99,12 @@ function ai_generate_content( string $content, int $current_post_id = 0 ): ?stri
 	$instruction   = '' !== trim( $speech_prompt ) ? $speech_prompt : AI_DEFAULT_INSTRUCTION;
 
 	$messages = array();
-	$examples = get_few_shot_examples( KNABBEL_FEW_SHOT_COUNT, $current_post_id );
-	foreach ( $examples as $example ) {
-		$input         = $example['input'];
-		$output        = $example['output'];
+	foreach ( get_few_shot_examples( $current_post_id ) as $example ) {
 		$example_label = 'accepted' === $example['provenance']
-			? 'DIRECT GEACCEPTEERD BABBELVOORBEELD'
-			: 'DOOR EEN REDACTEUR AANGEPAST BABBELVOORBEELD';
-		$messages[]    = new UserMessage( array( new MessagePart( sprintf( AI_EXAMPLE_PROMPT, $example_label, $input ) ) ) );
-		$messages[]    = new ModelMessage( array( new MessagePart( $output ) ) );
+			? 'VOORBEELD DAT DE REDACTIE DIRECT HEEFT GEACCEPTEERD'
+			: 'VOORBEELD DAT DE REDACTIE HEEFT AANGEPAST';
+		$messages[]    = new UserMessage( array( new MessagePart( sprintf( AI_EXAMPLE_PROMPT, $example_label, $example['input'] ) ) ) );
+		$messages[]    = new ModelMessage( array( new MessagePart( $example['output'] ) ) );
 	}
 	$messages[] = new UserMessage( array( new MessagePart( sprintf( AI_ARTICLE_PROMPT, $content ) ) ) );
 
