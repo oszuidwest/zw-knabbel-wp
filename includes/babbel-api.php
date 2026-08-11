@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+const BABBEL_RECENT_STORY_LIMIT = 100;
+
 /**
  * Returns the configured Babbel API credentials.
  *
@@ -685,7 +687,7 @@ function babbel_fetch_recent_stories( int $limit = 20, ?string $created_after = 
 
 	$query = array(
 		'sort'               => '-updated_at',
-		'limit'              => min( max( 1, $limit ), KNABBEL_FEW_SHOT_STORY_LIMIT ),
+		'limit'              => min( max( 1, $limit ), BABBEL_RECENT_STORY_LIMIT ),
 		'filter[status][ne]' => 'draft',
 	);
 	if ( null !== $created_after && '' !== $created_after ) {

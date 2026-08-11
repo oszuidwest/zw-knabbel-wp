@@ -230,6 +230,10 @@ final class Knabbel_E2E_Suite {
 			str_contains( $request_input, 'Dit huidige artikel mag nooit zijn eigen voorbeeld worden.' ),
 			'The native AI request must exclude the current WordPress post from few-shot examples.'
 		);
+		$this->assert_false(
+			str_contains( $request_input, 'Deze uitvoer moet buiten de AI-aanvraag blijven.' ),
+			'The native AI request must exclude the current WordPress post output from few-shot examples.'
+		);
 		delete_option( 'knabbel_few_shot_examples' );
 
 		$story = $this->get_babbel_story( (string) $state['story_id'] );
@@ -468,6 +472,8 @@ final class Knabbel_E2E_Suite {
 		$examples = get_option( 'knabbel_few_shot_examples', array() );
 		$this->assert_same( 1, count( $examples ), 'Few-shot sync must cache the available candidate.' );
 		$this->assert_same( $edited_text, $examples[0]['output'] ?? null, 'Few-shot output must use editor-corrected Babbel text.' );
+		$this->assert_same( 'edited', $examples[0]['provenance'] ?? null, 'Few-shot sync must mark editor-corrected stories as edited.' );
+		$this->assert_true( (float) ( $examples[0]['edit_score'] ?? 0 ) > 0, 'Edited few-shot examples must have a positive edit score.' );
 		$this->assert_same(
 			wp_strip_all_tags( get_post_field( 'post_content', $this->published_post_id ) ),
 			$examples[0]['input'] ?? null,

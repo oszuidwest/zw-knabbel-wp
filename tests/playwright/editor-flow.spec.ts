@@ -82,7 +82,9 @@ test.describe
             await expect(
                 page.getByLabel('Speech Text Generation Prompt'),
             ).toBeVisible();
-            await expect(page.getByLabel('Few-shot Examples')).toHaveCount(0);
+            await expect(
+                page.locator('[name="knabbel_settings[few_shot_count]"]'),
+            ).toHaveCount(0);
 
             await page.locator('#test-babbel-api').click();
             await expect(page.locator('#api-test-result')).toHaveClass(

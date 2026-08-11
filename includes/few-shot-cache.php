@@ -237,13 +237,58 @@ function calculate_edit_score( string $ai_text, string $editor_text ): float {
 	$right_text = normalize_few_shot_text( $editor_text );
 	$left_text  = function_exists( 'mb_strtolower' ) ? mb_strtolower( $left_text, 'UTF-8' ) : strtolower( $left_text );
 	$right_text = function_exists( 'mb_strtolower' ) ? mb_strtolower( $right_text, 'UTF-8' ) : strtolower( $right_text );
-	$left       = preg_split( '//u', $left_text, -1, PREG_SPLIT_NO_EMPTY );
-	$right      = preg_split( '//u', $right_text, -1, PREG_SPLIT_NO_EMPTY );
-	$left       = is_array( $left ) ? $left : str_split( $left_text );
-	$right      = is_array( $right ) ? $right : str_split( $right_text );
+	if ( $left_text === $right_text ) {
+		return 0.0;
+	}
+
+	$left  = preg_split( '//u', $left_text, -1, PREG_SPLIT_NO_EMPTY );
+	$right = preg_split( '//u', $right_text, -1, PREG_SPLIT_NO_EMPTY );
+	$left  = is_array( $left ) ? $left : str_split( $left_text );
+	$right = is_array( $right ) ? $right : str_split( $right_text );
 
 	if ( array() === $left && array() === $right ) {
 		return 0.0;
+	}
+
+	$distance = few_shot_levenshtein_distance( $left, $right );
+	return ( $distance / max( count( $left ), count( $right ) ) ) * 100;
+}
+
+/**
+ * Calculates an exact character-level Levenshtein distance.
+ *
+ * Common article text uses fewer than 256 distinct characters. Mapping those
+ * characters to bytes lets PHP's native implementation perform the expensive
+ * loop in C while preserving Unicode character semantics. The PHP fallback is
+ * retained for the exceptional case with a larger character set.
+ *
+ * @since 0.7.0
+ * @param list<string> $left  Left-side characters.
+ * @param list<string> $right Right-side characters.
+ * @return int Edit distance.
+ */
+function few_shot_levenshtein_distance( array $left, array $right ): int {
+	$symbols     = array();
+	$next_symbol = 0;
+	$encode      = static function ( array $characters ) use ( &$symbols, &$next_symbol ): ?string {
+		$encoded = '';
+		foreach ( $characters as $character ) {
+			if ( ! isset( $symbols[ $character ] ) ) {
+				if ( $next_symbol >= 256 ) {
+					return null;
+				}
+				$symbols[ $character ] = chr( $next_symbol );
+				++$next_symbol;
+			}
+			$encoded .= $symbols[ $character ];
+		}
+		return $encoded;
+	};
+
+	$encoded_left  = $encode( $left );
+	$encoded_right = null !== $encoded_left ? $encode( $right ) : null;
+	if ( null !== $encoded_left && null !== $encoded_right ) {
+		return levenshtein( $encoded_left, $encoded_right );
 	}
 
 	$previous = range( 0, count( $right ) );
@@ -260,8 +305,7 @@ function calculate_edit_score( string $ai_text, string $editor_text ): float {
 		$previous = $current;
 	}
 
-	$distance = $previous[ count( $right ) ];
-	return ( $distance / max( count( $left ), count( $right ) ) ) * 100;
+	return $previous[ count( $right ) ];
 }
 
 /**
@@ -280,14 +324,19 @@ function normalize_few_shot_candidate( array $candidate ): ?array {
 		return null;
 	}
 
-	$edit_score = isset( $candidate['edit_score'] ) && is_numeric( $candidate['edit_score'] ) ? (float) $candidate['edit_score'] : 100.0;
+	$post_id = isset( $candidate['post_id'] ) ? (int) $candidate['post_id'] : 0;
+	if ( $post_id <= 0 || ! isset( $candidate['edit_score'] ) || ! is_numeric( $candidate['edit_score'] ) ) {
+		return null;
+	}
+
+	$edit_score = (float) $candidate['edit_score'];
 	$provenance = $candidate['provenance'] ?? null;
 	if ( ! in_array( $provenance, array( 'accepted', 'edited' ), true ) ) {
 		$provenance = 0.0 === $edit_score ? 'accepted' : 'edited';
 	}
 
 	return array(
-		'post_id'             => isset( $candidate['post_id'] ) ? (int) $candidate['post_id'] : 0,
+		'post_id'             => $post_id,
 		'input'               => $input,
 		'output'              => $output,
 		'edit_score'          => $edit_score,

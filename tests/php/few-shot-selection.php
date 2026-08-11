@@ -63,6 +63,34 @@ require_once dirname( __DIR__, 2 ) . '/includes/few-shot-cache.php';
 		0.0 < KnabbelWP\calculate_edit_score( 'Eerste tekst.', 'Volledig andere tekst.' ),
 		'Changed text must receive a positive edit score.'
 	);
+	$ensure(
+		100.0 === KnabbelWP\calculate_edit_score( 'e', 'é' ),
+		'Unicode characters must retain character-level edit semantics.'
+	);
+	$ensure(
+		count( KnabbelWP\select_example_mix( array_slice( $candidates, 0, 5 ), 8 ) ) === 5,
+		'Selection must return all valid examples when fewer than eight are available.'
+	);
+	$ensure(
+		null === KnabbelWP\normalize_few_shot_candidate(
+			array(
+				'post_id' => 99,
+				'input'   => 'Bron zonder score',
+				'output'  => 'Uitvoer zonder score. Deze cachewaarde is niet bruikbaar.',
+			)
+		),
+		'A cached candidate without an edit score must be rejected.'
+	);
+	$ensure(
+		null === KnabbelWP\normalize_few_shot_candidate(
+			array(
+				'input'      => 'Bron zonder WordPress-bericht',
+				'output'     => 'Uitvoer zonder WordPress-bericht. Deze cachewaarde is niet veilig uit te sluiten.',
+				'edit_score' => 12.0,
+			)
+		),
+		'A cached candidate without a WordPress post ID must be rejected.'
+	);
 	$ensure( 6 === KnabbelWP\few_shot_count_words( 'Er is 3,8 miljoen euro beschikbaar.' ), 'Decimal numbers must count as one word.' );
 	$ensure(
 		2 === KnabbelWP\few_shot_count_sentences( 'Het evenement begint vandaag. 365 kinderen doen mee.' ),
