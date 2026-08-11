@@ -40,11 +40,7 @@ function normalize_few_shot_text( string $text ): string {
  */
 function few_shot_count_words( string $text ): int {
 	$tokens = preg_split( '/\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY );
-	if ( false === $tokens ) {
-		return 0;
-	}
-
-	return count(
+	return false === $tokens ? 0 : count(
 		array_filter(
 			$tokens,
 			static fn ( string $token ): bool => 1 === preg_match( '/[\p{L}\p{N}]/u', $token )
@@ -60,21 +56,15 @@ function few_shot_count_words( string $text ): int {
  * @return int Sentence count.
  */
 function few_shot_count_sentences( string $text ): int {
-	$text = trim( $text );
-	if ( '' === $text ) {
-		return 0;
-	}
-
-	$sentences = preg_split( '/(?<=[.!?])\s+(?=(?:["\'“‘]?\p{Lu}|\d))/u', $text, -1, PREG_SPLIT_NO_EMPTY );
+	$text      = trim( $text );
+	$sentences = '' === $text ? array() : preg_split( '/(?<=[.!?])\s+(?=(?:["\'“‘]?\p{Lu}|\d))/u', $text, -1, PREG_SPLIT_NO_EMPTY );
 	return is_array( $sentences ) ? count( $sentences ) : 1;
 }
 
 /**
  * Measures normalized change from AI output to Babbel text.
  *
- * Uses PHP's native byte-level Levenshtein distance. Multibyte characters
- * weigh slightly heavier than single-byte ones, which is immaterial for the
- * provenance boundary and the coarse ranking this score feeds.
+ * Uses byte-level distance, sufficient for provenance and coarse ranking.
  *
  * @since 0.3.0
  * @param string $ai_text     Original AI-generated text.
@@ -96,9 +86,7 @@ function calculate_edit_score( string $ai_text, string $editor_text ): float {
 /**
  * Validates one cached candidate against the shape the nightly sync writes.
  *
- * Entries from older releases lack a post ID and are rejected; the next
- * nightly sync replaces them with fully-shaped candidates. The sync stores
- * normalized text, so string fields are used as-is.
+ * Rejects incomplete values left by older cache formats.
  *
  * @since 0.7.0
  * @param array<string, mixed> $candidate Cached candidate.
@@ -150,96 +138,31 @@ function select_diverse_examples( array $candidates, int $max_count ): array {
 		return array();
 	}
 
-	if ( count( $candidates ) <= $max_count ) {
+	$remaining = $candidates;
+	if ( count( $remaining ) <= $max_count ) {
 		return $candidates;
 	}
 
-	// Each pass picks the remaining extreme of one dimension; ties keep the
-	// earliest candidate, matching a stable ascending or descending sort.
-	$dimensions = array(
-		array( 'output_word_count', false ),
-		array( 'output_word_count', true ),
-		array( 'edit_score', false ),
-		array( 'edit_score', true ),
-		array( 'original_word_count', false ),
-		array( 'original_word_count', true ),
-		array( 'sentence_count', false ),
-		array( 'sentence_count', true ),
-	);
-	$selected   = array();
-	$seen       = array();
-
-	foreach ( $dimensions as $dimension ) {
-		$field      = $dimension[0];
-		$descending = $dimension[1];
-		$best       = null;
-
-		foreach ( $candidates as $candidate ) {
-			if ( isset( $seen[ $candidate['post_id'] ] ) ) {
-				continue;
-			}
-
-			if ( null === $best
-				|| ( $descending ? $candidate[ $field ] > $best[ $field ] : $candidate[ $field ] < $best[ $field ] )
-			) {
-				$best = $candidate;
+	$order    = array_flip( array_column( $remaining, 'post_id' ) );
+	$selected = array();
+	foreach ( array( 'output_word_count', 'edit_score', 'original_word_count', 'sentence_count' ) as $field ) {
+		foreach ( array( 1, -1 ) as $direction ) {
+			usort(
+				$remaining,
+				static function ( array $left, array $right ) use ( $direction, $field, $order ): int {
+					$result = $left[ $field ] <=> $right[ $field ];
+					return 0 === $result ? $order[ $left['post_id'] ] <=> $order[ $right['post_id'] ] : $direction * $result;
+				}
+			);
+			$selected[] = array_shift( $remaining );
+			if ( count( $selected ) === $max_count ) {
+				return $selected;
 			}
 		}
-
-		if ( null === $best ) {
-			break;
-		}
-
-		$selected[]               = $best;
-		$seen[ $best['post_id'] ] = true;
-
-		if ( count( $selected ) >= $max_count ) {
-			break;
-		}
 	}
 
-	// More dimensions than examples are never needed today, but a raised
-	// KNABBEL_FEW_SHOT_COUNT must not silently under-fill the selection.
-	foreach ( $candidates as $candidate ) {
-		if ( count( $selected ) >= $max_count ) {
-			break;
-		}
-
-		if ( ! isset( $seen[ $candidate['post_id'] ] ) ) {
-			$selected[]                    = $candidate;
-			$seen[ $candidate['post_id'] ] = true;
-		}
-	}
-
-	return $selected;
-}
-
-/**
- * Splits candidates into directly accepted and meaningfully edited pools.
- *
- * Edited candidates below the accepted threshold are dropped when their
- * provenance still reflects an older cache format.
- *
- * @since 0.7.0
- * @param array<int, array<string, mixed>> $candidates Candidate examples.
- * @return array{0: array<int, array<string, mixed>>, 1: array<int, array<string, mixed>>} Accepted and edited pools.
- *
- * @phpstan-param list<FewShotCandidate> $candidates
- * @phpstan-return array{0: list<FewShotCandidate>, 1: list<FewShotCandidate>}
- */
-function partition_few_shot_candidates( array $candidates ): array {
-	$accepted = array();
-	$edited   = array();
-
-	foreach ( $candidates as $candidate ) {
-		if ( 'accepted' === $candidate['provenance'] ) {
-			$accepted[] = $candidate;
-		} elseif ( $candidate['edit_score'] >= KNABBEL_FEW_SHOT_ACCEPTED_MAX_SCORE ) {
-			$edited[] = $candidate;
-		}
-	}
-
-	return array( $accepted, $edited );
+	usort( $remaining, static fn ( array $left, array $right ): int => $order[ $left['post_id'] ] <=> $order[ $right['post_id'] ] );
+	return array_merge( $selected, array_slice( $remaining, 0, $max_count - count( $selected ) ) );
 }
 
 /**
@@ -258,24 +181,23 @@ function select_example_mix( array $candidates, int $max_count ): array {
 		return array();
 	}
 
-	list( $accepted, $edited ) = partition_few_shot_candidates( $candidates );
+	$accepted = array();
+	$edited   = array();
+	foreach ( $candidates as $candidate ) {
+		if ( 'accepted' === $candidate['provenance'] ) {
+			$accepted[] = $candidate;
+		} elseif ( $candidate['edit_score'] >= KNABBEL_FEW_SHOT_ACCEPTED_MAX_SCORE ) {
+			$edited[] = $candidate;
+		}
+	}
 
 	$accepted_target = min( count( $accepted ), max( 1, (int) round( $max_count * KNABBEL_FEW_SHOT_ACCEPTED_RATIO ) ) );
+	$edited_target   = min( count( $edited ), $max_count - $accepted_target );
+	$accepted_target = min( count( $accepted ), $max_count - $edited_target );
 	$selected        = array_merge(
 		select_diverse_examples( $accepted, $accepted_target ),
-		select_diverse_examples( $edited, $max_count - $accepted_target )
+		select_diverse_examples( $edited, $edited_target )
 	);
-
-	if ( count( $selected ) < $max_count ) {
-		$selected_ids = array_fill_keys( array_column( $selected, 'post_id' ), true );
-		$remaining    = array_values(
-			array_filter(
-				array_merge( $accepted, $edited ),
-				static fn ( array $candidate ): bool => ! isset( $selected_ids[ $candidate['post_id'] ] )
-			)
-		);
-		$selected     = array_merge( $selected, select_diverse_examples( $remaining, $max_count - count( $selected ) ) );
-	}
 
 	usort(
 		$selected,

@@ -90,13 +90,9 @@ function sync_few_shot_examples(): void {
 		return;
 	}
 
-	list( $accepted, $edited ) = partition_few_shot_candidates( build_few_shot_candidates( $stories ) );
-
-	// Keep one spare per pool: per-post exclusion removes at most one entry,
-	// so a full selection stays possible even when one pool must supply it alone.
-	$accepted_pool = select_diverse_examples( $accepted, KNABBEL_FEW_SHOT_COUNT + 1 );
-	$edited_pool   = select_diverse_examples( $edited, KNABBEL_FEW_SHOT_COUNT + 1 );
-	$pool          = array_merge( $accepted_pool, $edited_pool );
+	// Keep enough diverse candidates to refill either side of the final mix
+	// after excluding the current post.
+	$pool = select_example_mix( build_few_shot_candidates( $stories ), ( KNABBEL_FEW_SHOT_COUNT * 2 ) + 2 );
 
 	if ( empty( $pool ) ) {
 		log( 'info', 'FewShotCache', 'No valid recent few-shot candidates found' );
@@ -111,10 +107,7 @@ function sync_few_shot_examples(): void {
 		'info',
 		'FewShotCache',
 		'Few-shot candidate cache updated',
-		array(
-			'accepted_cached' => count( $accepted_pool ),
-			'edited_cached'   => count( $edited_pool ),
-		)
+		array( 'candidates_cached' => count( $pool ) )
 	);
 }
 
