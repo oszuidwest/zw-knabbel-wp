@@ -4,7 +4,7 @@ Publishes selected WordPress posts as radio stories in the [Babbel API](https://
 
 ## What it does
 
-- moves the native **Radionieuws** metabox control into the configured ACF field group
+- adds a native **Radionieuws** metabox to the post editor
 - generates provider-independent speech text through the WordPress AI Client
 - creates, updates, deletes, and restores the matching Babbel story
 - learns from editor-corrected Babbel text through nightly few-shot synchronization
@@ -14,7 +14,6 @@ Publishes selected WordPress posts as radio stories in the [Babbel API](https://
 
 - WordPress 7.0+
 - PHP 8.3 or 8.4
-- [Advanced Custom Fields](https://www.advancedcustomfields.com/) (ACF)
 - A compatible AI provider configured under **Settings > Connectors**
 - A running instance of the [Babbel API](https://github.com/oszuidwest/zwfm-babbel)
 

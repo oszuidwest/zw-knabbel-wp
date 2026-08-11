@@ -117,18 +117,11 @@ export async function setBabbelEnabled(
     enabled: boolean,
 ): Promise<void> {
     const checkbox = page.locator(
-        '.knabbel-radionieuws-injected #knabbel_send_to_babbel',
+        '#knabbel-radionieuws #knabbel_send_to_babbel',
     );
     await expect(checkbox).toBeVisible();
     await expect(checkbox).toBeEnabled();
-    // A real click cannot drive this control: once the metabox re-renders for an
-    // already-synchronized post, the injected input never reaches Playwright's
-    // stable-and-visible state, so setChecked times out. Drive it directly instead.
-    await checkbox.evaluate((input: HTMLInputElement, checked) => {
-        input.checked = checked;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-    }, enabled);
+    await checkbox.setChecked(enabled);
     await expect(checkbox).toBeChecked({ checked: enabled });
 }
 
