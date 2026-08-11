@@ -71,6 +71,13 @@ require_once dirname( __DIR__, 2 ) . '/includes/few-shot-cache.php';
 		count( KnabbelWP\select_example_mix( array_slice( $candidates, 0, 5 ), 8 ) ) === 5,
 		'Selection must return all valid examples when fewer than eight are available.'
 	);
+	$weak_edited               = $candidates[6];
+	$weak_edited['post_id']    = 99;
+	$weak_edited['edit_score'] = 0.5;
+	$ensure(
+		2 === count( KnabbelWP\select_example_mix( array( $candidates[0], $candidates[6], $weak_edited ), 8 ) ),
+		'Fallback selection must not reintroduce edited examples below the minimum edit score.'
+	);
 	$ensure(
 		array() === KnabbelWP\select_example_mix( $candidates, 0 ),
 		'A zero example count must select nothing.'

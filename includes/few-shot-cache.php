@@ -438,6 +438,13 @@ function select_example_mix( array $candidates, int $max_count ): array {
 		return array();
 	}
 
+	$candidates = array_values(
+		array_filter(
+			$candidates,
+			static fn ( array $candidate ): bool => 'accepted' === $candidate['provenance'] || $candidate['edit_score'] >= 1.0
+		)
+	);
+
 	$accepted = array_values(
 		array_filter(
 			$candidates,

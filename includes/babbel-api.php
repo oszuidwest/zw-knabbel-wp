@@ -746,7 +746,12 @@ function babbel_fetch_recent_stories( int $limit = BABBEL_RECENT_STORY_LIMIT, ?s
 		return new \WP_Error( 'json_error', __( 'Invalid API response', 'zw-knabbel-wp' ) );
 	}
 
-	$stories = $decoded['data'] ?? array();
+	if ( ! is_array( $decoded ) || ! isset( $decoded['data'] ) || ! is_array( $decoded['data'] ) ) {
+		log( 'error', 'BabbelApi', 'Invalid story collection in Babbel API response' );
+		return new \WP_Error( 'invalid_response', __( 'Invalid API response', 'zw-knabbel-wp' ) );
+	}
+
+	$stories = array_values( array_filter( $decoded['data'], 'is_array' ) );
 
 	log(
 		'info',
@@ -755,7 +760,7 @@ function babbel_fetch_recent_stories( int $limit = BABBEL_RECENT_STORY_LIMIT, ?s
 		array( 'count' => count( $stories ) )
 	);
 
-	return array_values( $stories );
+	return $stories;
 }
 
 /**
