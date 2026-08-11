@@ -66,8 +66,8 @@ function few_shot_unschedule_sync(): void {
  * @since 0.3.0
  */
 function sync_few_shot_examples(): void {
-	$options   = get_option( 'knabbel_settings' );
-	$max_count = (int) ( $options['few_shot_count'] ?? 5 );
+	$options   = get_plugin_settings();
+	$max_count = (int) $options['few_shot_count'];
 
 	if ( $max_count <= 0 ) {
 		log( 'info', 'FewShotCache', 'Few-shot examples disabled (count set to 0)' );

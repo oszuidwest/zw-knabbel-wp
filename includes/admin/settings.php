@@ -85,25 +85,7 @@ function settings_register_settings(): void {
 		array(
 			'type'              => 'array',
 			'sanitize_callback' => __NAMESPACE__ . '\\sanitize_settings',
-			'default'           => array(
-				'api_base_url'      => '',
-				'api_username'      => '',
-				'api_password'      => '',
-				'ai_model'          => '',
-				'speech_prompt'     => '',
-				'debug_mode'        => false,
-				'start_days_offset' => 1,
-				'end_days_offset'   => 2,
-				'default_status'    => 'draft',
-				'weekday_sunday'    => true,
-				'weekday_monday'    => true,
-				'weekday_tuesday'   => true,
-				'weekday_wednesday' => true,
-				'weekday_thursday'  => true,
-				'weekday_friday'    => true,
-				'weekday_saturday'  => true,
-				'few_shot_count'    => 5,
-			),
+			'default'           => default_settings(),
 		)
 	);
 }
@@ -163,14 +145,13 @@ function sanitize_settings( array $input ): array {
 			: 'draft';
 	}
 
-	// Boolean/checkbox fields.
-	$sanitized['debug_mode'] = ! empty( $input['debug_mode'] ) ? 1 : 0;
+	// Boolean/checkbox fields, stored as real booleans to match default_settings().
+	$sanitized['debug_mode'] = ! empty( $input['debug_mode'] );
 
 	// Weekday checkboxes.
-	$weekdays = array( 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday' );
-	foreach ( $weekdays as $day ) {
+	foreach ( array_keys( WEEKDAY_MAP ) as $day ) {
 		$field_name               = 'weekday_' . $day;
-		$sanitized[ $field_name ] = ! empty( $input[ $field_name ] ) ? 1 : 0;
+		$sanitized[ $field_name ] = ! empty( $input[ $field_name ] );
 	}
 
 	return $sanitized;
@@ -214,7 +195,7 @@ function settings_page(): void {
 		)
 	);
 
-	$settings = get_option( 'knabbel_settings', array() );
+	$settings = get_plugin_settings();
 	?>
 	<div class="wrap knabbel-wp-admin">
 		<?php
@@ -394,8 +375,8 @@ function render_babbel_api_card( array $settings ): void {
 				<input type="text"
 					name="knabbel_settings[api_base_url]"
 					class="knabbel-field-input"
-					value="<?php echo esc_attr( $settings['api_base_url'] ?? '' ); ?>"
-					placeholder="https://api.example.com" />
+					value="<?php echo esc_attr( $settings['api_base_url'] ); ?>"
+					placeholder="https://babbel.example.com/api/v1" />
 				<p class="knabbel-field-description">
 					<?php esc_html_e( 'The base URL of the Babbel API (without trailing slash).', 'zw-knabbel-wp' ); ?>
 				</p>
@@ -410,7 +391,7 @@ function render_babbel_api_card( array $settings ): void {
 					<input type="text"
 						name="knabbel_settings[api_username]"
 						class="knabbel-field-input"
-						value="<?php echo esc_attr( $settings['api_username'] ?? '' ); ?>"
+						value="<?php echo esc_attr( $settings['api_username'] ); ?>"
 						placeholder="<?php esc_attr_e( 'username', 'zw-knabbel-wp' ); ?>" />
 				</div>
 
@@ -422,7 +403,7 @@ function render_babbel_api_card( array $settings ): void {
 					<input type="password"
 						name="knabbel_settings[api_password]"
 						class="knabbel-field-input"
-						value="<?php echo esc_attr( $settings['api_password'] ?? '' ); ?>" />
+						value="<?php echo esc_attr( $settings['api_password'] ); ?>" />
 				</div>
 			</div>
 
@@ -485,7 +466,7 @@ function render_ai_card( array $settings ): void {
 						<?php foreach ( $ai_models as $provider_data ) : ?>
 							<optgroup label="<?php echo esc_attr( $provider_data['label'] ); ?>">
 								<?php foreach ( $provider_data['models'] as $model_value => $model_name ) : ?>
-									<option value="<?php echo esc_attr( $model_value ); ?>" <?php selected( $settings['ai_model'] ?? '', $model_value ); ?>>
+									<option value="<?php echo esc_attr( $model_value ); ?>" <?php selected( $settings['ai_model'], $model_value ); ?>>
 										<?php echo esc_html( $model_name ); ?>
 									</option>
 								<?php endforeach; ?>
@@ -498,7 +479,7 @@ function render_ai_card( array $settings ): void {
 				</div>
 			<?php else : ?>
 				<?php // The hidden field preserves the stored value: sanitize_settings() drops keys absent from the form. ?>
-				<input type="hidden" name="knabbel_settings[ai_model]" value="<?php echo esc_attr( $settings['ai_model'] ?? '' ); ?>" />
+				<input type="hidden" name="knabbel_settings[ai_model]" value="<?php echo esc_attr( $settings['ai_model'] ); ?>" />
 				<p class="knabbel-field-description">
 					<?php esc_html_e( 'No configured text generation models are available.', 'zw-knabbel-wp' ); ?>
 				</p>
@@ -512,7 +493,7 @@ function render_ai_card( array $settings ): void {
 					name="knabbel_settings[speech_prompt]"
 					class="knabbel-field-input"
 					rows="4"
-					placeholder="<?php echo esc_attr( AI_DEFAULT_INSTRUCTION ); ?>"><?php echo esc_textarea( $settings['speech_prompt'] ?? '' ); ?></textarea>
+					placeholder="<?php echo esc_attr( AI_DEFAULT_INSTRUCTION ); ?>"><?php echo esc_textarea( $settings['speech_prompt'] ); ?></textarea>
 				<p class="knabbel-field-description">
 					<?php esc_html_e( 'Prompt for converting to radio-friendly speech text. Leave empty for default prompt.', 'zw-knabbel-wp' ); ?>
 				</p>
@@ -526,7 +507,7 @@ function render_ai_card( array $settings ): void {
 					id="knabbel-few-shot-count"
 					name="knabbel_settings[few_shot_count]"
 					class="knabbel-field-input"
-					value="<?php echo esc_attr( (string) ( $settings['few_shot_count'] ?? 5 ) ); ?>"
+					value="<?php echo esc_attr( (string) $settings['few_shot_count'] ); ?>"
 					min="0"
 					max="20" />
 				<p class="knabbel-field-description">
@@ -559,7 +540,7 @@ function render_defaults_card( array $settings ): void {
 		'friday'    => __( 'Fri', 'zw-knabbel-wp' ),
 		'saturday'  => __( 'Sat', 'zw-knabbel-wp' ),
 	);
-	$is_active = ( $settings['default_status'] ?? 'draft' ) === 'active';
+	$is_active = 'active' === $settings['default_status'];
 	?>
 	<div class="knabbel-settings-card full-width">
 		<div class="knabbel-card-title">
@@ -575,7 +556,7 @@ function render_defaults_card( array $settings ): void {
 							<input type="number"
 								name="knabbel_settings[start_days_offset]"
 								class="knabbel-field-input"
-								value="<?php echo esc_attr( (string) ( $settings['start_days_offset'] ?? 1 ) ); ?>"
+								value="<?php echo esc_attr( (string) $settings['start_days_offset'] ); ?>"
 								min="0" />
 							<span class="input-suffix"><?php esc_html_e( 'Number of days from publication for start date.', 'zw-knabbel-wp' ); ?></span>
 						</div>
@@ -588,7 +569,7 @@ function render_defaults_card( array $settings ): void {
 							<input type="number"
 								name="knabbel_settings[end_days_offset]"
 								class="knabbel-field-input"
-								value="<?php echo esc_attr( (string) ( $settings['end_days_offset'] ?? 2 ) ); ?>"
+								value="<?php echo esc_attr( (string) $settings['end_days_offset'] ); ?>"
 								min="0" />
 							<span class="input-suffix"><?php esc_html_e( 'Number of days from publication for end date.', 'zw-knabbel-wp' ); ?></span>
 						</div>
@@ -615,7 +596,7 @@ function render_defaults_card( array $settings ): void {
 							<?php foreach ( $weekdays as $key => $label ) : ?>
 								<?php
 								$field_name = 'weekday_' . $key;
-								$checked    = ! isset( $settings[ $field_name ] ) || ! empty( $settings[ $field_name ] );
+								$checked    = ! empty( $settings[ $field_name ] );
 								?>
 								<label class="knabbel-weekday <?php echo $checked ? 'checked' : ''; ?>">
 									<input type="checkbox"
