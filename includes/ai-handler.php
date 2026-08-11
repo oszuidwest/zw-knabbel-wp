@@ -27,7 +27,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 const AI_DEFAULT_INSTRUCTION = "Transformeer naar natuurlijke radiospreektekst met:\n- Korte, heldere zinnen (max 15 woorden)\n- Spreektaal en radiofrases\n- Logische volgorde voor luisteraars\n- Duidelijke overgangen tussen punten\n- Actieve zinsbouw\n- Getallen uitgeschreven waar natuurlijk";
 const AI_ARTICLE_PROMPT      = "Artikel:\n\"\"\"\n%s\n\"\"\"";
 const AI_EXAMPLE_PROMPT      = '%s — leer van toon, nieuwsselectie en formulering. Neem geen feiten over. '
-	. "De lengte en het zinsaantal kunnen afwijken van de instructie voor het nieuwe artikel.\n\nArtikel:\n\"\"\"\n%s\n\"\"\"";
+	. 'De lengte en het zinsaantal kunnen afwijken van de instructie voor het nieuwe artikel.';
 
 /**
  * Returns configured text-generation models.
@@ -103,7 +103,9 @@ function ai_generate_content( string $content, int $current_post_id = 0 ): ?stri
 		$example_label = 'accepted' === $example['provenance']
 			? 'VOORBEELD DAT DE REDACTIE DIRECT HEEFT GEACCEPTEERD'
 			: 'VOORBEELD DAT DE REDACTIE HEEFT AANGEPAST';
-		$messages[]    = new UserMessage( array( new MessagePart( sprintf( AI_EXAMPLE_PROMPT, $example_label, $example['input'] ) ) ) );
+		$messages[]    = new UserMessage(
+			array( new MessagePart( sprintf( AI_EXAMPLE_PROMPT, $example_label ) . "\n\n" . sprintf( AI_ARTICLE_PROMPT, $example['input'] ) ) )
+		);
 		$messages[]    = new ModelMessage( array( new MessagePart( $example['output'] ) ) );
 	}
 	$messages[] = new UserMessage( array( new MessagePart( sprintf( AI_ARTICLE_PROMPT, $content ) ) ) );

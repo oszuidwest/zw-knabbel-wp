@@ -7,16 +7,11 @@
 
 declare(strict_types=1);
 
-if ( ! defined( 'ABSPATH' ) && 'cli' !== PHP_SAPI ) {
+if ( 'cli' !== PHP_SAPI ) {
 	exit;
 }
 
-if ( ! defined( 'ABSPATH' ) ) {
-	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- Required by the plugin bootstrap guard.
-	define( 'ABSPATH', __DIR__ . '/' );
-}
-
-require_once dirname( __DIR__, 2 ) . '/includes/few-shot-cache.php';
+require_once dirname( __DIR__, 2 ) . '/includes/few-shot-selection.php';
 
 ( static function (): void {
 	$ensure = static function ( bool $condition, string $message ): void {
@@ -65,7 +60,7 @@ require_once dirname( __DIR__, 2 ) . '/includes/few-shot-cache.php';
 	);
 	$ensure(
 		100.0 === KnabbelWP\calculate_edit_score( 'e', 'é' ),
-		'Unicode characters must retain character-level edit semantics.'
+		'A fully replaced character must score 100.'
 	);
 	$ensure(
 		count( KnabbelWP\select_example_mix( array_slice( $candidates, 0, 5 ), 8 ) ) === 5,
