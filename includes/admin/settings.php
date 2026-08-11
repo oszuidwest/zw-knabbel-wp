@@ -85,24 +85,7 @@ function settings_register_settings(): void {
 		array(
 			'type'              => 'array',
 			'sanitize_callback' => __NAMESPACE__ . '\\sanitize_settings',
-			'default'           => array(
-				'api_base_url'      => '',
-				'api_username'      => '',
-				'api_password'      => '',
-				'speech_prompt'     => '',
-				'debug_mode'        => false,
-				'start_days_offset' => 1,
-				'end_days_offset'   => 2,
-				'default_status'    => 'draft',
-				'weekday_sunday'    => true,
-				'weekday_monday'    => true,
-				'weekday_tuesday'   => true,
-				'weekday_wednesday' => true,
-				'weekday_thursday'  => true,
-				'weekday_friday'    => true,
-				'weekday_saturday'  => true,
-				'few_shot_count'    => 5,
-			),
+			'default'           => default_settings(),
 		)
 	);
 }

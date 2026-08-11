@@ -532,6 +532,37 @@ function admin_init(): void {
 }
 
 /**
+ * Returns the default values for the knabbel_settings option.
+ *
+ * Single source of truth for activate() and the register_setting() default.
+ *
+ * @since 0.6.0
+ * @return array<string, mixed> The default settings.
+ */
+function default_settings(): array {
+	return array(
+		'api_base_url'      => '',
+		'api_username'      => '',
+		'api_password'      => '',
+		'speech_prompt'     => '',
+		'debug_mode'        => false,
+		// Story defaults.
+		'start_days_offset' => 1,
+		'end_days_offset'   => 2,
+		'default_status'    => 'draft',
+		'weekday_sunday'    => true,
+		'weekday_monday'    => true,
+		'weekday_tuesday'   => true,
+		'weekday_wednesday' => true,
+		'weekday_thursday'  => true,
+		'weekday_friday'    => true,
+		'weekday_saturday'  => true,
+		// Few-shot examples.
+		'few_shot_count'    => 5,
+	);
+}
+
+/**
  * Runs on plugin activation.
  *
  * Sets up default options and cleans legacy metadata.
@@ -539,25 +570,10 @@ function admin_init(): void {
  * @since 0.1.0
  */
 function activate(): void {
-		$default_options = array(
-			'api_base_url'      => 'https://babbel.example.com/api/v1',
-			'api_username'      => '',
-			'api_password'      => '',
-			'speech_prompt'     => '',
-			'debug_mode'        => false,
-			// Story defaults.
-			'start_days_offset' => 1,
-			'end_days_offset'   => 2,
-			'default_status'    => 'draft',
-			'weekday_sunday'    => true,
-			'weekday_monday'    => true,
-			'weekday_tuesday'   => true,
-			'weekday_wednesday' => true,
-			'weekday_thursday'  => true,
-			'weekday_friday'    => true,
-			'weekday_saturday'  => true,
-			// Few-shot examples.
-			'few_shot_count'    => 5,
+		// Seed an example base URL so the settings page shows the expected format.
+		$default_options = array_merge(
+			default_settings(),
+			array( 'api_base_url' => 'https://babbel.example.com/api/v1' )
 		);
 
 		// Explicitly set autoload to true since these settings are needed on every admin page load.
