@@ -44,7 +44,6 @@ test.describe
                 api_base_url: 'http://babbel:8080/api/v1',
                 api_username: BABBEL_ADMIN.username,
                 api_password: BABBEL_ADMIN.password,
-                few_shot_count: '1',
                 start_days_offset: '1',
                 end_days_offset: '2',
             };
@@ -83,7 +82,9 @@ test.describe
             await expect(
                 page.getByLabel('Speech Text Generation Prompt'),
             ).toBeVisible();
-            await expect(page.getByLabel('Few-shot Examples')).toBeVisible();
+            await expect(
+                page.locator('[name="knabbel_settings[few_shot_count]"]'),
+            ).toHaveCount(0);
 
             await page.locator('#test-babbel-api').click();
             await expect(page.locator('#api-test-result')).toHaveClass(

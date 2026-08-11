@@ -545,8 +545,6 @@ function default_settings(): array {
 		'weekday_thursday'  => true,
 		'weekday_friday'    => true,
 		'weekday_saturday'  => true,
-		// Few-shot examples.
-		'few_shot_count'    => 5,
 	);
 }
 
@@ -598,7 +596,8 @@ function deactivate(): void {
 /**
  * Removes deprecated settings during activation.
  *
- * Safe to run multiple times. Can be removed once all installs are on 0.4.0+.
+ * Safe to run multiple times. Keep through the migration window for settings
+ * removed up to and including 0.7.0.
  *
  * @since 0.1.0
  */
@@ -610,7 +609,7 @@ function cleanup_legacy_data(): void {
 		return;
 	}
 
-	$clean_settings = array_diff_key( $settings, array_flip( array( 'title_prompt', 'openai_api_key', 'openai_model' ) ) );
+	$clean_settings = array_diff_key( $settings, array_flip( array( 'title_prompt', 'openai_api_key', 'openai_model', 'few_shot_count' ) ) );
 	if ( $clean_settings !== $settings ) {
 		update_option( 'knabbel_settings', $clean_settings );
 	}
@@ -707,7 +706,7 @@ function process_story_async( int|array $post_id_or_args ): void {
 	$title = $post->post_title;
 
 	// Generate speech text.
-	$speech_text = ai_generate_content( $content );
+	$speech_text = ai_generate_content( $content, $post_id );
 	if ( null === $speech_text ) {
 		update_story_state(
 			$post_id,

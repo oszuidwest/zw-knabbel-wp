@@ -26,6 +26,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:ignore Generic.Files.LineLength.TooLong -- Keeping the prompt literal intact makes it easy to review and reuse.
 const AI_DEFAULT_INSTRUCTION = "Transformeer naar natuurlijke radiospreektekst met:\n- Korte, heldere zinnen (max 15 woorden)\n- Spreektaal en radiofrases\n- Logische volgorde voor luisteraars\n- Duidelijke overgangen tussen punten\n- Actieve zinsbouw\n- Getallen uitgeschreven waar natuurlijk";
 const AI_ARTICLE_PROMPT      = "Artikel:\n\"\"\"\n%s\n\"\"\"";
+const AI_EXAMPLE_PROMPT      = '%s — leer van toon, nieuwsselectie en formulering. Neem geen feiten over. '
+	. "De lengte en het zinsaantal kunnen afwijken van de instructie voor het nieuwe artikel.\n\n" . AI_ARTICLE_PROMPT;
 
 /**
  * Returns configured text-generation models.
@@ -87,28 +89,22 @@ function ai_parse_model_setting( mixed $value ): ?array {
  * Generates speech text through the WordPress AI Client.
  *
  * @since 0.5.0
- * @param string $content The source content.
+ * @param string $content         The source content.
+ * @param int    $current_post_id Current post ID to exclude from examples, 0 for none.
  * @return string|null The generated content or null on failure.
  */
-function ai_generate_content( string $content ): ?string {
+function ai_generate_content( string $content, int $current_post_id ): ?string {
 	$options       = get_plugin_settings();
 	$speech_prompt = (string) $options['speech_prompt'];
 	$instruction   = '' !== trim( $speech_prompt ) ? $speech_prompt : AI_DEFAULT_INSTRUCTION;
 
-	$messages       = array();
-	$few_shot_count = (int) $options['few_shot_count'];
-	$examples       = get_option( 'knabbel_few_shot_examples', array() );
-	if ( $few_shot_count > 0 && is_array( $examples ) ) {
-		foreach ( array_slice( $examples, 0, $few_shot_count ) as $example ) {
-			$input  = $example['input'] ?? null;
-			$output = $example['output'] ?? null;
-			if ( ! is_string( $input ) || '' === trim( $input ) || ! is_string( $output ) || '' === trim( $output ) ) {
-				continue;
-			}
-
-			$messages[] = new UserMessage( array( new MessagePart( sprintf( AI_ARTICLE_PROMPT, $input ) ) ) );
-			$messages[] = new ModelMessage( array( new MessagePart( $output ) ) );
-		}
+	$messages = array();
+	foreach ( get_few_shot_examples( $current_post_id ) as $example ) {
+		$example_label = 'accepted' === $example['provenance']
+			? 'VOORBEELD DAT DE REDACTIE DIRECT HEEFT GEACCEPTEERD'
+			: 'VOORBEELD DAT DE REDACTIE HEEFT AANGEPAST';
+		$messages[]    = new UserMessage( array( new MessagePart( sprintf( AI_EXAMPLE_PROMPT, $example_label, $example['input'] ) ) ) );
+		$messages[]    = new ModelMessage( array( new MessagePart( $example['output'] ) ) );
 	}
 	$messages[] = new UserMessage( array( new MessagePart( sprintf( AI_ARTICLE_PROMPT, $content ) ) ) );
 

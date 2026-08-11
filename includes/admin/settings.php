@@ -134,10 +134,6 @@ function sanitize_settings( array $input ): array {
 	if ( isset( $input['end_days_offset'] ) ) {
 		$sanitized['end_days_offset'] = absint( $input['end_days_offset'] );
 	}
-	if ( isset( $input['few_shot_count'] ) ) {
-		$sanitized['few_shot_count'] = min( absint( $input['few_shot_count'] ), 20 );
-	}
-
 	// Select field with allowed values.
 	if ( isset( $input['default_status'] ) ) {
 		$sanitized['default_status'] = in_array( $input['default_status'], array( 'draft', 'active' ), true )
@@ -496,27 +492,6 @@ function render_ai_card( array $settings ): void {
 					placeholder="<?php echo esc_attr( AI_DEFAULT_INSTRUCTION ); ?>"><?php echo esc_textarea( $settings['speech_prompt'] ); ?></textarea>
 				<p class="knabbel-field-description">
 					<?php esc_html_e( 'Prompt for converting to radio-friendly speech text. Leave empty for default prompt.', 'zw-knabbel-wp' ); ?>
-				</p>
-			</div>
-
-			<div class="knabbel-field">
-				<label class="knabbel-field-label" for="knabbel-few-shot-count">
-					<?php esc_html_e( 'Few-shot Examples', 'zw-knabbel-wp' ); ?>
-				</label>
-				<input type="number"
-					id="knabbel-few-shot-count"
-					name="knabbel_settings[few_shot_count]"
-					class="knabbel-field-input"
-					value="<?php echo esc_attr( (string) $settings['few_shot_count'] ); ?>"
-					min="0"
-					max="20" />
-				<p class="knabbel-field-description">
-					<?php
-					esc_html_e(
-						'Number of editor-corrected examples to include in the speech prompt (0 to disable, max 20). Synced nightly from Babbel.',
-						'zw-knabbel-wp'
-					);
-					?>
 				</p>
 			</div>
 		</div>

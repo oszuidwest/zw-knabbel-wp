@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-08-11T15:06:31+00:00\n"
+"POT-Creation-Date: 2026-08-11T20:01:30+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: zw-knabbel-wp\n"
@@ -17,7 +17,7 @@ msgstr ""
 #. Plugin Name of the plugin
 #: zw-knabbel-wp.php
 #: includes/admin/settings.php:66
-#: includes/admin/settings.php:235
+#: includes/admin/settings.php:212
 msgid "ZuidWest Knabbel"
 msgstr ""
 
@@ -41,86 +41,86 @@ msgstr ""
 msgid "https://www.zuidwesttv.nl"
 msgstr ""
 
-#: includes/admin/metabox.php:66
+#: includes/admin/metabox.php:64
 msgid "Knabbel Status"
 msgstr ""
 
-#: includes/admin/metabox.php:94
+#: includes/admin/metabox.php:92
 msgid "Radio News"
 msgstr ""
 
-#: includes/admin/metabox.php:103
+#: includes/admin/metabox.php:101
 msgid "Yes"
 msgstr ""
 
-#: includes/admin/metabox.php:104
+#: includes/admin/metabox.php:102
 msgid "No"
 msgstr ""
 
-#: includes/admin/metabox.php:109
+#: includes/admin/metabox.php:107
 msgid "Babbel sync warning"
 msgstr ""
 
-#: includes/admin/metabox.php:135
-#: includes/admin/settings.php:598
-#: includes/admin/settings.php:777
+#: includes/admin/metabox.php:133
+#: includes/admin/settings.php:554
+#: includes/admin/settings.php:733
 msgid "Status"
 msgstr ""
 
-#: includes/admin/metabox.php:139
-#: includes/admin/settings.php:721
+#: includes/admin/metabox.php:137
+#: includes/admin/settings.php:677
 msgid "Scheduled"
 msgstr ""
 
-#: includes/admin/metabox.php:140
-#: includes/admin/settings.php:722
+#: includes/admin/metabox.php:138
+#: includes/admin/settings.php:678
 msgid "Processing"
 msgstr ""
 
-#: includes/admin/metabox.php:141
-#: includes/admin/settings.php:723
+#: includes/admin/metabox.php:139
+#: includes/admin/settings.php:679
 msgid "Sent"
 msgstr ""
 
-#: includes/admin/metabox.php:142
-#: includes/admin/settings.php:724
+#: includes/admin/metabox.php:140
+#: includes/admin/settings.php:680
 msgid "Error"
 msgstr ""
 
-#: includes/admin/metabox.php:143
+#: includes/admin/metabox.php:141
 msgid "Deleted"
 msgstr ""
 
-#: includes/admin/metabox.php:145
+#: includes/admin/metabox.php:143
 msgid "—"
 msgstr ""
 
-#: includes/admin/metabox.php:151
+#: includes/admin/metabox.php:149
 msgid "Last status change:"
 msgstr ""
 
-#: includes/admin/metabox.php:161
+#: includes/admin/metabox.php:159
 msgid "Story ID"
 msgstr ""
 
-#: includes/admin/metabox.php:167
+#: includes/admin/metabox.php:165
 msgid "Scheduled:"
 msgstr ""
 
-#: includes/admin/metabox.php:176
-#: includes/admin/settings.php:815
+#: includes/admin/metabox.php:174
+#: includes/admin/settings.php:771
 msgid "Last sync error"
 msgstr ""
 
-#: includes/admin/metabox.php:182
-#: includes/admin/settings.php:820
+#: includes/admin/metabox.php:180
+#: includes/admin/settings.php:776
 msgid "Operation"
 msgstr ""
 
-#: includes/admin/metabox.php:200
-#: includes/admin/settings.php:304
-#: includes/admin/settings.php:799
-#: includes/admin/settings.php:804
+#: includes/admin/metabox.php:198
+#: includes/admin/settings.php:281
+#: includes/admin/settings.php:755
+#: includes/admin/settings.php:760
 msgid "Message"
 msgstr ""
 
@@ -132,230 +132,222 @@ msgstr ""
 msgid "ZuidWest Knabbel Settings"
 msgstr ""
 
-#: includes/admin/settings.php:186
+#: includes/admin/settings.php:163
 msgid "You do not have sufficient permissions to view this page."
 msgstr ""
 
-#: includes/admin/settings.php:211
+#: includes/admin/settings.php:188
 msgid "Testing..."
 msgstr ""
 
-#: includes/admin/settings.php:212
-#: includes/admin/settings.php:447
+#: includes/admin/settings.php:189
+#: includes/admin/settings.php:424
 msgid "Test API Connection"
 msgstr ""
 
-#: includes/admin/settings.php:213
+#: includes/admin/settings.php:190
 msgid "An error occurred"
 msgstr ""
 
-#: includes/admin/settings.php:226
+#: includes/admin/settings.php:203
 msgid "Recent errors cleared."
 msgstr ""
 
-#: includes/admin/settings.php:230
+#: includes/admin/settings.php:207
 msgid "Recent errors could not be cleared. Please try again."
 msgstr ""
 
-#: includes/admin/settings.php:237
+#: includes/admin/settings.php:214
 msgid "Wijzigingen opslaan"
 msgstr ""
 
-#: includes/admin/settings.php:295
+#: includes/admin/settings.php:272
 msgid "Recent Errors"
 msgstr ""
 
-#: includes/admin/settings.php:302
+#: includes/admin/settings.php:279
 msgid "Time"
 msgstr ""
 
-#: includes/admin/settings.php:303
+#: includes/admin/settings.php:280
 msgid "Component"
 msgstr ""
 
-#: includes/admin/settings.php:310
+#: includes/admin/settings.php:287
 msgid "No valid recent errors to display."
 msgstr ""
 
-#: includes/admin/settings.php:341
+#: includes/admin/settings.php:318
 msgid "Clear Errors"
 msgstr ""
 
-#: includes/admin/settings.php:382
+#: includes/admin/settings.php:359
 msgid "Babbel API"
 msgstr ""
 
-#: includes/admin/settings.php:386
+#: includes/admin/settings.php:363
 msgid "Configure the Babbel API settings."
 msgstr ""
 
-#: includes/admin/settings.php:391
+#: includes/admin/settings.php:368
 msgid "Babbel API Base URL"
 msgstr ""
 
-#: includes/admin/settings.php:400
+#: includes/admin/settings.php:377
 msgid "The base URL of the Babbel API (without trailing slash)."
 msgstr ""
 
-#: includes/admin/settings.php:407
+#: includes/admin/settings.php:384
 msgid "Babbel API Username"
 msgstr ""
 
-#: includes/admin/settings.php:414
+#: includes/admin/settings.php:391
 msgid "username"
 msgstr ""
 
-#: includes/admin/settings.php:419
+#: includes/admin/settings.php:396
 msgid "Babbel API Password"
 msgstr ""
 
-#: includes/admin/settings.php:437
+#: includes/admin/settings.php:414
 msgid "Enable Debug Mode"
 msgstr ""
 
-#: includes/admin/settings.php:441
+#: includes/admin/settings.php:418
 msgid "Show debug information and status in the sidebar. Only enable for troubleshooting."
 msgstr ""
 
-#: includes/admin/settings.php:468
+#: includes/admin/settings.php:445
 msgid "AI Generation"
 msgstr ""
 
-#: includes/admin/settings.php:472
+#: includes/admin/settings.php:449
 msgid "WordPress selects a suitable model from your configured AI providers."
 msgstr ""
 
-#: includes/admin/settings.php:474
+#: includes/admin/settings.php:451
 msgid "Manage AI providers"
 msgstr ""
 
-#: includes/admin/settings.php:481
+#: includes/admin/settings.php:458
 msgid "AI Model"
 msgstr ""
 
-#: includes/admin/settings.php:484
+#: includes/admin/settings.php:461
 msgid "Automatic"
 msgstr ""
 
-#: includes/admin/settings.php:496
+#: includes/admin/settings.php:473
 msgid "Choose a configured text model, or let WordPress select one automatically."
 msgstr ""
 
-#: includes/admin/settings.php:503
+#: includes/admin/settings.php:480
 msgid "No configured text generation models are available."
 msgstr ""
 
-#: includes/admin/settings.php:509
+#: includes/admin/settings.php:486
 msgid "Speech Text Generation Prompt"
 msgstr ""
 
-#: includes/admin/settings.php:517
+#: includes/admin/settings.php:494
 msgid "Prompt for converting to radio-friendly speech text. Leave empty for default prompt."
 msgstr ""
 
-#: includes/admin/settings.php:523
-msgid "Few-shot Examples"
-msgstr ""
-
-#: includes/admin/settings.php:534
-msgid "Number of editor-corrected examples to include in the speech prompt (0 to disable, max 20). Synced nightly from Babbel."
-msgstr ""
-
-#: includes/admin/settings.php:554
+#: includes/admin/settings.php:510
 msgid "Sun"
 msgstr ""
 
-#: includes/admin/settings.php:555
+#: includes/admin/settings.php:511
 msgid "Mon"
 msgstr ""
 
-#: includes/admin/settings.php:556
+#: includes/admin/settings.php:512
 msgid "Tue"
 msgstr ""
 
-#: includes/admin/settings.php:557
+#: includes/admin/settings.php:513
 msgid "Wed"
 msgstr ""
 
-#: includes/admin/settings.php:558
+#: includes/admin/settings.php:514
 msgid "Thu"
 msgstr ""
 
-#: includes/admin/settings.php:559
+#: includes/admin/settings.php:515
 msgid "Fri"
 msgstr ""
 
-#: includes/admin/settings.php:560
+#: includes/admin/settings.php:516
 msgid "Sat"
 msgstr ""
 
-#: includes/admin/settings.php:567
+#: includes/admin/settings.php:523
 msgid "Story Defaults"
 msgstr ""
 
-#: includes/admin/settings.php:572
+#: includes/admin/settings.php:528
 msgid "Start Date (days from now)"
 msgstr ""
 
-#: includes/admin/settings.php:580
+#: includes/admin/settings.php:536
 msgid "Number of days from publication for start date."
 msgstr ""
 
-#: includes/admin/settings.php:585
+#: includes/admin/settings.php:541
 msgid "End Date (days from now)"
 msgstr ""
 
-#: includes/admin/settings.php:593
+#: includes/admin/settings.php:549
 msgid "Number of days from publication for end date."
 msgstr ""
 
-#: includes/admin/settings.php:607
+#: includes/admin/settings.php:563
 msgid "Active"
 msgstr ""
 
-#: includes/admin/settings.php:612
+#: includes/admin/settings.php:568
 msgid "Days"
 msgstr ""
 
-#: includes/admin/settings.php:630
+#: includes/admin/settings.php:586
 msgid "Which days the story may be broadcast."
 msgstr ""
 
-#: includes/admin/settings.php:748
+#: includes/admin/settings.php:704
 msgid "Knabbel Story Debug Overview"
 msgstr ""
 
-#: includes/admin/settings.php:762
+#: includes/admin/settings.php:718
 msgid "Show"
 msgstr ""
 
-#: includes/admin/settings.php:768
+#: includes/admin/settings.php:724
 msgid "Article"
 msgstr ""
 
-#: includes/admin/settings.php:786
+#: includes/admin/settings.php:742
 msgid "Last status change"
 msgstr ""
 
-#: includes/admin/settings.php:793
-#: includes/admin/settings.php:809
+#: includes/admin/settings.php:749
+#: includes/admin/settings.php:765
 msgid "Babbel ID"
 msgstr ""
 
-#: includes/admin/settings.php:805
-#: zw-knabbel-wp.php:696
+#: includes/admin/settings.php:761
+#: zw-knabbel-wp.php:698
 msgid "Story is being processed..."
 msgstr ""
 
-#: includes/admin/settings.php:829
+#: includes/admin/settings.php:785
 msgid "Occurred"
 msgstr ""
 
-#: includes/admin/settings.php:845
+#: includes/admin/settings.php:801
 msgid "Retry"
 msgstr ""
 
-#: includes/admin/settings.php:850
+#: includes/admin/settings.php:806
 msgid "Refresh"
 msgstr ""
 
@@ -395,7 +387,7 @@ msgid "API error: HTTP %1$d - %2$s"
 msgstr ""
 
 #: includes/babbel-api.php:272
-#: includes/babbel-api.php:741
+#: includes/babbel-api.php:744
 msgid "Invalid API response"
 msgstr ""
 
@@ -408,7 +400,7 @@ msgid "No story ID received from API"
 msgstr ""
 
 #: includes/babbel-api.php:325
-#: zw-knabbel-wp.php:751
+#: zw-knabbel-wp.php:753
 msgid "Story created successfully"
 msgstr ""
 
@@ -458,69 +450,69 @@ msgstr ""
 msgid "Story restored successfully"
 msgstr ""
 
-#: includes/babbel-api.php:682
+#: includes/babbel-api.php:683
 msgid "Babbel API base URL not configured"
 msgstr ""
 
 #. translators: %d is the HTTP status code.
-#: includes/babbel-api.php:728
+#: includes/babbel-api.php:731
 #, php-format
 msgid "API error: HTTP %d"
 msgstr ""
 
-#: includes/post-hooks.php:113
+#: includes/post-hooks.php:110
 msgid "Story deleted from Babbel"
 msgstr ""
 
-#: includes/post-hooks.php:116
+#: includes/post-hooks.php:113
 msgid "Story deleted (post trashed)"
 msgstr ""
 
-#: includes/post-hooks.php:119
+#: includes/post-hooks.php:116
 msgid "Story deleted (post unscheduled)"
 msgstr ""
 
-#: includes/post-hooks.php:162
+#: includes/post-hooks.php:159
 msgid "Story updated (post published)"
 msgstr ""
 
-#: includes/post-hooks.php:175
+#: includes/post-hooks.php:172
 msgid "Story updated in Babbel"
 msgstr ""
 
-#: includes/post-hooks.php:214
-#: includes/post-hooks.php:234
+#: includes/post-hooks.php:211
+#: includes/post-hooks.php:231
 msgid "Story restored in Babbel"
 msgstr ""
 
-#: includes/post-hooks.php:404
+#: includes/post-hooks.php:399
 msgid "Processing already scheduled"
 msgstr ""
 
-#: includes/post-hooks.php:423
+#: includes/post-hooks.php:418
 msgid "Processing scheduled"
 msgstr ""
 
-#: includes/post-hooks.php:431
+#: includes/post-hooks.php:426
 msgid "Could not schedule action"
 msgstr ""
 
-#: zw-knabbel-wp.php:621
+#: zw-knabbel-wp.php:626
 msgid "Insufficient permissions"
 msgstr ""
 
-#: zw-knabbel-wp.php:660
+#: zw-knabbel-wp.php:662
 msgid "Already sent — skipping"
 msgstr ""
 
-#: zw-knabbel-wp.php:672
+#: zw-knabbel-wp.php:674
 msgid "Post not found"
 msgstr ""
 
-#: zw-knabbel-wp.php:685
+#: zw-knabbel-wp.php:687
 msgid "Send to Babbel is disabled for this post"
 msgstr ""
 
-#: zw-knabbel-wp.php:712
+#: zw-knabbel-wp.php:714
 msgid "Could not generate speech text"
 msgstr ""
