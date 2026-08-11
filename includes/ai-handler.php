@@ -32,14 +32,12 @@ const AI_ARTICLE_PROMPT      = "Artikel:\n\"\"\"\n%s\n\"\"\"";
  * @return string|null The generated content or null on failure.
  */
 function ai_generate_content( string $content ): ?string {
-	$options       = (array) get_option( 'knabbel_settings', array() );
-	$speech_prompt = $options['speech_prompt'] ?? '';
-	$instruction   = is_string( $speech_prompt ) && '' !== trim( $speech_prompt )
-		? $speech_prompt
-		: AI_DEFAULT_INSTRUCTION;
+	$options       = get_plugin_settings();
+	$speech_prompt = (string) $options['speech_prompt'];
+	$instruction   = '' !== trim( $speech_prompt ) ? $speech_prompt : AI_DEFAULT_INSTRUCTION;
 
 	$messages       = array();
-	$few_shot_count = (int) ( $options['few_shot_count'] ?? 5 );
+	$few_shot_count = (int) $options['few_shot_count'];
 	$examples       = get_option( 'knabbel_few_shot_examples', array() );
 	if ( $few_shot_count > 0 && is_array( $examples ) ) {
 		foreach ( array_slice( $examples, 0, $few_shot_count ) as $example ) {

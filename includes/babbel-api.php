@@ -25,11 +25,11 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @phpstan-return BabbelCredentials
  */
 function babbel_get_credentials(): array {
-	$options = get_option( 'knabbel_settings' );
+	$options = get_plugin_settings();
 	return array(
-		'base_url' => rtrim( (string) ( $options['api_base_url'] ?? '' ), '/' ),
-		'username' => (string) ( $options['api_username'] ?? '' ),
-		'password' => (string) ( $options['api_password'] ?? '' ),
+		'base_url' => rtrim( (string) $options['api_base_url'], '/' ),
+		'username' => (string) $options['api_username'],
+		'password' => (string) $options['api_password'],
 	);
 }
 

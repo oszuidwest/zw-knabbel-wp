@@ -59,8 +59,7 @@ register_deactivation_hook( __FILE__, __NAMESPACE__ . '\\deactivate' );
  * @return bool True when debug mode is enabled, false otherwise.
  */
 function debug_enabled(): bool {
-	$options = get_option( 'knabbel_settings' );
-	return ! empty( $options['debug_mode'] );
+	return ! empty( get_plugin_settings()['debug_mode'] );
 }
 
 /**
@@ -469,9 +468,9 @@ function is_story_sync_error_renderable( ?array $sync_error ): bool {
  * @return array{start_date: string, end_date: string, weekdays: int} Story dates and weekdays bitmask.
  */
 function calculate_story_dates( string $base_date = 'now' ): array {
-	$options      = get_option( 'knabbel_settings' );
-	$start_offset = (int) ( $options['start_days_offset'] ?? 1 );
-	$end_offset   = (int) ( $options['end_days_offset'] ?? 2 );
+	$options      = get_plugin_settings();
+	$start_offset = (int) $options['start_days_offset'];
+	$end_offset   = (int) $options['end_days_offset'];
 
 	$tz   = wp_timezone();
 	$base = new \DateTimeImmutable( $base_date, $tz );
@@ -534,7 +533,7 @@ function admin_init(): void {
 /**
  * Returns the default values for the knabbel_settings option.
  *
- * Single source of truth for activate() and the register_setting() default.
+ * Single source of truth for the knabbel_settings defaults.
  *
  * @since 0.6.0
  * @return array<string, mixed> The default settings.
@@ -563,22 +562,28 @@ function default_settings(): array {
 }
 
 /**
+ * Returns the knabbel_settings option merged over the defaults.
+ *
+ * Guarantees every default key exists, so read sites need no per-key fallbacks.
+ *
+ * @since 0.6.0
+ * @return array<string, mixed> The plugin settings.
+ */
+function get_plugin_settings(): array {
+	return wp_parse_args( (array) get_option( 'knabbel_settings', array() ), default_settings() );
+}
+
+/**
  * Runs on plugin activation.
  *
- * Sets up default options and cleans legacy metadata.
+ * Creates the settings option and cleans legacy metadata.
  *
  * @since 0.1.0
  */
 function activate(): void {
-		// Seed an example base URL so the settings page shows the expected format.
-		$default_options = array_merge(
-			default_settings(),
-			array( 'api_base_url' => 'https://babbel.example.com/api/v1' )
-		);
-
 		// Explicitly set autoload to true since these settings are needed on every admin page load.
 		// WP 6.6+ changed the default autoload behavior from 'yes' to dynamic heuristics.
-		add_option( 'knabbel_settings', $default_options, '', true );
+		add_option( 'knabbel_settings', default_settings(), '', true );
 
 		// Cleanup all legacy data on activation.
 		cleanup_legacy_data();
@@ -613,6 +618,8 @@ function deactivate(): void {
  * @since 0.1.0
  */
 function cleanup_legacy_data(): void {
+	// Raw read on purpose: this rewrites the stored value, and reading through
+	// get_plugin_settings() would bake the merged defaults into the database.
 	$settings = get_option( 'knabbel_settings' );
 	if ( ! is_array( $settings ) ) {
 		return;
@@ -731,8 +738,8 @@ function process_story_async( int|array $post_id_or_args ): void {
 	}
 
 	// Prepare story data using configurable defaults.
-	$options        = get_option( 'knabbel_settings' );
-	$default_status = $options['default_status'] ?? 'draft';
+	$options        = get_plugin_settings();
+	$default_status = $options['default_status'];
 
 	// Calculate dates based on post status:
 	// - For scheduled posts (future): use the scheduled publish time (post_date).

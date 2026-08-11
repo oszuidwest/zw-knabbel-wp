@@ -53,8 +53,7 @@ function settings_to_weekdays_bitmask( array $options ): int {
 	foreach ( WEEKDAY_MAP as $day => $value ) {
 		$field_key = "weekday_{$day}";
 		// Default to enabled if not explicitly set.
-		$is_enabled = ! isset( $options[ $field_key ] ) || ! empty( $options[ $field_key ] );
-		if ( $is_enabled ) {
+		if ( ! isset( $options[ $field_key ] ) || ! empty( $options[ $field_key ] ) ) {
 			$bitmask |= $value;
 		}
 	}
