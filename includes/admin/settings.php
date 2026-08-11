@@ -89,6 +89,7 @@ function settings_register_settings(): void {
 				'api_base_url'      => '',
 				'api_username'      => '',
 				'api_password'      => '',
+				'ai_model'          => '',
 				'speech_prompt'     => '',
 				'debug_mode'        => false,
 				'start_days_offset' => 1,
@@ -123,7 +124,7 @@ function sanitize_settings( array $input ): array {
 	}
 
 	// Text fields.
-	$text_fields = array( 'api_username', 'api_password' );
+	$text_fields = array( 'api_username', 'api_password', 'ai_model' );
 	foreach ( $text_fields as $field ) {
 		if ( isset( $input[ $field ] ) ) {
 			$sanitized[ $field ] = sanitize_text_field( $input[ $field ] );
@@ -453,6 +454,7 @@ function render_babbel_api_card( array $settings ): void {
  * @param array<string, mixed> $settings Current settings.
  */
 function render_ai_card( array $settings ): void {
+	$ai_models = ai_get_available_models();
 	?>
 	<div class="knabbel-settings-card">
 		<div class="knabbel-card-title">
@@ -466,6 +468,35 @@ function render_ai_card( array $settings ): void {
 					<?php esc_html_e( 'Manage AI providers', 'zw-knabbel-wp' ); ?>
 				</a>
 			</p>
+
+			<?php if ( array() !== $ai_models ) : ?>
+				<div class="knabbel-field">
+					<label class="knabbel-field-label" for="knabbel-ai-model">
+						<?php esc_html_e( 'AI Model', 'zw-knabbel-wp' ); ?>
+					</label>
+					<select id="knabbel-ai-model" name="knabbel_settings[ai_model]" class="knabbel-field-input">
+						<option value=""><?php esc_html_e( 'Automatic', 'zw-knabbel-wp' ); ?></option>
+						<?php foreach ( $ai_models as $provider_id => $provider_data ) : ?>
+							<optgroup label="<?php echo esc_attr( $provider_data['label'] ); ?>">
+								<?php foreach ( $provider_data['models'] as $model_id => $model_name ) : ?>
+									<?php $model_value = $provider_id . '/' . $model_id; ?>
+									<option value="<?php echo esc_attr( $model_value ); ?>" <?php selected( $settings['ai_model'] ?? '', $model_value ); ?>>
+										<?php echo esc_html( $model_name ); ?>
+									</option>
+								<?php endforeach; ?>
+							</optgroup>
+						<?php endforeach; ?>
+					</select>
+					<p class="knabbel-field-description">
+						<?php esc_html_e( 'Choose a configured text model, or let WordPress select one automatically.', 'zw-knabbel-wp' ); ?>
+					</p>
+				</div>
+			<?php else : ?>
+				<input type="hidden" name="knabbel_settings[ai_model]" value="<?php echo esc_attr( $settings['ai_model'] ?? '' ); ?>" />
+				<p class="knabbel-field-description">
+					<?php esc_html_e( 'No configured text generation models are available.', 'zw-knabbel-wp' ); ?>
+				</p>
+			<?php endif; ?>
 
 			<div class="knabbel-field">
 				<label class="knabbel-field-label" for="knabbel-speech-prompt">

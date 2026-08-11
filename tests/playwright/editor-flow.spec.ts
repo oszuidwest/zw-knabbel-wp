@@ -53,6 +53,7 @@ test.describe
                     .locator(`[name="knabbel_settings[${key}]"]`)
                     .fill(value);
             }
+            await page.getByLabel('AI Model').selectOption('openai/gpt-4.1');
 
             const debugMode = page.locator(
                 '[name="knabbel_settings[debug_mode]"]',
@@ -76,6 +77,9 @@ test.describe
             await expect(
                 page.getByRole('link', { name: 'Manage AI providers' }),
             ).toHaveAttribute('href', /options-connectors\.php$/);
+            await expect(page.getByLabel('AI Model')).toHaveValue(
+                'openai/gpt-4.1',
+            );
             await expect(
                 page.getByLabel('Speech Text Generation Prompt'),
             ).toBeVisible();
