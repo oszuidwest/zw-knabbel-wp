@@ -65,7 +65,7 @@ require_once dirname( __DIR__, 2 ) . '/includes/few-shot-cache.php';
 	);
 	$ensure(
 		100.0 === KnabbelWP\calculate_edit_score( 'e', 'é' ),
-		'Unicode characters must retain character-level edit semantics.'
+		'A fully replaced character must yield a full edit score.'
 	);
 	$ensure(
 		count( KnabbelWP\select_example_mix( array_slice( $candidates, 0, 5 ), 8 ) ) === 5,

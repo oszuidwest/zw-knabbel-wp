@@ -16,8 +16,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const BABBEL_RECENT_STORY_LIMIT = 100;
-
 /**
  * Returns the configured Babbel API credentials.
  *
@@ -674,27 +672,25 @@ function babbel_restore_story( string $story_id ): array {
  * edited first), which are most likely to have been reviewed by editors.
  *
  * @since 0.3.0
- * @param int         $limit         Maximum number of stories to fetch, clamped to 1..BABBEL_RECENT_STORY_LIMIT.
- * @param string|null $created_after Optional inclusive ISO 8601 creation cutoff.
+ * @param string $created_after Inclusive ISO 8601 creation cutoff.
  * @return array<int, array<string, mixed>>|\WP_Error Array of story objects or WP_Error on failure.
  */
-function babbel_fetch_recent_stories( int $limit = BABBEL_RECENT_STORY_LIMIT, ?string $created_after = null ): array|\WP_Error {
+function babbel_fetch_recent_stories( string $created_after ): array|\WP_Error {
 	$credentials = babbel_get_credentials();
 
 	if ( empty( $credentials['base_url'] ) ) {
 		return new \WP_Error( 'missing_config', __( 'Babbel API base URL not configured', 'zw-knabbel-wp' ) );
 	}
 
-	$query = array(
-		'sort'               => '-updated_at',
-		'limit'              => min( max( 1, $limit ), BABBEL_RECENT_STORY_LIMIT ),
-		'filter[status][ne]' => 'draft',
+	$endpoint = add_query_arg(
+		array(
+			'sort'                    => '-updated_at',
+			'limit'                   => 100,
+			'filter[status][ne]'      => 'draft',
+			'filter[created_at][gte]' => $created_after,
+		),
+		$credentials['base_url'] . '/stories'
 	);
-	if ( null !== $created_after && '' !== $created_after ) {
-		$query['filter[created_at][gte]'] = $created_after;
-	}
-
-	$endpoint = add_query_arg( $query, $credentials['base_url'] . '/stories' );
 
 	$response = babbel_make_authenticated_request(
 		$endpoint,

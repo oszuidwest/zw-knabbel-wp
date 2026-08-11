@@ -453,7 +453,7 @@ final class Knabbel_E2E_Suite {
 		try {
 			$this->assert_same(
 				null,
-				KnabbelWP\ai_generate_content( 'Unsupported AI must fail without a provider request.' ),
+				KnabbelWP\ai_generate_content( 'Unsupported AI must fail without a provider request.', 0 ),
 				'Unsupported text generation must fail immediately.'
 			);
 			$this->assert_same( 0, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Unsupported text generation must not call the provider.' );

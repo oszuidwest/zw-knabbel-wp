@@ -27,7 +27,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 const AI_DEFAULT_INSTRUCTION = "Transformeer naar natuurlijke radiospreektekst met:\n- Korte, heldere zinnen (max 15 woorden)\n- Spreektaal en radiofrases\n- Logische volgorde voor luisteraars\n- Duidelijke overgangen tussen punten\n- Actieve zinsbouw\n- Getallen uitgeschreven waar natuurlijk";
 const AI_ARTICLE_PROMPT      = "Artikel:\n\"\"\"\n%s\n\"\"\"";
 const AI_EXAMPLE_PROMPT      = '%s — leer van toon, nieuwsselectie en formulering. Neem geen feiten over. '
-	. "De lengte en het zinsaantal kunnen afwijken van de instructie voor het nieuwe artikel.\n\nArtikel:\n\"\"\"\n%s\n\"\"\"";
+	. "De lengte en het zinsaantal kunnen afwijken van de instructie voor het nieuwe artikel.\n\n" . AI_ARTICLE_PROMPT;
 
 /**
  * Returns configured text-generation models.
@@ -89,11 +89,11 @@ function ai_parse_model_setting( mixed $value ): ?array {
  * Generates speech text through the WordPress AI Client.
  *
  * @since 0.5.0
- * @param string $content          The source content.
- * @param int    $current_post_id Current post ID to exclude from examples.
+ * @param string $content         The source content.
+ * @param int    $current_post_id Current post ID to exclude from examples, 0 for none.
  * @return string|null The generated content or null on failure.
  */
-function ai_generate_content( string $content, int $current_post_id = 0 ): ?string {
+function ai_generate_content( string $content, int $current_post_id ): ?string {
 	$options       = get_plugin_settings();
 	$speech_prompt = (string) $options['speech_prompt'];
 	$instruction   = '' !== trim( $speech_prompt ) ? $speech_prompt : AI_DEFAULT_INSTRUCTION;

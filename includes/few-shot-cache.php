@@ -63,11 +63,8 @@ function few_shot_unschedule_sync(): void {
  * @since 0.3.0
  */
 function sync_few_shot_examples(): void {
-	$created_after = new \DateTimeImmutable(
-		sprintf( '-%d months', KNABBEL_FEW_SHOT_MAX_AGE_MONTHS ),
-		new \DateTimeZone( 'UTC' )
-	);
-	$stories       = babbel_fetch_recent_stories( BABBEL_RECENT_STORY_LIMIT, $created_after->format( DATE_ATOM ) );
+	$cutoff  = (int) strtotime( sprintf( '-%d months', KNABBEL_FEW_SHOT_MAX_AGE_MONTHS ) );
+	$stories = babbel_fetch_recent_stories( gmdate( DATE_ATOM, $cutoff ) );
 
 	if ( is_wp_error( $stories ) ) {
 		log(
@@ -79,32 +76,30 @@ function sync_few_shot_examples(): void {
 		return;
 	}
 
-	$candidates = build_few_shot_candidates( $stories, $created_after->getTimestamp() );
+	list( $accepted, $edited ) = partition_few_shot_candidates( build_few_shot_candidates( $stories, $cutoff ) );
 
-	if ( empty( $candidates ) ) {
+	// Keep one spare per pool: per-post exclusion removes at most one entry,
+	// so a full selection stays possible even when one pool must supply it alone.
+	$accepted_pool = select_diverse_examples( $accepted, KNABBEL_FEW_SHOT_COUNT + 1 );
+	$edited_pool   = select_diverse_examples( $edited, KNABBEL_FEW_SHOT_COUNT + 1 );
+	$pool          = array_merge( $accepted_pool, $edited_pool );
+
+	if ( empty( $pool ) ) {
 		log( 'info', 'FewShotCache', 'No valid recent few-shot candidates found' );
 		delete_option( 'knabbel_few_shot_examples' );
 		return;
 	}
 
 	// Store the candidate pool without autoloading it. Selection is post-specific.
-	update_option( 'knabbel_few_shot_examples', $candidates, false );
-
-	$accepted_count = count(
-		array_filter(
-			$candidates,
-			static fn ( array $candidate ): bool => 'accepted' === $candidate['provenance']
-		)
-	);
+	update_option( 'knabbel_few_shot_examples', $pool, false );
 
 	log(
 		'info',
 		'FewShotCache',
 		'Few-shot candidate cache updated',
 		array(
-			'candidates_found' => count( $candidates ),
-			'accepted_found'   => $accepted_count,
-			'edited_found'     => count( $candidates ) - $accepted_count,
+			'accepted_cached' => count( $accepted_pool ),
+			'edited_cached'   => count( $edited_pool ),
 		)
 	);
 }
@@ -228,7 +223,10 @@ function few_shot_count_sentences( string $text ): int {
 }
 
 /**
- * Measures normalized character-level change from AI output to Babbel text.
+ * Measures normalized change from AI output to Babbel text.
+ *
+ * Distance and length share the same unit (bytes of the normalized,
+ * lowercased UTF-8 strings), so the score is always within 0-100%.
  *
  * @since 0.3.0
  * @param string $ai_text     Original AI-generated text.
@@ -236,62 +234,15 @@ function few_shot_count_sentences( string $text ): int {
  * @return float Percentage of difference (0.0 to 100.0).
  */
 function calculate_edit_score( string $ai_text, string $editor_text ): float {
-	$left_text  = normalize_few_shot_text( $ai_text );
-	$right_text = normalize_few_shot_text( $editor_text );
-	$left_text  = function_exists( 'mb_strtolower' ) ? mb_strtolower( $left_text, 'UTF-8' ) : strtolower( $left_text );
-	$right_text = function_exists( 'mb_strtolower' ) ? mb_strtolower( $right_text, 'UTF-8' ) : strtolower( $right_text );
-	if ( $left_text === $right_text ) {
+	$left  = normalize_few_shot_text( $ai_text );
+	$right = normalize_few_shot_text( $editor_text );
+	$left  = function_exists( 'mb_strtolower' ) ? mb_strtolower( $left, 'UTF-8' ) : strtolower( $left );
+	$right = function_exists( 'mb_strtolower' ) ? mb_strtolower( $right, 'UTF-8' ) : strtolower( $right );
+	if ( $left === $right ) {
 		return 0.0;
 	}
 
-	$left  = preg_split( '//u', $left_text, -1, PREG_SPLIT_NO_EMPTY );
-	$right = preg_split( '//u', $right_text, -1, PREG_SPLIT_NO_EMPTY );
-	$left  = is_array( $left ) ? $left : str_split( $left_text );
-	$right = is_array( $right ) ? $right : str_split( $right_text );
-
-	$distance = few_shot_levenshtein_distance( $left, $right );
-	return min( 100.0, ( $distance / max( count( $left ), count( $right ) ) ) * 100 );
-}
-
-/**
- * Calculates a character-level Levenshtein distance.
- *
- * Common article text uses fewer than 256 distinct characters. Mapping those
- * characters to bytes lets PHP's native implementation perform the expensive
- * loop in C while preserving Unicode character semantics. Text pairs with a
- * larger character set fall back to a byte-level approximation; the caller
- * caps the resulting score at 100%.
- *
- * @since 0.7.0
- * @param list<string> $left  Left-side characters.
- * @param list<string> $right Right-side characters.
- * @return int Edit distance.
- */
-function few_shot_levenshtein_distance( array $left, array $right ): int {
-	$symbols     = array();
-	$next_symbol = 0;
-	$encode      = static function ( array $characters ) use ( &$symbols, &$next_symbol ): ?string {
-		$encoded = '';
-		foreach ( $characters as $character ) {
-			if ( ! isset( $symbols[ $character ] ) ) {
-				if ( $next_symbol >= 256 ) {
-					return null;
-				}
-				$symbols[ $character ] = chr( $next_symbol );
-				++$next_symbol;
-			}
-			$encoded .= $symbols[ $character ];
-		}
-		return $encoded;
-	};
-
-	$encoded_left  = $encode( $left );
-	$encoded_right = null !== $encoded_left ? $encode( $right ) : null;
-	if ( null !== $encoded_left && null !== $encoded_right ) {
-		return levenshtein( $encoded_left, $encoded_right );
-	}
-
-	return levenshtein( implode( '', $left ), implode( '', $right ) );
+	return ( levenshtein( $left, $right ) / max( strlen( $left ), strlen( $right ) ) ) * 100;
 }
 
 /**
@@ -307,12 +258,12 @@ function few_shot_levenshtein_distance( array $left, array $right ): int {
  * @phpstan-return FewShotCandidate|null
  */
 function normalize_few_shot_candidate( array $candidate ): ?array {
-	$input      = isset( $candidate['input'] ) && is_string( $candidate['input'] ) ? normalize_few_shot_text( $candidate['input'] ) : '';
-	$output     = isset( $candidate['output'] ) && is_string( $candidate['output'] ) ? normalize_few_shot_text( $candidate['output'] ) : '';
+	$input      = $candidate['input'] ?? '';
+	$output     = $candidate['output'] ?? '';
 	$post_id    = isset( $candidate['post_id'] ) ? (int) $candidate['post_id'] : 0;
 	$provenance = $candidate['provenance'] ?? null;
 
-	if ( '' === $input || '' === $output || $post_id <= 0
+	if ( ! is_string( $input ) || '' === trim( $input ) || ! is_string( $output ) || '' === trim( $output ) || $post_id <= 0
 		|| ! isset( $candidate['edit_score'] ) || ! is_numeric( $candidate['edit_score'] )
 		|| ! isset( $candidate['original_word_count'], $candidate['output_word_count'], $candidate['sentence_count'] )
 		|| ! in_array( $provenance, array( 'accepted', 'edited' ), true )
@@ -338,19 +289,15 @@ function normalize_few_shot_candidate( array $candidate ): ?array {
  * @since 0.7.0
  * @param array<int, array<string, mixed>> $candidates Candidate examples.
  * @param string                           $field      Numeric field.
- * @param bool                             $descending Whether to sort high to low.
  * @return array<int, array<string, mixed>> Sorted candidates.
  *
  * @phpstan-param list<FewShotCandidate> $candidates
  * @phpstan-return list<FewShotCandidate>
  */
-function sort_few_shot_candidates( array $candidates, string $field, bool $descending = false ): array {
+function sort_few_shot_candidates( array $candidates, string $field ): array {
 	usort(
 		$candidates,
-		static function ( array $left, array $right ) use ( $field, $descending ): int {
-			$result = $left[ $field ] <=> $right[ $field ];
-			return $descending ? -$result : $result;
-		}
+		static fn ( array $left, array $right ): int => $left[ $field ] <=> $right[ $field ]
 	);
 
 	return $candidates;
@@ -376,16 +323,12 @@ function select_diverse_examples( array $candidates, int $max_count ): array {
 		return $candidates;
 	}
 
-	$rankings = array(
-		sort_few_shot_candidates( $candidates, 'output_word_count' ),
-		sort_few_shot_candidates( $candidates, 'output_word_count', true ),
-		sort_few_shot_candidates( $candidates, 'edit_score' ),
-		sort_few_shot_candidates( $candidates, 'edit_score', true ),
-		sort_few_shot_candidates( $candidates, 'original_word_count' ),
-		sort_few_shot_candidates( $candidates, 'original_word_count', true ),
-		sort_few_shot_candidates( $candidates, 'sentence_count' ),
-		sort_few_shot_candidates( $candidates, 'sentence_count', true ),
-	);
+	$rankings = array();
+	foreach ( array( 'output_word_count', 'edit_score', 'original_word_count', 'sentence_count' ) as $field ) {
+		$ascending  = sort_few_shot_candidates( $candidates, $field );
+		$rankings[] = $ascending;
+		$rankings[] = array_reverse( $ascending );
+	}
 	$selected = array();
 	$seen     = array();
 
@@ -420,6 +363,34 @@ function select_diverse_examples( array $candidates, int $max_count ): array {
 }
 
 /**
+ * Splits candidates into directly accepted and meaningfully edited pools.
+ *
+ * Edited candidates under a 1% edit score are dropped: after whitespace and
+ * case normalization such texts teach nothing an accepted example does not.
+ *
+ * @since 0.7.0
+ * @param array<int, array<string, mixed>> $candidates Candidate examples.
+ * @return array{0: array<int, array<string, mixed>>, 1: array<int, array<string, mixed>>} Accepted and edited pools.
+ *
+ * @phpstan-param list<FewShotCandidate> $candidates
+ * @phpstan-return array{0: list<FewShotCandidate>, 1: list<FewShotCandidate>}
+ */
+function partition_few_shot_candidates( array $candidates ): array {
+	$accepted = array();
+	$edited   = array();
+
+	foreach ( $candidates as $candidate ) {
+		if ( 'accepted' === $candidate['provenance'] ) {
+			$accepted[] = $candidate;
+		} elseif ( $candidate['edit_score'] >= 1.0 ) {
+			$edited[] = $candidate;
+		}
+	}
+
+	return array( $accepted, $edited );
+}
+
+/**
  * Selects roughly 40% directly accepted and 60% editor-adjusted examples.
  *
  * Eight examples yield the intended three accepted and five edited examples
@@ -438,25 +409,7 @@ function select_example_mix( array $candidates, int $max_count ): array {
 		return array();
 	}
 
-	$candidates = array_values(
-		array_filter(
-			$candidates,
-			static fn ( array $candidate ): bool => 'accepted' === $candidate['provenance'] || $candidate['edit_score'] >= 1.0
-		)
-	);
-
-	$accepted = array_values(
-		array_filter(
-			$candidates,
-			static fn ( array $candidate ): bool => 'accepted' === $candidate['provenance']
-		)
-	);
-	$edited   = array_values(
-		array_filter(
-			$candidates,
-			static fn ( array $candidate ): bool => 'edited' === $candidate['provenance'] && $candidate['edit_score'] >= 1.0
-		)
-	);
+	list( $accepted, $edited ) = partition_few_shot_candidates( $candidates );
 
 	$accepted_target = min( count( $accepted ), max( 1, (int) round( $max_count * 0.4 ) ) );
 	$selected        = array_merge(
@@ -468,7 +421,7 @@ function select_example_mix( array $candidates, int $max_count ): array {
 		$selected_ids = array_fill_keys( array_column( $selected, 'post_id' ), true );
 		$remaining    = array_values(
 			array_filter(
-				$candidates,
+				array_merge( $accepted, $edited ),
 				static fn ( array $candidate ): bool => ! isset( $selected_ids[ $candidate['post_id'] ] )
 			)
 		);
@@ -505,7 +458,7 @@ function get_few_shot_examples( int $excluded_post_id = 0 ): array {
 		}
 
 		$normalized = normalize_few_shot_candidate( $candidate );
-		if ( null === $normalized || ( $excluded_post_id > 0 && $normalized['post_id'] === $excluded_post_id ) ) {
+		if ( null === $normalized || $normalized['post_id'] === $excluded_post_id ) {
 			continue;
 		}
 		$candidates[] = $normalized;
