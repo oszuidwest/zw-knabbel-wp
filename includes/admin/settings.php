@@ -1,6 +1,6 @@
 <?php
 /**
- * Settings administration functionality
+ * Settings administration for Knabbel WP.
  *
  * Manages plugin settings page, field registration, sanitization, and validation.
  *
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Initialize settings functionality.
+ * Registers the settings administration hooks.
  *
  * @since 0.1.0
  */
@@ -28,7 +28,7 @@ function settings_init(): void {
 }
 
 /**
- * Clears the rolling recent error list for an authorized administrator.
+ * Clears recent errors for an administrator.
  *
  * @since 0.4.0
  */
@@ -56,7 +56,7 @@ function handle_clear_recent_errors(): void {
 }
 
 /**
- * Adds the admin menu page.
+ * Adds the plugin settings page.
  *
  * @since 0.1.0
  */
@@ -71,7 +71,7 @@ function settings_add_admin_menu(): void {
 }
 
 /**
- * Registers settings with WordPress Settings API.
+ * Registers the plugin settings.
  *
  * Only registers the settings group and sanitization callback.
  * Field rendering is handled manually in settings_page().
@@ -91,7 +91,7 @@ function settings_register_settings(): void {
 }
 
 /**
- * Sanitizes the settings array before saving to the database.
+ * Sanitizes settings before storage.
  *
  * @since 0.1.0
  * @param array<string, mixed> $input The raw input array from the form.
@@ -158,7 +158,7 @@ function sanitize_settings( array $input ): array {
 }
 
 /**
- * Outputs the admin settings page with card-based layout.
+ * Renders the card-based settings page.
  *
  * @since 0.1.0
  */
@@ -243,7 +243,7 @@ function settings_page(): void {
 }
 
 /**
- * Displays the rolling list of recent plugin errors.
+ * Displays the rolling list of recent errors.
  *
  * Only top-level fields are rendered. Stored context remains intentionally
  * hidden so nested API data can never become an unfiltered admin output path.
@@ -328,7 +328,7 @@ function render_recent_errors(): void {
 }
 
 /**
- * Normalizes a stored error entry into the safe render shape.
+ * Returns the safe shape of a stored error.
  *
  * @since 0.4.0
  * @param mixed $entry Raw entry from the knabbel_recent_errors option.
@@ -525,7 +525,7 @@ function render_ai_card( array $settings ): void {
 }
 
 /**
- * Displays the Story Defaults settings card.
+ * Displays the story defaults card.
  *
  * @since 0.1.05
  * @param array<string, mixed> $settings Current settings.
@@ -619,7 +619,7 @@ function render_defaults_card( array $settings ): void {
 }
 
 /**
- * Displays the Verzonden Artikelen overview card.
+ * Displays the Verzonden Artikelen card.
  *
  * @since 0.1.05
  */

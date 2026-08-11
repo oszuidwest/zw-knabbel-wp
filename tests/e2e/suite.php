@@ -1,6 +1,6 @@
 <?php
 /**
- * End-to-end regression suite for the WordPress to Babbel synchronization flow.
+ * End-to-end tests for the WordPress-to-Babbel synchronization flow.
  *
  * @package KnabbelWP
  */
@@ -18,7 +18,7 @@ if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 }
 
 /**
- * Runs stateful integration scenarios against isolated WordPress and Babbel databases.
+ * Runs stateful scenarios against isolated databases.
  */
 final class Knabbel_E2E_Suite {
 	private const BABBEL_BASE_URL         = 'http://babbel:8080/api/v1';
@@ -65,7 +65,7 @@ final class Knabbel_E2E_Suite {
 	private string $published_story_id = '';
 
 	/**
-	 * Execute all scenarios in dependency order.
+	 * Executes all scenarios in dependency order.
 	 */
 	public function run(): void {
 		$this->run_case( 'E2E-001', 'recurring queue and Babbel authentication', $this->test_queue_and_authentication( ... ) );
@@ -91,7 +91,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Run one named case with useful failure context.
+	 * Runs one named case with useful failure context.
 	 *
 	 * @param string   $id       Stable scenario ID.
 	 * @param string   $title    Scenario title.
@@ -110,7 +110,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Configure deterministic credentials and story defaults.
+	 * Sets deterministic credentials and story defaults.
 	 *
 	 * @param string $password Babbel password.
 	 */
@@ -143,7 +143,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify a single recurring action, login and 401 retry.
+	 * Verifies queue uniqueness and authentication.
 	 */
 	private function test_queue_and_authentication(): void {
 		KnabbelWP\few_shot_schedule_sync();
@@ -177,7 +177,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify publish scheduling, queue execution, payload fidelity and send-once safety.
+	 * Verifies the complete publish flow.
 	 */
 	private function test_published_story_creation(): void {
 		$title          = 'E2E gepubliceerd – één';
@@ -242,7 +242,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify selective updates and recovery from a real Babbel authentication failure.
+	 * Verifies updates and authentication recovery.
 	 */
 	private function test_update_and_error_recovery(): void {
 		$original_story = $this->get_babbel_story( $this->published_story_id );
@@ -288,7 +288,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify checkbox-driven delete and restore against the real API.
+	 * Verifies checkbox-driven deletion and restoration.
 	 */
 	private function test_checkbox_delete_and_restore(): void {
 		update_post_meta( $this->published_post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
@@ -305,7 +305,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify scheduled date calculation, rescheduling and future-to-publish recalculation.
+	 * Verifies scheduled-story date changes.
 	 */
 	private function test_scheduled_story_lifecycle(): void {
 		$post_id = $this->create_enabled_draft( 'E2E gepland', 'Een gepland artikel doorloopt dezelfde betrouwbare asynchrone integratieketen.' );
@@ -350,7 +350,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify pending work is canceled when a future post returns to draft.
+	 * Verifies cancellation after reverting to draft.
 	 */
 	private function test_pending_schedule_cancellation(): void {
 		$title   = 'E2E planning geannuleerd';
@@ -365,7 +365,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify post trash hooks soft-delete and untrash restores the same record.
+	 * Verifies trash and untrash synchronization.
 	 */
 	private function test_trash_and_restore(): void {
 		list( $post_id, $story_id ) = $this->create_sent_story( 'E2E prullenbak', 'Een gepubliceerd artikel wordt verwijderd en daarna veilig teruggezet.' );
@@ -383,7 +383,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify retry count and no remote side effect when the AI provider is unavailable.
+	 * Verifies retry behavior without remote side effects.
 	 */
 	private function test_ai_failure(): void {
 		$title = 'E2E AI-providerfout';
@@ -414,7 +414,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify a real Babbel login failure reaches per-story and operator diagnostics.
+	 * Verifies diagnostics after a login failure.
 	 */
 	private function test_babbel_create_failure(): void {
 		$title = 'E2E Babbel fout';
@@ -437,7 +437,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify the recurring integration learns edited remote text and clears cache when disabled.
+	 * Verifies learning and disabled-cache cleanup.
 	 */
 	private function test_few_shot_sync(): void {
 		$edited_text = 'Dit is de aantoonbaar door een redacteur aangepaste radiospreektekst.';
@@ -471,7 +471,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify both metadata hook variants enable already-public stories.
+	 * Verifies metadata hooks for existing posts.
 	 */
 	private function test_enable_existing_posts(): void {
 		$published_title = 'E2E bestaand gepubliceerd';
@@ -517,7 +517,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify pending work is canceled for both cancellable lifecycle states.
+	 * Verifies cancellation in eligible states.
 	 */
 	private function test_pending_work_cancellation(): void {
 		foreach ( array( 'checkbox', 'trash' ) as $cancel_via ) {
@@ -550,7 +550,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify all non-publish transitions away from future remove sent stories.
+	 * Verifies deletion after leaving future status.
 	 */
 	private function test_sent_story_unscheduling(): void {
 		foreach ( array( 'draft', 'pending', 'private', 'trash' ) as $new_status ) {
@@ -578,7 +578,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify metadata deletion and rapid changes use the same lifecycle rules.
+	 * Verifies rapid metadata changes.
 	 */
 	private function test_meta_deletion_and_rapid_toggles(): void {
 		$delete_title = 'E2E checkboxmeta verwijderd';
@@ -619,7 +619,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify scheduled and processing state guards prevent duplicate work.
+	 * Verifies duplicate-work prevention.
 	 */
 	private function test_in_flight_state_guards(): void {
 		$scheduled_id = $this->create_draft(
@@ -647,7 +647,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify restoring a post does not restore a deliberately disabled story.
+	 * Verifies disabled-story restoration behavior.
 	 */
 	private function test_untrash_with_checkbox_disabled(): void {
 		list( $post_id, $story_id ) = $this->create_sent_story(
@@ -666,7 +666,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify failed delete and restore transitions retain enough state to retry.
+	 * Verifies retryable failure state.
 	 */
 	private function test_delete_and_restore_failures(): void {
 		list( $post_id, $story_id ) = $this->create_sent_story(
@@ -704,7 +704,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verify plugin lifecycle cleanup after all functional scenarios.
+	 * Verifies plugin lifecycle cleanup.
 	 */
 	private function test_deactivation_cleanup(): void {
 		$this->configure_plugin();
@@ -743,7 +743,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Create a draft post with radio news enabled and fail on WordPress errors.
+	 * Creates an enabled draft or fails on WordPress errors.
 	 *
 	 * @param string $title   Post title.
 	 * @param string $content Post content.
@@ -758,7 +758,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Create a draft post without checkbox metadata and fail on WordPress errors.
+	 * Creates a plain draft or fails on WordPress errors.
 	 *
 	 * @param string $title   Post title.
 	 * @param string $content Post content.
@@ -784,7 +784,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Update a post and fail on WordPress errors.
+	 * Updates a post or fails on WordPress errors.
 	 *
 	 * @param int                  $post_id Post ID.
 	 * @param array<string, mixed> $updates Post fields.
@@ -798,7 +798,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Publish a post and run its queued story processing.
+	 * Publishes and processes a post.
 	 *
 	 * @param int $post_id Post ID.
 	 */
@@ -808,7 +808,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Create an enabled draft, publish it and process it into a sent story.
+	 * Creates and processes a story to sent status.
 	 *
 	 * @param string $title   Post title.
 	 * @param string $content Post content.
@@ -823,7 +823,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Move a post to a future publication date.
+	 * Moves a post to a future publication date.
 	 *
 	 * @param int    $post_id Post ID.
 	 * @param string $date    Local MySQL datetime.
@@ -841,7 +841,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Run due actions through Action Scheduler's queue runner.
+	 * Runs due actions through the queue runner.
 	 *
 	 * Delegates to the shared helper in the knabbel-e2e-control MU plugin.
 	 *
@@ -860,7 +860,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Count scheduled actions by hook, status and optional action arguments.
+	 * Counts actions by hook, status, and arguments.
 	 *
 	 * @param string                    $hook   Action hook.
 	 * @param string                    $status Action Scheduler status.
@@ -883,7 +883,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Count pending story actions for one post.
+	 * Counts pending story actions for a post.
 	 *
 	 * @param int $post_id Post ID.
 	 * @return int Action count.
@@ -893,7 +893,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Issue an authenticated request using an independent test client.
+	 * Sends a request through the independent test client.
 	 *
 	 * @param string                    $method HTTP method.
 	 * @param string                    $path   API path below /api/v1.
@@ -926,7 +926,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Authenticate the independent verification client.
+	 * Authenticates the independent verification client.
 	 *
 	 * @throws RuntimeException When the HTTP request fails.
 	 */
@@ -956,7 +956,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Issue a GET request and decode the JSON response body.
+	 * Sends a GET request and decodes its JSON body.
 	 *
 	 * @param string $path    API path.
 	 * @param string $message Failure message for a non-200 response.
@@ -972,7 +972,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Fetch and decode one Babbel story.
+	 * Fetches and decodes one Babbel story.
 	 *
 	 * @param string $story_id Story ID.
 	 * @return array<string, mixed> Story response.
@@ -984,7 +984,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Count visible Babbel stories with an exact title.
+	 * Counts stories with an exact title.
 	 *
 	 * @param string $title Story title.
 	 * @return int Matching count.
@@ -1011,7 +1011,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Assert a response status without decoding the body.
+	 * Asserts a response status.
 	 *
 	 * @param int    $expected Expected status.
 	 * @param string $method   HTTP method.
@@ -1027,7 +1027,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Return a stable future local timestamp.
+	 * Returns a stable future local timestamp.
 	 *
 	 * @param int $days Days from now.
 	 * @return string MySQL datetime.
@@ -1037,7 +1037,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Normalize an API date or datetime to Y-m-d.
+	 * Normalizes an API date or datetime to Y-m-d.
 	 *
 	 * @param mixed $value API value.
 	 * @return string Date portion.
@@ -1047,7 +1047,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Assert the persisted story lifecycle status of a post.
+	 * Asserts the persisted lifecycle status.
 	 *
 	 * @param int         $post_id  Post ID.
 	 * @param StoryStatus $expected Expected status.
@@ -1058,7 +1058,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Assert a failed sync operation preserved the lifecycle state needed for a retry.
+	 * Asserts retryable lifecycle state.
 	 *
 	 * @param int         $post_id   Post ID.
 	 * @param string      $story_id  Expected Babbel story ID.
@@ -1074,7 +1074,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Assert start and end dates were calculated within a captured processing window.
+	 * Asserts dates within a processing window.
 	 *
 	 * @param array<string, mixed>  $story   Babbel story.
 	 * @param array<string, string> $before  Expected dates captured before processing.
@@ -1104,7 +1104,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Assert strict equality.
+	 * Asserts strict equality.
 	 *
 	 * @param mixed  $expected Expected value.
 	 * @param mixed  $actual   Actual value.
@@ -1119,7 +1119,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Assert a truthy condition.
+	 * Asserts a truthy condition.
 	 *
 	 * @param bool   $condition Condition.
 	 * @param string $message   Failure message.
@@ -1133,7 +1133,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Assert a false condition.
+	 * Asserts a false condition.
 	 *
 	 * @param bool   $condition Condition.
 	 * @param string $message   Failure message.
@@ -1143,7 +1143,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Assert a non-empty value.
+	 * Asserts a non-empty value.
 	 *
 	 * @param mixed  $value   Value.
 	 * @param string $message Failure message.
@@ -1157,7 +1157,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Assert one string contains another.
+	 * Asserts that one string contains another.
 	 *
 	 * @param string $needle  Required substring.
 	 * @param string $haystack Searched string.
@@ -1168,7 +1168,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Render a compact diagnostic value.
+	 * Renders a compact diagnostic value.
 	 *
 	 * @param mixed $value Value.
 	 * @return string Description.

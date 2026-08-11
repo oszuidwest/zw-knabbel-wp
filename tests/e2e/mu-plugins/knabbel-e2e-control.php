@@ -25,7 +25,7 @@ add_filter(
 );
 
 /**
- * Run due Action Scheduler actions for a hook and fail loudly on errors.
+ * Runs due actions and fails on errors.
  *
  * Shared by the AJAX control endpoint below and tests/e2e/suite.php.
  *

@@ -1,6 +1,6 @@
 <?php
 /**
- * PHPStan Bootstrap File
+ * PHPStan bootstrap definitions for static analysis.
  *
  * Defines constants and function stubs for static analysis only.
  * This file is NOT loaded at runtime and is excluded from release builds.
@@ -22,7 +22,7 @@ define( 'KNABBEL_PLUGIN_URL', 'https://example.com/wp-content/plugins/zw-knabbel
 // Action Scheduler function stubs for static analysis.
 if ( ! function_exists( 'as_schedule_single_action' ) ) {
 	/**
-	 * Schedule a single action to run at a specific time.
+	 * Stubs a single scheduled action.
 	 *
 	 * @param int    $timestamp When to run the action.
 	 * @param string $hook      The hook to trigger.
@@ -37,7 +37,7 @@ if ( ! function_exists( 'as_schedule_single_action' ) ) {
 
 if ( ! function_exists( 'as_schedule_recurring_action' ) ) {
 	/**
-	 * Schedule a recurring action.
+	 * Stubs a recurring scheduled action.
 	 *
 	 * @param int    $timestamp         When to first run the action.
 	 * @param int    $interval_in_seconds How long to wait between runs.
@@ -53,7 +53,7 @@ if ( ! function_exists( 'as_schedule_recurring_action' ) ) {
 
 if ( ! function_exists( 'as_has_scheduled_action' ) ) {
 	/**
-	 * Check if there is a scheduled action for the given hook.
+	 * Stubs a scheduled-action lookup.
 	 *
 	 * @param string $hook  The hook to check.
 	 * @param array  $args  Arguments to check against.
@@ -67,7 +67,7 @@ if ( ! function_exists( 'as_has_scheduled_action' ) ) {
 
 if ( ! function_exists( 'as_unschedule_all_actions' ) ) {
 	/**
-	 * Unschedule all actions matching the given hook and arguments.
+	 * Stubs bulk action cancellation.
 	 *
 	 * @param string $hook  The hook to unschedule.
 	 * @param array  $args  Arguments to match.
@@ -80,7 +80,7 @@ if ( ! function_exists( 'as_unschedule_all_actions' ) ) {
 
 if ( ! function_exists( 'as_next_scheduled_action' ) ) {
 	/**
-	 * Get the next scheduled action for the given hook.
+	 * Stubs the next-action lookup.
 	 *
 	 * @param string $hook  The hook to check.
 	 * @param array  $args  Arguments to check against.

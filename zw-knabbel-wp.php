@@ -45,15 +45,13 @@ require_once KNABBEL_PLUGIN_DIR . 'includes/babbel-api.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/ai-handler.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/few-shot-cache.php';
 
-/**
- * Initialize plugin hooks and actions.
- */
+// Register plugin lifecycle hooks.
 add_action( 'init', __NAMESPACE__ . '\\init' );
 register_activation_hook( __FILE__, __NAMESPACE__ . '\\activate' );
 register_deactivation_hook( __FILE__, __NAMESPACE__ . '\\deactivate' );
 
 /**
- * Checks whether Debug Mode is enabled.
+ * Reports whether Debug Mode is enabled.
  *
  * @since 0.1.0
  * @return bool True when debug mode is enabled, false otherwise.
@@ -63,7 +61,7 @@ function debug_enabled(): bool {
 }
 
 /**
- * Sanitizes and bounds context for the operator-facing recent error store.
+ * Bounds context for recent-error storage.
  *
  * Debug logs retain the complete context, but persistent production data is
  * limited to known diagnostic fields and excludes response/request bodies.
@@ -83,7 +81,7 @@ function prepare_log_context_for_storage( array $context ): array {
 }
 
 /**
- * Sanitize textual diagnostic context.
+ * Sanitizes textual diagnostic context.
  *
  * @since 0.4.0
  * @param array<string, mixed> $context Raw log context.
@@ -114,7 +112,7 @@ function prepare_log_text_context( array $context ): array {
 }
 
 /**
- * Sanitize scalar diagnostic context.
+ * Sanitizes scalar diagnostic context.
  *
  * @since 0.4.0
  * @param array<string, mixed> $context Raw log context.
@@ -133,7 +131,7 @@ function prepare_log_scalar_context( array $context ): array {
 }
 
 /**
- * Sanitize list-valued diagnostic context.
+ * Sanitizes list-valued diagnostic context.
  *
  * @since 0.4.0
  * @param array<string, mixed> $context Raw log context.
@@ -155,7 +153,7 @@ function prepare_log_list_context( array $context ): array {
 }
 
 /**
- * Prepares an error entry for bounded, non-sensitive persistent storage.
+ * Sanitizes an error for bounded storage.
  *
  * This also normalizes legacy entries before they are written back, ensuring
  * previously stored response bodies do not remain in the rolling list.
@@ -185,7 +183,7 @@ function prepare_recent_error_for_storage( array $entry ): ?array {
 }
 
 /**
- * Normalize a stored error history.
+ * Normalizes a stored error history.
  *
  * @since 0.4.0
  * @param mixed $stored_errors Stored option value.
@@ -214,7 +212,7 @@ function prepare_error_history( mixed $stored_errors ): array {
 }
 
 /**
- * Append an error to the shared history using bounded optimistic retries.
+ * Adds an error using bounded optimistic retries.
  *
  * This is a diagnostic buffer rather than an audit log. A collision never
  * overwrites another request's entry, while the small retry limit keeps error
@@ -280,7 +278,7 @@ function append_recent_error( array $new_error ): void {
 }
 
 /**
- * Centralized WordPress native logging with structured data.
+ * Writes structured diagnostics to WordPress logging and recent errors.
  *
  * @since 0.1.0
  * @param string               $level     Log level: 'error', 'warning', 'info'.
@@ -324,7 +322,7 @@ function log( string $level, string $component, string $message, array $context 
 }
 
 /**
- * Updates consolidated per-post story state metadata with WordPress native optimization.
+ * Updates consolidated story state metadata.
  *
  * Stores all state in `_knabbel_story_state` with single database operation.
  * Triggers WordPress action hook for extensibility.
@@ -337,7 +335,6 @@ function log( string $level, string $component, string $message, array $context 
  * @phpstan-param StoryStateUpdate $updates
  */
 function update_story_state( int $post_id, array $updates = array() ): bool {
-	// Single read operation.
 	$meta_value    = get_post_meta( $post_id, '_zw_knabbel_story_state', true );
 	$current_state = is_array( $meta_value ) ? $meta_value : array();
 
@@ -360,7 +357,6 @@ function update_story_state( int $post_id, array $updates = array() ): bool {
 		unset( $new_state['last_sync_error'] );
 	}
 
-	// Single write operation for all data.
 	$success = update_post_meta( $post_id, '_zw_knabbel_story_state', $new_state );
 
 	if ( $success ) {
@@ -380,13 +376,11 @@ function update_story_state( int $post_id, array $updates = array() ): bool {
 }
 
 /**
- * Get story state data for a post.
+ * Returns story state data for a post.
  *
  * @since 0.1.0
  * @param int $post_id The post ID.
- *
- * phpcs:ignore Generic.Files.LineLength.TooLong -- Type annotation.
- * @return array{status?: string, story_id?: string, status_changed_at?: string, message?: string, post_id?: int, last_sync_error?: array{message: string, occurred_at: string, operation: string}} Story state data or empty array if none exists.
+ * @return array<string, mixed> Story state data, or an empty array.
  *
  * @phpstan-return StoryState
  */
@@ -396,7 +390,7 @@ function get_story_state( int $post_id ): array {
 }
 
 /**
- * Builds a bounded sync error for persistent story state.
+ * Builds a bounded error for persistent story state.
  *
  * @since 0.4.0
  * @param string $message   Error message to show to operators and editors.
@@ -417,7 +411,7 @@ function build_story_sync_error( string $message, string $operation ): array {
 }
 
 /**
- * Reads a valid sync error from story state.
+ * Returns a valid sync error from story state.
  *
  * @since 0.4.0
  * @param array<string, mixed> $state Story state data.
@@ -442,7 +436,7 @@ function get_story_sync_error( array $state ): ?array {
 }
 
 /**
- * Determines whether a sync error has a message that can be rendered.
+ * Reports whether an error can be rendered.
  *
  * @since 0.4.0
  * @param array<string, mixed>|null $sync_error Sync error data.
@@ -458,7 +452,7 @@ function is_story_sync_error_renderable( ?array $sync_error ): bool {
 }
 
 /**
- * Calculate story dates based on a base date and configured offsets.
+ * Derives story dates from a base date and configured offsets.
  *
  * For published posts, base_date should be 'now'.
  * For scheduled posts, base_date should be the scheduled publish time (post_date).
@@ -483,9 +477,7 @@ function calculate_story_dates( string $base_date = 'now' ): array {
 }
 
 /**
- * Initializes the plugin.
- *
- * Loads text domain and registers hooks.
+ * Loads translations and registers plugin hooks.
  *
  * @since 0.1.0
  */
@@ -512,9 +504,7 @@ function init(): void {
 }
 
 /**
- * Initializes admin‑specific functionality.
- *
- * Loads admin functions and registers AJAX actions.
+ * Loads admin functions and registers their hooks.
  *
  * @since 0.1.0
  */
@@ -531,9 +521,7 @@ function admin_init(): void {
 }
 
 /**
- * Returns the default values for the knabbel_settings option.
- *
- * Single source of truth for the knabbel_settings defaults.
+ * Returns defaults for the knabbel_settings option.
  *
  * @since 0.6.0
  * @return array<string, mixed> The default settings.
@@ -563,7 +551,7 @@ function default_settings(): array {
 }
 
 /**
- * Returns the knabbel_settings option merged over the defaults.
+ * Returns stored settings merged over the defaults.
  *
  * Guarantees every default key exists, so read sites need no per-key fallbacks.
  *
@@ -575,9 +563,7 @@ function get_plugin_settings(): array {
 }
 
 /**
- * Runs on plugin activation.
- *
- * Creates the settings option and cleans legacy metadata.
+ * Initializes settings and scheduled work on activation.
  *
  * @since 0.1.0
  */
@@ -594,9 +580,7 @@ function activate(): void {
 }
 
 /**
- * Runs on plugin deactivation.
- *
- * Cleans up sessions and scheduled Action Scheduler jobs.
+ * Removes sessions and scheduled work on deactivation.
  *
  * @since 0.1.0
  */
@@ -612,7 +596,7 @@ function deactivate(): void {
 }
 
 /**
- * Cleanup deprecated data on activation.
+ * Removes deprecated settings during activation.
  *
  * Safe to run multiple times. Can be removed once all installs are on 0.4.0+.
  *
@@ -633,7 +617,7 @@ function cleanup_legacy_data(): void {
 }
 
 /**
- * Handles AJAX request to test the Babbel API connection.
+ * Handles an authorized Babbel connection test.
  *
  * @since 0.1.0
  */
@@ -654,9 +638,7 @@ function ajax_test_api(): void {
 }
 
 /**
- * Processes a story asynchronously via Action Scheduler.
- *
- * Generates AI content and sends it to the Babbel API.
+ * Generates and sends a story through Action Scheduler.
  *
  * @since 0.1.0
  * @param int|array{post_id?: int} $post_id_or_args The WordPress post ID or Action Scheduler args array.
@@ -670,7 +652,6 @@ function process_story_async( int|array $post_id_or_args ): void {
 		return;
 	}
 
-	// Debug logging for cron execution.
 	log( 'info', 'CronProcessor', 'Starting async story processing', array( 'post_id' => $post_id ) );
 
 		// Send-once safety: if already sent, do nothing.

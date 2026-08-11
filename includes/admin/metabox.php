@@ -1,6 +1,6 @@
 <?php
 /**
- * Admin metabox functionality
+ * Admin metabox integration for the post editor.
  *
  * Provides the post editor metabox UI for sending posts to the Babbel API.
  * This file is only loaded in admin context.
@@ -18,9 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Initialize admin-only metabox functionality.
- *
- * Registers hooks for the post editor UI. Must only be called in admin context.
+ * Registers the admin-only metabox hooks.
  *
  * @since 0.1.0
  */
@@ -32,7 +30,7 @@ function metabox_init(): void {
 }
 
 /**
- * Enqueue admin assets for post edit screens.
+ * Enqueues assets for post edit screens.
  *
  * @since 0.1.0
  *
@@ -52,7 +50,7 @@ function metabox_enqueue_assets( string $hook ): void {
 }
 
 /**
- * Adds the per-post status metabox when Debug Mode is enabled.
+ * Adds the per-post status metabox in Debug Mode.
  *
  * @since 0.1.0
  */
@@ -115,7 +113,7 @@ function submitbox_render( \WP_Post $post ): void {
 }
 
 /**
- * Displays the status metabox content (Debug Mode only).
+ * Displays status details in Debug Mode.
  *
  * @since 0.1.0
  *
@@ -206,7 +204,7 @@ function metabox_render_status( \WP_Post $post ): void {
 }
 
 /**
- * Saves metabox data.
+ * Saves the Radionieuws checkbox state.
  *
  * The post-meta and post-save hooks reconcile story state after WordPress has
  * persisted the checkbox and post status.

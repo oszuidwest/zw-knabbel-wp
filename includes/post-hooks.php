@@ -1,6 +1,6 @@
 <?php
 /**
- * Global post hooks for story synchronization
+ * Global post hooks for story synchronization.
  *
  * These hooks run in all contexts (admin, REST API, CLI, cron) to ensure
  * stories are synced regardless of how posts are modified.
@@ -18,10 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Register global post and metadata hooks.
- *
- * These hooks must be registered in all contexts (admin, REST API, CLI, cron)
- * to ensure stories are synced regardless of how posts are modified.
+ * Registers post and metadata hooks.
  *
  * @since 0.2.0
  */
@@ -35,7 +32,7 @@ function register_post_hooks(): void {
 }
 
 /**
- * Synchronizes story state after the checkbox metadata changes.
+ * Reconciles state after a checkbox change.
  *
  * WordPress only fires the added/updated/deleted metadata actions after the
  * requested change has succeeded, so reconciliation can read the current
@@ -56,7 +53,7 @@ function handle_checkbox_meta_changed( $meta_id, $post_id, $meta_key ): void {
 }
 
 /**
- * Triggers story reconciliation after a post save.
+ * Reconciles story state after a post save.
  *
  * The previous post state lets sync_story_state() distinguish status
  * transitions from ordinary edits.
@@ -73,7 +70,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
 }
 
 /**
- * Reconciles the current WordPress post and Babbel story states.
+ * Reconciles the WordPress post and Babbel story states.
  *
  * This is the single source of truth for deciding whether a story should be
  * created, restored, updated, deleted, or left unchanged. Hook callbacks only
@@ -180,7 +177,7 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 }
 
 /**
- * Restores a soft-deleted story and syncs the current post title.
+ * Restores a story and synchronizes its title.
  *
  * Uses PATCH to restore (deleted_at) then PUT to update the title,
  * matching the Babbel API contract where PATCH only accepts status/deleted_at.
@@ -241,7 +238,7 @@ function restore_and_sync_story( int $post_id, string $story_id, string $title )
 }
 
 /**
- * Pushes a story update to Babbel and handles the result.
+ * Sends an update and records the result.
  *
  * On failure, logs the error while preserving the lifecycle state: the story
  * still exists in Babbel even though this synchronization attempt failed.
@@ -289,7 +286,7 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 }
 
 /**
- * Deletes a story from Babbel and updates the local story state.
+ * Deletes a story and updates its local state.
  *
  * @since 0.4.0
  *
@@ -333,7 +330,7 @@ function push_story_delete( int $post_id, string $story_id, string $success_mess
 }
 
 /**
- * Detects date/title changes between post versions and builds update data.
+ * Returns data changed between post versions.
  *
  * Only the calendar day (Y-m-d) of the post date is compared: story dates are
  * day-granular, so a time-only edit can never change the Babbel payload.
@@ -364,7 +361,7 @@ function build_story_update_from_changes( \WP_Post $post, \WP_Post $post_before 
 }
 
 /**
- * Builds a full story update payload with dates derived from a base date.
+ * Builds a payload from a title and base date.
  *
  * @since 0.4.0
  *
@@ -386,9 +383,7 @@ function build_full_story_update( string $title, string $base_date ): array {
 }
 
 /**
- * Schedules story processing via Action Scheduler.
- *
- * Helper function to deduplicate scheduling logic.
+ * Queues deduplicated story processing.
  *
  * @since 0.2.0
  *

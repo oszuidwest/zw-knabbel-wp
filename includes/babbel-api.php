@@ -1,6 +1,6 @@
 <?php
 /**
- * Babbel API integration
+ * Babbel API integration for story synchronization.
  *
  * Handles authentication, session management, and API communication with the Babbel API.
  *
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Get Babbel API credentials from plugin settings.
+ * Returns the configured Babbel API credentials.
  *
  * @since 0.1.0
  * @return array{base_url: string, username: string, password: string} Array with base_url, username, and password.
@@ -34,7 +34,7 @@ function babbel_get_credentials(): array {
 }
 
 /**
- * Build the transient key that caches the session for the configured API instance.
+ * Builds the session transient key.
  *
  * @since 0.1.0
  * @param array{base_url: string, username: string, password: string}|null $credentials Optional credential snapshot.
@@ -48,7 +48,7 @@ function babbel_get_session_cache_key( ?array $credentials = null ): string {
 }
 
 /**
- * Get cached session cookies, creating new session if needed.
+ * Returns cached or newly created session cookies.
  *
  * @since 0.1.0
  * @return array<int, \WP_Http_Cookie>|\WP_Error Session cookies array or WP_Error on failure.
@@ -106,7 +106,7 @@ function babbel_get_session_cookies(): array|\WP_Error {
 }
 
 /**
- * Clear cached session cookies.
+ * Clears cached session cookies.
  *
  * @since 0.1.0
  */
@@ -115,7 +115,7 @@ function babbel_clear_session_cache(): void {
 }
 
 /**
- * Make an authenticated request to the Babbel API.
+ * Sends an authenticated Babbel request.
  * Automatically retries with fresh session on 401 Unauthorized.
  *
  * @since 0.1.0
@@ -163,7 +163,7 @@ function babbel_make_authenticated_request( string $url, array $args = array() )
 }
 
 /**
- * Create a story via the Babbel API.
+ * Creates a story through the Babbel API.
  *
  * @since 0.1.0
  * @param array<string, mixed> $story_data The story data to send.
@@ -328,7 +328,7 @@ function babbel_create_story( array $story_data ): array {
 
 
 /**
- * Test the connection to the Babbel API.
+ * Tests the Babbel API connection.
  * Authenticates and then verifies session by fetching current user info.
  *
  * @since 0.1.0
@@ -391,7 +391,7 @@ function babbel_test_connection(): array {
 }
 
 /**
- * Update an existing story in the Babbel API.
+ * Updates an existing Babbel story.
  *
  * @since 0.2.0
  * @param string                                                                        $story_id   The Babbel story ID.
@@ -492,7 +492,7 @@ function babbel_update_story( string $story_id, array $story_data ): array {
 }
 
 /**
- * Delete (soft delete) a story from the Babbel API.
+ * Soft-deletes a Babbel story.
  *
  * @since 0.2.0
  * @param string $story_id The Babbel story ID.
@@ -568,7 +568,7 @@ function babbel_delete_story( string $story_id ): array {
 }
 
 /**
- * Restore a soft-deleted story in the Babbel API.
+ * Restores a soft-deleted Babbel story.
  *
  * The PATCH endpoint only accepts 'status' and 'deleted_at' fields.
  * To update the title after restore, use babbel_update_story() separately.
@@ -666,7 +666,7 @@ function babbel_restore_story( string $story_id ): array {
 }
 
 /**
- * Fetch recent stories from the Babbel API for few-shot prompt examples.
+ * Returns recent stories for few-shot examples.
  *
  * Retrieves active and expired stories sorted by last update (most recently
  * edited first), which are most likely to have been reviewed by editors.
@@ -754,7 +754,7 @@ function babbel_fetch_recent_stories( int $limit = 20 ): array|\WP_Error {
 }
 
 /**
- * Clean up session data and debug information.
+ * Removes cached Babbel sessions.
  *
  * @since 0.1.0
  *
