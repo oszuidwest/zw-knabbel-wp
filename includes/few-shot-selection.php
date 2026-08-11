@@ -13,7 +13,7 @@ declare(strict_types=1);
 
 namespace KnabbelWP;
 
-if ( ! defined( 'ABSPATH' ) && 'cli' !== PHP_SAPI ) {
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
