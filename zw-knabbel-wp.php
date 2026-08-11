@@ -543,6 +543,7 @@ function activate(): void {
 			'api_base_url'      => 'https://babbel.example.com/api/v1',
 			'api_username'      => '',
 			'api_password'      => '',
+			'ai_model'          => '',
 			'speech_prompt'     => '',
 			'debug_mode'        => false,
 			// Story defaults.

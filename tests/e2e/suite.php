@@ -123,6 +123,7 @@ final class Knabbel_E2E_Suite {
 				'api_base_url'      => self::BABBEL_BASE_URL,
 				'api_username'      => 'admin',
 				'api_password'      => $password,
+				'ai_model'          => 'openai/gpt-4.1',
 				'start_days_offset' => 1,
 				'end_days_offset'   => 2,
 				'default_status'    => 'draft',
@@ -214,6 +215,7 @@ final class Knabbel_E2E_Suite {
 		$this->assert_true( is_array( $ai_request ), 'The native AI provider request must be observable.' );
 		$this->assert_same( 1000, $ai_request['max_output_tokens'] ?? null, 'The native AI request must retain the output token limit.' );
 		$this->assert_same( 0.7, $ai_request['temperature'] ?? null, 'The native AI request must retain the configured temperature.' );
+		$this->assert_same( 'gpt-4.1', $ai_request['model'] ?? null, 'The native AI request must use the configured model preference.' );
 		$request_input = (string) wp_json_encode( $ai_request['input'] ?? array() );
 		$this->assert_string_contains( $example_input, $request_input, 'The native AI request must include the few-shot user example.' );
 		$this->assert_string_contains( $example_output, $request_input, 'The native AI request must include the few-shot model example.' );
