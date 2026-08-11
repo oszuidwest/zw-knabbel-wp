@@ -5,7 +5,7 @@
  * Defines the possible processing states for stories sent to the Babbel API.
  *
  * @package KnabbelWP
- * @since   0.0.1
+ * @since   0.1.0
  */
 
 declare(strict_types=1);

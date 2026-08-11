@@ -6,7 +6,7 @@
  * Settings and story data are preserved for potential reinstallation.
  *
  * @package KnabbelWP
- * @since   0.0.8
+ * @since   0.1.0
  */
 
 // Exit if not called by WordPress uninstaller.

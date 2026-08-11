@@ -243,7 +243,7 @@ function restore_and_sync_story( int $post_id, string $story_id, string $title )
  * On failure, logs the error while preserving the lifecycle state: the story
  * still exists in Babbel even though this synchronization attempt failed.
  *
- * @since 0.4.0
+ * @since 0.5.0
  *
  * @param int                  $post_id         Post ID.
  * @param string               $story_id        Babbel story ID.
@@ -288,7 +288,7 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 /**
  * Deletes a story and updates its local state.
  *
- * @since 0.4.0
+ * @since 0.5.0
  *
  * @param int    $post_id         Post ID.
  * @param string $story_id        Babbel story ID.
@@ -335,7 +335,7 @@ function push_story_delete( int $post_id, string $story_id, string $success_mess
  * Only the calendar day (Y-m-d) of the post date is compared: story dates are
  * day-granular, so a time-only edit can never change the Babbel payload.
  *
- * @since 0.4.0
+ * @since 0.5.0
  *
  * @param \WP_Post $post        Current post object.
  * @param \WP_Post $post_before Post object before the update.
@@ -363,7 +363,7 @@ function build_story_update_from_changes( \WP_Post $post, \WP_Post $post_before 
 /**
  * Builds a payload from a title and base date.
  *
- * @since 0.4.0
+ * @since 0.5.0
  *
  * @param string $title     The post title.
  * @param string $base_date Base date for calculate_story_dates() (e.g. 'now' or a post date).
