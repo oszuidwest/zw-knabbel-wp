@@ -6,6 +6,7 @@
  * Version: 0.5.0
  * Requires at least: 7.0
  * Requires PHP: 8.3
+ * Requires Plugins: classic-editor
  * Author: Streekomroep ZuidWest
  * Author URI: https://www.zuidwesttv.nl
  * License: MIT
