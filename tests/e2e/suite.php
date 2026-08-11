@@ -77,7 +77,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-007', 'trash and untrash delete and restore the same story', $this->test_trash_and_restore( ... ) );
 		$this->run_case( 'E2E-008', 'AI provider failure retries without creating a Babbel story', $this->test_ai_failure( ... ) );
 		$this->run_case( 'E2E-009', 'Babbel create failure is visible and preserves diagnostics safely', $this->test_babbel_create_failure( ... ) );
-		$this->run_case( 'E2E-010', 'few-shot queue learns editor changes and honors disable', $this->test_few_shot_sync( ... ) );
+		$this->run_case( 'E2E-010', 'few-shot queue learns editor changes', $this->test_few_shot_sync( ... ) );
 		$this->run_case( 'E2E-011', 'enabling existing published and future posts schedules one story', $this->test_enable_existing_posts( ... ) );
 		$this->run_case( 'E2E-012', 'checkbox and trash cancel scheduled and processing work', $this->test_pending_work_cancellation( ... ) );
 		$this->run_case( 'E2E-013', 'every transition away from future deletes a sent story', $this->test_sent_story_unscheduling( ... ) );
@@ -127,7 +127,6 @@ final class Knabbel_E2E_Suite {
 				'start_days_offset' => 1,
 				'end_days_offset'   => 2,
 				'default_status'    => 'draft',
-				'few_shot_count'    => 1,
 				'weekday_sunday'    => 1,
 				'weekday_monday'    => 1,
 				'weekday_tuesday'   => 1,
@@ -184,19 +183,27 @@ final class Knabbel_E2E_Suite {
 		$content        = 'Dit artikel bevat voldoende woorden om de volledige publicatieketen betrouwbaar te testen.';
 		$example_input  = 'Voorbeeldartikel voor de native AI Client-gespreksgeschiedenis.';
 		$example_output = 'Voorbeeld van gecorrigeerde radiospreektekst.';
+		$post_id        = $this->create_enabled_draft( $title, $content );
 
 		update_option(
 			'knabbel_few_shot_examples',
 			array(
 				array(
-					'input'  => $example_input,
-					'output' => $example_output,
+					'post_id'    => $post_id,
+					'input'      => 'Dit huidige artikel mag nooit zijn eigen voorbeeld worden.',
+					'output'     => 'Deze uitvoer moet buiten de AI-aanvraag blijven.',
+					'edit_score' => 0.0,
+				),
+				array(
+					'post_id'    => $post_id + 1000,
+					'input'      => $example_input,
+					'output'     => $example_output,
+					'edit_score' => 25.0,
 				),
 			),
 			false
 		);
 
-		$post_id = $this->create_enabled_draft( $title, $content );
 		$this->assert_same( 0, $this->story_action_count( $post_id ), 'Enabling a draft must not schedule processing.' );
 
 		$dates_before = KnabbelWP\calculate_story_dates( 'now' );
@@ -219,6 +226,10 @@ final class Knabbel_E2E_Suite {
 		$request_input = (string) wp_json_encode( $ai_request['input'] ?? array() );
 		$this->assert_string_contains( $example_input, $request_input, 'The native AI request must include the few-shot user example.' );
 		$this->assert_string_contains( $example_output, $request_input, 'The native AI request must include the few-shot model example.' );
+		$this->assert_false(
+			str_contains( $request_input, 'Dit huidige artikel mag nooit zijn eigen voorbeeld worden.' ),
+			'The native AI request must exclude the current WordPress post from few-shot examples.'
+		);
 		delete_option( 'knabbel_few_shot_examples' );
 
 		$story = $this->get_babbel_story( (string) $state['story_id'] );
@@ -437,10 +448,11 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verifies learning and disabled-cache cleanup.
+	 * Verifies learning from an editor change.
 	 */
 	private function test_few_shot_sync(): void {
-		$edited_text = 'Dit is de aantoonbaar door een redacteur aangepaste radiospreektekst.';
+		$edited_text = 'Dit is een aantoonbaar door de redactie aangepaste radiospreektekst voor het nieuws. '
+			. 'De tweede zin maakt de tekst geschikt als recent voorbeeld.';
 		$this->babbel_request(
 			'PUT',
 			'/stories/' . $this->published_story_id,
@@ -454,20 +466,13 @@ final class Knabbel_E2E_Suite {
 		$this->run_action_scheduler( self::FEW_SHOT_HOOK );
 
 		$examples = get_option( 'knabbel_few_shot_examples', array() );
-		$this->assert_same( 1, count( $examples ), 'Few-shot sync must cache the configured number of examples.' );
+		$this->assert_same( 1, count( $examples ), 'Few-shot sync must cache the available candidate.' );
 		$this->assert_same( $edited_text, $examples[0]['output'] ?? null, 'Few-shot output must use editor-corrected Babbel text.' );
 		$this->assert_same(
 			wp_strip_all_tags( get_post_field( 'post_content', $this->published_post_id ) ),
 			$examples[0]['input'] ?? null,
 			'Few-shot input must use current WordPress content.'
 		);
-
-		$settings                   = get_option( 'knabbel_settings', array() );
-		$settings['few_shot_count'] = 0;
-		update_option( 'knabbel_settings', $settings );
-		as_enqueue_async_action( self::FEW_SHOT_HOOK, array(), self::ACTION_GROUP );
-		$this->run_action_scheduler( self::FEW_SHOT_HOOK );
-		$this->assert_same( false, get_option( 'knabbel_few_shot_examples', false ), 'Disabling few-shot must remove cached examples.' );
 	}
 
 	/**

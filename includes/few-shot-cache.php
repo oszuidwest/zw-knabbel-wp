@@ -1,9 +1,6 @@
 <?php
 /**
- * Few-shot example caching for AI prompt improvement.
- *
- * Syncs editor-corrected stories from the Babbel API with their original WordPress
- * source content to build few-shot examples for AI speech text generation.
+ * Few-shot example caching and selection for AI prompt improvement.
  *
  * @package KnabbelWP
  * @since   0.3.0
@@ -16,6 +13,10 @@ namespace KnabbelWP;
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+
+const KNABBEL_FEW_SHOT_STORY_LIMIT    = 100;
+const KNABBEL_FEW_SHOT_MAX_AGE_MONTHS = 3;
+const KNABBEL_FEW_SHOT_COUNT          = 8;
 
 /**
  * Registers the nightly synchronization hook.
@@ -55,25 +56,19 @@ function few_shot_unschedule_sync(): void {
 }
 
 /**
- * Refreshes examples from the Babbel API.
+ * Refreshes the recent few-shot candidate pool from Babbel.
  *
- * Fetches recent editor-reviewed stories, matches them with their original
- * WordPress posts, calculates edit-intensity scores, and caches the best
- * examples for use in AI prompts.
+ * Final selection happens for each AI request so the current WordPress post can
+ * be excluded without reducing the configured example count.
  *
  * @since 0.3.0
  */
 function sync_few_shot_examples(): void {
-	$options   = get_plugin_settings();
-	$max_count = (int) $options['few_shot_count'];
-
-	if ( $max_count <= 0 ) {
-		log( 'info', 'FewShotCache', 'Few-shot examples disabled (count set to 0)' );
-		delete_option( 'knabbel_few_shot_examples' );
-		return;
-	}
-
-	$stories = babbel_fetch_recent_stories( 20 );
+	$created_after = new \DateTimeImmutable(
+		sprintf( '-%d months', KNABBEL_FEW_SHOT_MAX_AGE_MONTHS ),
+		new \DateTimeZone( 'UTC' )
+	);
+	$stories       = babbel_fetch_recent_stories( KNABBEL_FEW_SHOT_STORY_LIMIT, $created_after->format( DATE_ATOM ) );
 
 	if ( is_wp_error( $stories ) ) {
 		log(
@@ -85,211 +80,416 @@ function sync_few_shot_examples(): void {
 		return;
 	}
 
-	if ( empty( $stories ) ) {
-		log( 'info', 'FewShotCache', 'No eligible stories found for few-shot examples' );
-		return;
-	}
-
-	$candidates = build_few_shot_candidates( $stories );
+	$candidates = build_few_shot_candidates( $stories, $created_after->getTimestamp() );
 
 	if ( empty( $candidates ) ) {
-		log( 'info', 'FewShotCache', 'No valid few-shot candidates after matching and scoring' );
+		log( 'info', 'FewShotCache', 'No valid recent few-shot candidates found' );
+		delete_option( 'knabbel_few_shot_examples' );
 		return;
 	}
 
-	$selected = select_diverse_examples( $candidates, $max_count );
+	// Store the candidate pool without autoloading it. Selection is post-specific.
+	update_option( 'knabbel_few_shot_examples', $candidates, false );
 
-	// Sort by edit-score ascending so the strongest example is last (closest to the actual prompt).
-	usort(
-		$selected,
-		static function ( array $a, array $b ): int {
-			return $a['edit_score'] <=> $b['edit_score'];
-		}
+	$preview        = select_example_mix( $candidates, KNABBEL_FEW_SHOT_COUNT );
+	$accepted_count = count(
+		array_filter(
+			$preview,
+			static fn ( array $candidate ): bool => 'accepted' === $candidate['provenance']
+		)
 	);
-
-	// Store only the data needed for prompts.
-	$examples = array_map(
-		static function ( array $item ): array {
-			return array(
-				'input'      => $item['input'],
-				'output'     => $item['output'],
-				'edit_score' => $item['edit_score'],
-				'word_count' => $item['word_count'],
-			);
-		},
-		$selected
-	);
-
-	update_option( 'knabbel_few_shot_examples', $examples, false );
 
 	log(
 		'info',
 		'FewShotCache',
-		'Few-shot examples cache updated',
+		'Few-shot candidate cache updated',
 		array(
-			'examples_cached'  => count( $examples ),
 			'candidates_found' => count( $candidates ),
-			'edit_score_range' => count( $examples ) > 0
-				? round( $examples[0]['edit_score'], 1 ) . '%-' . round( end( $examples )['edit_score'], 1 ) . '%'
-				: 'n/a',
+			'examples_ready'   => count( $preview ),
+			'accepted_ready'   => $accepted_count,
+			'edited_ready'     => count( $preview ) - $accepted_count,
 		)
 	);
 }
 
 /**
- * Matches Babbel stories with WordPress posts.
+ * Matches recent Babbel stories with their WordPress sources.
  *
  * @since 0.3.0
- * @param array<int, array<string, mixed>> $stories Stories from the Babbel API.
- * @return array<int, array{input: string, output: string, edit_score: float, word_count: int}> Candidate examples with scores.
+ * @param array<int, array<string, mixed>> $stories                Stories from the Babbel API.
+ * @param int                              $created_after_timestamp Oldest allowed creation timestamp.
+ * @return array<int, array<string, mixed>> Candidate examples.
+ *
+ * @phpstan-return list<FewShotCandidate>
  */
-function build_few_shot_candidates( array $stories ): array {
-	$candidates = array();
+function build_few_shot_candidates( array $stories, int $created_after_timestamp ): array {
+	$candidates    = array();
+	$seen_post_ids = array();
 
 	foreach ( $stories as $story ) {
-		$babbel_text = trim( (string) ( $story['text'] ?? '' ) );
-
-		if ( empty( $babbel_text ) ) {
+		$created_at = $story['created_at'] ?? null;
+		$created    = is_string( $created_at ) ? strtotime( $created_at ) : false;
+		if ( false === $created || $created < $created_after_timestamp ) {
 			continue;
 		}
 
-		// Get the WordPress post ID from story metadata.
-		$wp_post_id = (int) ( $story['metadata']['wordpress_id'] ?? 0 );
+		$output          = normalize_few_shot_text( (string) ( $story['text'] ?? '' ) );
+		$wp_post_id      = (int) ( $story['metadata']['wordpress_id'] ?? 0 );
+		$original_speech = normalize_few_shot_text( (string) ( $story['metadata']['original_speech_text'] ?? '' ) );
 
-		if ( ! $wp_post_id ) {
+		if ( '' === $output || $wp_post_id <= 0 || '' === $original_speech || isset( $seen_post_ids[ $wp_post_id ] ) ) {
+			continue;
+		}
+
+		$output_word_count = few_shot_count_words( $output );
+		$sentence_count    = few_shot_count_sentences( $output );
+		if ( $output_word_count < 20 || $sentence_count < 2 ) {
 			continue;
 		}
 
 		$post = get_post( $wp_post_id );
-
-		if ( ! $post || empty( $post->post_content ) ) {
+		if ( ! $post || '' === trim( $post->post_content ) ) {
 			continue;
 		}
 
-		// Get the original AI-generated speech text from post meta.
-		$state               = get_story_state( $wp_post_id );
-		$ai_generated_speech = trim( (string) ( $state['generated_speech_text'] ?? '' ) );
-
-		if ( empty( $ai_generated_speech ) ) {
+		$input = normalize_few_shot_text( wp_strip_all_tags( $post->post_content ) );
+		if ( '' === $input ) {
 			continue;
 		}
 
-		// Calculate edit-intensity score.
-		$edit_score = calculate_edit_score( $ai_generated_speech, $babbel_text );
-
-		// Skip unmodified stories (score 0% = editor didn't change anything).
-		if ( $edit_score < 1.0 ) {
-			continue;
-		}
-
-		$input      = wp_strip_all_tags( $post->post_content );
-		$word_count = str_word_count( $input );
-
-		if ( $word_count < 10 ) {
-			continue;
-		}
-
-		$candidates[] = array(
-			'input'      => $input,
-			'output'     => $babbel_text,
-			'edit_score' => $edit_score,
-			'word_count' => $word_count,
+		$edit_score                   = calculate_edit_score( $original_speech, $output );
+		$candidates[]                 = array(
+			'post_id'             => $wp_post_id,
+			'input'               => $input,
+			'output'              => $output,
+			'edit_score'          => $edit_score,
+			'original_word_count' => few_shot_count_words( $original_speech ),
+			'output_word_count'   => $output_word_count,
+			'sentence_count'      => $sentence_count,
+			'provenance'          => 0.0 === $edit_score ? 'accepted' : 'edited',
 		);
+		$seen_post_ids[ $wp_post_id ] = true;
 	}
 
 	return $candidates;
 }
 
 /**
- * Measures AI-to-editor text changes.
+ * Normalizes whitespace for metrics and comparison.
  *
- * Uses similar_text() to measure the percentage of difference.
- * A score of 0% means identical, 100% means completely rewritten.
- *
- * @since 0.3.0
- * @param string $ai_text     The original AI-generated text.
- * @param string $editor_text The editor-corrected text from Babbel.
- * @return float Percentage of difference (0.0 to 100.0).
+ * @since 0.7.0
+ * @param string $text Text to normalize.
+ * @return string Normalized text.
  */
-function calculate_edit_score( string $ai_text, string $editor_text ): float {
-	if ( $ai_text === $editor_text ) {
-		return 0.0;
-	}
-
-	$similarity_percent = 0.0;
-	similar_text( $ai_text, $editor_text, $similarity_percent );
-
-	// Invert: similar_text returns similarity %, we want difference %.
-	return 100.0 - $similarity_percent;
+function normalize_few_shot_text( string $text ): string {
+	$normalized = preg_replace( '/\s+/u', ' ', trim( $text ) );
+	return is_string( $normalized ) ? $normalized : trim( $text );
 }
 
 /**
- * Selects a mix of short and long articles.
+ * Counts whitespace-separated words containing a letter or number.
  *
- * Splits candidates into short and long halves by word count, then picks
- * the highest-scoring examples from each half alternately.
+ * @since 0.7.0
+ * @param string $text Text to count.
+ * @return int Word count.
+ */
+function few_shot_count_words( string $text ): int {
+	$tokens = preg_split( '/\s+/u', normalize_few_shot_text( $text ), -1, PREG_SPLIT_NO_EMPTY );
+	if ( false === $tokens ) {
+		return 0;
+	}
+
+	return count(
+		array_filter(
+			$tokens,
+			static fn ( string $token ): bool => 1 === preg_match( '/[\p{L}\p{N}]/u', $token )
+		)
+	);
+}
+
+/**
+ * Counts sentence-like units using the same boundary as the reference script.
+ *
+ * @since 0.7.0
+ * @param string $text Text to inspect.
+ * @return int Sentence count.
+ */
+function few_shot_count_sentences( string $text ): int {
+	$normalized = normalize_few_shot_text( $text );
+	if ( '' === $normalized ) {
+		return 0;
+	}
+
+	$sentences = preg_split( '/(?<=[.!?])\s+(?=(?:["\'“‘]?\p{Lu}|\d))/u', $normalized, -1, PREG_SPLIT_NO_EMPTY );
+	return is_array( $sentences ) ? count( $sentences ) : 1;
+}
+
+/**
+ * Measures normalized character-level change from AI output to Babbel text.
  *
  * @since 0.3.0
- * @param array<int, array{input: string, output: string, edit_score: float, word_count: int}> $candidates All valid candidates.
- * @param int                                                                                  $max_count  Maximum examples to select.
- * @return array<int, array{input: string, output: string, edit_score: float, word_count: int}> Selected examples.
+ * @param string $ai_text     Original AI-generated text.
+ * @param string $editor_text Text stored in Babbel.
+ * @return float Percentage of difference (0.0 to 100.0).
+ */
+function calculate_edit_score( string $ai_text, string $editor_text ): float {
+	$left_text  = normalize_few_shot_text( $ai_text );
+	$right_text = normalize_few_shot_text( $editor_text );
+	$left_text  = function_exists( 'mb_strtolower' ) ? mb_strtolower( $left_text, 'UTF-8' ) : strtolower( $left_text );
+	$right_text = function_exists( 'mb_strtolower' ) ? mb_strtolower( $right_text, 'UTF-8' ) : strtolower( $right_text );
+	$left       = preg_split( '//u', $left_text, -1, PREG_SPLIT_NO_EMPTY );
+	$right      = preg_split( '//u', $right_text, -1, PREG_SPLIT_NO_EMPTY );
+	$left       = is_array( $left ) ? $left : str_split( $left_text );
+	$right      = is_array( $right ) ? $right : str_split( $right_text );
+
+	if ( array() === $left && array() === $right ) {
+		return 0.0;
+	}
+
+	$previous = range( 0, count( $right ) );
+	foreach ( $left as $left_index => $left_character ) {
+		$current = array( $left_index + 1 );
+		foreach ( $right as $right_index => $right_character ) {
+			$substitution_cost = $left_character === $right_character ? 0 : 1;
+			$current[]         = min(
+				$current[ $right_index ] + 1,
+				$previous[ $right_index + 1 ] + 1,
+				$previous[ $right_index ] + $substitution_cost
+			);
+		}
+		$previous = $current;
+	}
+
+	$distance = $previous[ count( $right ) ];
+	return ( $distance / max( count( $left ), count( $right ) ) ) * 100;
+}
+
+/**
+ * Normalizes cached candidates, including cache entries from older releases.
+ *
+ * @since 0.7.0
+ * @param array<string, mixed> $candidate Cached candidate.
+ * @return array<string, mixed>|null Normalized candidate or null when invalid.
+ *
+ * @phpstan-return FewShotCandidate|null
+ */
+function normalize_few_shot_candidate( array $candidate ): ?array {
+	$input  = isset( $candidate['input'] ) && is_string( $candidate['input'] ) ? normalize_few_shot_text( $candidate['input'] ) : '';
+	$output = isset( $candidate['output'] ) && is_string( $candidate['output'] ) ? normalize_few_shot_text( $candidate['output'] ) : '';
+	if ( '' === $input || '' === $output ) {
+		return null;
+	}
+
+	$edit_score = isset( $candidate['edit_score'] ) && is_numeric( $candidate['edit_score'] ) ? (float) $candidate['edit_score'] : 100.0;
+	$provenance = $candidate['provenance'] ?? null;
+	if ( ! in_array( $provenance, array( 'accepted', 'edited' ), true ) ) {
+		$provenance = 0.0 === $edit_score ? 'accepted' : 'edited';
+	}
+
+	return array(
+		'post_id'             => isset( $candidate['post_id'] ) ? (int) $candidate['post_id'] : 0,
+		'input'               => $input,
+		'output'              => $output,
+		'edit_score'          => $edit_score,
+		'original_word_count' => isset( $candidate['original_word_count'] )
+			? (int) $candidate['original_word_count']
+			: (int) ( $candidate['word_count'] ?? few_shot_count_words( $input ) ),
+		'output_word_count'   => isset( $candidate['output_word_count'] )
+			? (int) $candidate['output_word_count']
+			: few_shot_count_words( $output ),
+		'sentence_count'      => isset( $candidate['sentence_count'] )
+			? (int) $candidate['sentence_count']
+			: few_shot_count_sentences( $output ),
+		'provenance'          => $provenance,
+	);
+}
+
+/**
+ * Returns a stable identity for one candidate.
+ *
+ * @since 0.7.0
+ * @param array<string, mixed> $candidate Candidate.
+ * @return string Candidate identity.
+ *
+ * @phpstan-param FewShotCandidate $candidate
+ */
+function few_shot_candidate_key( array $candidate ): string {
+	return $candidate['post_id'] > 0
+		? 'post:' . $candidate['post_id']
+		: 'text:' . md5( $candidate['input'] . "\0" . $candidate['output'] );
+}
+
+/**
+ * Sorts candidates by one numeric diversity dimension.
+ *
+ * @since 0.7.0
+ * @param array<int, array<string, mixed>> $candidates Candidate examples.
+ * @param string                           $field      Numeric field.
+ * @param bool                             $descending Whether to sort high to low.
+ * @return array<int, array<string, mixed>> Sorted candidates.
+ *
+ * @phpstan-param list<FewShotCandidate> $candidates
+ * @phpstan-return list<FewShotCandidate>
+ */
+function sort_few_shot_candidates( array $candidates, string $field, bool $descending = false ): array {
+	usort(
+		$candidates,
+		static function ( array $left, array $right ) use ( $field, $descending ): int {
+			$result = $left[ $field ] <=> $right[ $field ];
+			return $descending ? -$result : $result;
+		}
+	);
+
+	return $candidates;
+}
+
+/**
+ * Selects examples spanning output length, edit score, source length and sentences.
+ *
+ * @since 0.3.0
+ * @param array<int, array<string, mixed>> $candidates Candidate examples.
+ * @param int                              $max_count  Maximum examples to select.
+ * @return array<int, array<string, mixed>> Selected examples.
+ *
+ * @phpstan-param list<FewShotCandidate> $candidates
+ * @phpstan-return list<FewShotCandidate>
  */
 function select_diverse_examples( array $candidates, int $max_count ): array {
+	if ( $max_count <= 0 ) {
+		return array();
+	}
+
 	if ( count( $candidates ) <= $max_count ) {
 		return $candidates;
 	}
 
-	// Sort by word count to split into short/long halves.
-	usort(
-		$candidates,
-		static function ( array $a, array $b ): int {
-			return $a['word_count'] <=> $b['word_count'];
-		}
+	$rankings = array(
+		sort_few_shot_candidates( $candidates, 'output_word_count' ),
+		sort_few_shot_candidates( $candidates, 'output_word_count', true ),
+		sort_few_shot_candidates( $candidates, 'edit_score' ),
+		sort_few_shot_candidates( $candidates, 'edit_score', true ),
+		sort_few_shot_candidates( $candidates, 'original_word_count' ),
+		sort_few_shot_candidates( $candidates, 'original_word_count', true ),
+		sort_few_shot_candidates( $candidates, 'sentence_count' ),
+		sort_few_shot_candidates( $candidates, 'sentence_count', true ),
 	);
+	$selected = array();
+	$seen     = array();
 
-	$midpoint = (int) ceil( count( $candidates ) / 2 );
-	$short    = array_slice( $candidates, 0, $midpoint );
-	$long     = array_slice( $candidates, $midpoint );
+	foreach ( $rankings as $ranking ) {
+		foreach ( $ranking as $candidate ) {
+			$key = few_shot_candidate_key( $candidate );
+			if ( isset( $seen[ $key ] ) ) {
+				continue;
+			}
 
-	// Sort each half by edit-score descending (best first).
-	$sort_by_score = static function ( array $a, array $b ): int {
-		return $b['edit_score'] <=> $a['edit_score'];
-	};
-
-	usort( $short, $sort_by_score );
-	usort( $long, $sort_by_score );
-
-	// Alternate picks from short and long, starting with short.
-	$selected    = array();
-	$s           = 0;
-	$l           = 0;
-	$short_count = count( $short );
-	$long_count  = count( $long );
-
-	$selected_count = 0;
-
-	while ( $selected_count < $max_count ) {
-		if ( $s < $short_count ) {
-			$selected[] = $short[ $s ];
-			++$s;
-			++$selected_count;
-		}
-
-		if ( $selected_count >= $max_count ) {
+			$selected[]   = $candidate;
+			$seen[ $key ] = true;
 			break;
 		}
 
-		if ( $l < $long_count ) {
-			$selected[] = $long[ $l ];
-			++$l;
-			++$selected_count;
-		}
-
-		// Safety: break if both pools are exhausted.
-		if ( $s >= $short_count && $l >= $long_count ) {
+		if ( count( $selected ) >= $max_count ) {
 			break;
 		}
 	}
 
+	foreach ( $candidates as $candidate ) {
+		if ( count( $selected ) >= $max_count ) {
+			break;
+		}
+
+		$key = few_shot_candidate_key( $candidate );
+		if ( ! isset( $seen[ $key ] ) ) {
+			$selected[]   = $candidate;
+			$seen[ $key ] = true;
+		}
+	}
+
 	return $selected;
+}
+
+/**
+ * Selects roughly 40% directly accepted and 60% editor-adjusted examples.
+ *
+ * Eight examples yield the intended three accepted and five edited examples
+ * when both pools contain enough candidates.
+ *
+ * @since 0.7.0
+ * @param array<int, array<string, mixed>> $candidates Candidate examples.
+ * @param int                              $max_count  Maximum examples to select.
+ * @return array<int, array<string, mixed>> Selected examples.
+ *
+ * @phpstan-param list<FewShotCandidate> $candidates
+ * @phpstan-return list<FewShotCandidate>
+ */
+function select_example_mix( array $candidates, int $max_count ): array {
+	$accepted = array_values(
+		array_filter(
+			$candidates,
+			static fn ( array $candidate ): bool => 'accepted' === $candidate['provenance']
+		)
+	);
+	$edited   = array_values(
+		array_filter(
+			$candidates,
+			static fn ( array $candidate ): bool => 'edited' === $candidate['provenance'] && $candidate['edit_score'] >= 1.0
+		)
+	);
+
+	$accepted_target = min( count( $accepted ), max( 1, (int) round( $max_count * 0.4 ) ) );
+	$selected        = array_merge(
+		select_diverse_examples( $accepted, $accepted_target ),
+		select_diverse_examples( $edited, min( count( $edited ), $max_count - $accepted_target ) )
+	);
+
+	if ( count( $selected ) < $max_count ) {
+		$selected_keys = array_fill_keys( array_map( __NAMESPACE__ . '\\few_shot_candidate_key', $selected ), true );
+		$remaining     = array_values(
+			array_filter(
+				$candidates,
+				static fn ( array $candidate ): bool => ! isset( $selected_keys[ few_shot_candidate_key( $candidate ) ] )
+			)
+		);
+		$selected      = array_merge( $selected, select_diverse_examples( $remaining, $max_count - count( $selected ) ) );
+	}
+
+	$selected = array_slice( $selected, 0, $max_count );
+	usort(
+		$selected,
+		static fn ( array $left, array $right ): int => $left['output_word_count'] <=> $right['output_word_count']
+	);
+
+	return $selected;
+}
+
+/**
+ * Returns the per-post example mix from the cached candidate pool.
+ *
+ * @since 0.7.0
+ * @param int $max_count        Maximum examples.
+ * @param int $excluded_post_id Current WordPress post ID, if any.
+ * @return array<int, array<string, mixed>> Selected examples.
+ *
+ * @phpstan-return list<FewShotCandidate>
+ */
+function get_few_shot_examples( int $max_count, int $excluded_post_id = 0 ): array {
+	$cached = get_option( 'knabbel_few_shot_examples', array() );
+	if ( $max_count <= 0 || ! is_array( $cached ) ) {
+		return array();
+	}
+
+	$candidates = array();
+	foreach ( $cached as $candidate ) {
+		if ( ! is_array( $candidate ) ) {
+			continue;
+		}
+
+		$normalized = normalize_few_shot_candidate( $candidate );
+		if ( null === $normalized || ( $excluded_post_id > 0 && $normalized['post_id'] === $excluded_post_id ) ) {
+			continue;
+		}
+		$candidates[] = $normalized;
+	}
+
+	return select_example_mix( $candidates, $max_count );
 }

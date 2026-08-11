@@ -21,7 +21,7 @@ parameters:
     StoryStateUpdate: 'array{status?: string, story_id?: string, message?: string, generated_speech_text?: string, last_sync_error?: LastSyncError|null}'
     RecentError: 'array{timestamp: string, component: string, message: string, context: array<string, mixed>}'
     # Few-shot types
-    FewShotExample: 'array{input: string, output: string, edit_score: float, word_count: int}'
+    FewShotCandidate: 'array{post_id: int, input: string, output: string, edit_score: float, original_word_count: int, output_word_count: int, sentence_count: int, provenance: "accepted"|"edited"}'
     # HTTP types
     WpHttpArgs: 'array{method?: string, headers?: array<string, string>, body?: string, timeout?: int, cookies?: array<mixed>}'
     WpHttpResponse: 'array<string, mixed>'
