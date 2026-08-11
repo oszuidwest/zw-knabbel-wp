@@ -31,6 +31,7 @@ Publishes selected WordPress posts as radio stories in the [Babbel API](https://
 ```bash
 composer install
 npm install
+composer test
 vendor/bin/phpcs
 composer phpstan
 npm run lint

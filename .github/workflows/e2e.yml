@@ -17,6 +17,18 @@ name: Babbel E2E
       - 'tests/e2e/**'
       - '.github/workflows/e2e.yml'
   pull_request:
+    paths:
+      - '**/*.php'
+      - 'assets/**'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'playwright.config.ts'
+      - 'tsconfig.json'
+      - 'tests/playwright/**'
+      - 'tests/e2e/**'
+      - '.github/workflows/e2e.yml'
   schedule:
     - cron: '30 4 * * 0'
   workflow_dispatch:
@@ -45,7 +57,9 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: oszuidwest/zwfm-babbel
-          ref: main
+          # Pull requests use a known-compatible contract. The weekly run follows
+          # main so upstream compatibility regressions remain visible.
+          ref: ${{ github.event_name == 'schedule' && 'main' || '326b0ba59cfbea10e9a9eeb91d13d58db8c7fdc3' }}
           path: zwfm-babbel
           persist-credentials: false
 

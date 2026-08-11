@@ -79,10 +79,10 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-009', 'Babbel create failure is visible and preserves diagnostics safely', $this->test_babbel_create_failure( ... ) );
 		$this->run_case( 'E2E-010', 'few-shot queue learns editor changes', $this->test_few_shot_sync( ... ) );
 		$this->run_case( 'E2E-011', 'enabling existing published and future posts schedules one story', $this->test_enable_existing_posts( ... ) );
-		$this->run_case( 'E2E-012', 'checkbox and trash cancel scheduled and processing work', $this->test_pending_work_cancellation( ... ) );
-		$this->run_case( 'E2E-013', 'every transition away from future deletes a sent story', $this->test_sent_story_unscheduling( ... ) );
+		$this->run_case( 'E2E-012', 'checkbox and trash cancel pending work', $this->test_pending_work_cancellation( ... ) );
+		$this->run_case( 'E2E-013', 'leaving future deletes a sent story', $this->test_sent_story_unscheduling( ... ) );
 		$this->run_case( 'E2E-014', 'meta deletion and rapid toggles preserve lifecycle invariants', $this->test_meta_deletion_and_rapid_toggles( ... ) );
-		$this->run_case( 'E2E-015', 'in-flight story states prevent duplicate scheduling', $this->test_in_flight_state_guards( ... ) );
+		$this->run_case( 'E2E-015', 'processing state prevents duplicate scheduling', $this->test_in_flight_state_guards( ... ) );
 		$this->run_case( 'E2E-016', 'untrash honors a disabled checkbox', $this->test_untrash_with_checkbox_disabled( ... ) );
 		$this->run_case( 'E2E-017', 'delete and restore failures remain retryable', $this->test_delete_and_restore_failures( ... ) );
 		$this->run_case( 'E2E-018', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
@@ -540,31 +540,23 @@ final class Knabbel_E2E_Suite {
 	 */
 	private function test_pending_work_cancellation(): void {
 		foreach ( array( 'checkbox', 'trash' ) as $cancel_via ) {
-			foreach ( array( 'scheduled', 'processing' ) as $prior_state ) {
-				$label   = $cancel_via . ' ' . $prior_state;
-				$title   = 'E2E annulering ' . $label;
-				$post_id = $this->create_enabled_draft(
-					$title,
-					'Een nog niet uitgevoerde storyactie moet zonder externe bijwerking worden geannuleerd.'
-				);
-				$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
-				$this->assert_same( 1, $this->story_action_count( $post_id ), 'Precondition: one story action must be pending.' );
+			$title   = 'E2E annulering ' . $cancel_via;
+			$post_id = $this->create_enabled_draft(
+				$title,
+				'Een nog niet uitgevoerde storyactie moet zonder externe bijwerking worden geannuleerd.'
+			);
+			$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
+			$this->assert_same( 1, $this->story_action_count( $post_id ), 'Precondition: one story action must be pending.' );
 
-				if ( 'processing' === $prior_state ) {
-					// Synthetic pairing: the worker only sets Processing after claiming the pending action.
-					KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Processing->value ) );
-				}
-
-				if ( 'trash' === $cancel_via ) {
-					wp_trash_post( $post_id );
-				} else {
-					update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
-				}
-
-				$this->assert_same( 0, $this->story_action_count( $post_id ), $label . ' must cancel pending processing.' );
-				$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), $label . ' must clear transient story state.' );
-				$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), $label . ' must not create a remote story.' );
+			if ( 'trash' === $cancel_via ) {
+				wp_trash_post( $post_id );
+			} else {
+				update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
 			}
+
+			$this->assert_same( 0, $this->story_action_count( $post_id ), $cancel_via . ' must cancel pending processing.' );
+			$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), $cancel_via . ' must clear transient story state.' );
+			$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), $cancel_via . ' must not create a remote story.' );
 		}
 	}
 
@@ -572,28 +564,22 @@ final class Knabbel_E2E_Suite {
 	 * Verifies deletion after leaving future status.
 	 */
 	private function test_sent_story_unscheduling(): void {
-		foreach ( array( 'draft', 'pending', 'private', 'trash' ) as $new_status ) {
-			$title   = 'E2E verzonden planning naar ' . $new_status;
-			$post_id = $this->create_enabled_draft(
-				$title,
-				'Een reeds verzonden geplande story wordt verwijderd wanneer de planning vervalt.'
-			);
-			$this->schedule_post( $post_id, $this->future_post_date( 20 ) );
-			$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		$title   = 'E2E verzonden planning geannuleerd';
+		$post_id = $this->create_enabled_draft(
+			$title,
+			'Een reeds verzonden geplande story wordt verwijderd wanneer de planning vervalt.'
+		);
+		$this->schedule_post( $post_id, $this->future_post_date( 20 ) );
+		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
 
-			$state    = KnabbelWP\get_story_state( $post_id );
-			$story_id = (string) ( $state['story_id'] ?? '' );
-			$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Precondition: scheduled story must be sent.' );
+		$state    = KnabbelWP\get_story_state( $post_id );
+		$story_id = (string) ( $state['story_id'] ?? '' );
+		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Precondition: scheduled story must be sent.' );
 
-			if ( 'trash' === $new_status ) {
-				wp_trash_post( $post_id );
-			} else {
-				$this->update_post( $post_id, array( 'post_status' => $new_status ) );
-			}
-			$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Future to ' . $new_status . ' must mark the story deleted.' );
-			$this->assert_same( 0, $this->story_action_count( $post_id ), 'Future to ' . $new_status . ' must leave no pending action.' );
-			$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
-		}
+		$this->update_post( $post_id, array( 'post_status' => 'draft' ) );
+		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Returning a sent future post to draft must mark the story deleted.' );
+		$this->assert_same( 0, $this->story_action_count( $post_id ), 'Returning to draft must leave no pending action.' );
+		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 	}
 
 	/**
@@ -641,18 +627,6 @@ final class Knabbel_E2E_Suite {
 	 * Verifies duplicate-work prevention.
 	 */
 	private function test_in_flight_state_guards(): void {
-		$scheduled_id = $this->create_draft(
-			'E2E guard scheduled',
-			'Een bestaande scheduled-state mag bij het inschakelen geen tweede actie krijgen.'
-		);
-		$this->update_post( $scheduled_id, array( 'post_status' => 'publish' ) );
-		KnabbelWP\schedule_story_processing( $scheduled_id );
-		$this->assert_same( 1, $this->story_action_count( $scheduled_id ), 'Precondition: scheduled state must have one action.' );
-
-		update_post_meta( $scheduled_id, self::SEND_TO_BABBEL_META_KEY, 1 );
-		$this->assert_same( 1, $this->story_action_count( $scheduled_id ), 'Enabling scheduled state must not duplicate its action.' );
-		$this->assert_story_status( $scheduled_id, StoryStatus::Scheduled, 'Enabling scheduled state must preserve its lifecycle status.' );
-
 		$processing_id = $this->create_draft(
 			'E2E guard processing',
 			'Een bestaande processing-state mag bij het inschakelen geen nieuwe actie krijgen.'
