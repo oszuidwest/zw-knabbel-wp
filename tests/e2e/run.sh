@@ -132,6 +132,7 @@ wp core install \
 	--skip-email
 wp option update timezone_string Europe/Amsterdam
 wp plugin install ai-provider-for-openai --version=1.0.3 --activate
+wp plugin install classic-editor --version=1.7.0 --activate
 wp plugin activate zw-knabbel-wp
 wp option update connectors_ai_openai_api_key e2e-openai-key
 # The dollar-prefixed variables are evaluated by PHP inside the container.
