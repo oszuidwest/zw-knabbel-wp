@@ -397,30 +397,6 @@
 }
 
 /* ==========================================================================
-   ACF Integration - radionieuws metabox injection
-   ========================================================================== */
-
-/* Hide the original metabox when injected into ACF */
-#knabbel-radionieuws {
-    display: none !important;
-}
-
-/* Force first two ACF fields to 33.33% width and stay on same row */
-#acf-group_5f21a05a18b57 .acf-fields > .acf-field:first-child,
-#acf-group_5f21a05a18b57 .acf-fields > .acf-field:nth-child(2) {
-    width: 33.33% !important;
-    float: left !important;
-}
-
-/* Style our injected radionieuws field to match */
-.knabbel-radionieuws-injected {
-    width: 33.33% !important;
-    min-height: 81px !important;
-    float: left !important;
-    box-sizing: border-box !important;
-}
-
-/* ==========================================================================
    Settings Page - Card-based Layout
    ========================================================================== */
 

@@ -1,7 +1,7 @@
 /**
  * Knabbel WP Admin JavaScript
  *
- * Handles API testing, weekday toggles, and ACF integration.
+ * Handles API testing and weekday toggles.
  */
 
 (() => {
@@ -79,73 +79,6 @@
     }
 
     /**
-     * ACF Integration - Inject radionieuws checkbox into ACF field group
-     */
-    function initAcfIntegration() {
-        const radionieuwsBox = document.getElementById('knabbel-radionieuws');
-        if (!radionieuwsBox) return;
-
-        // Wait for ACF to load
-        setTimeout(() => {
-            const acfBox = document.querySelector(
-                '#acf-group_5f21a05a18b57 .acf-fields',
-            );
-            const inside = radionieuwsBox.querySelector('.inside');
-
-            if (
-                !acfBox ||
-                !inside ||
-                document.querySelector('.knabbel-radionieuws-injected')
-            ) {
-                return;
-            }
-
-            // Build wrapper matching ACF's own field structure using DOM methods.
-            // The first ACF field ("Toon in kabelkrant") is 50% wide,
-            // leaving 50% empty space for our checkbox on the same row.
-            const wrapper = document.createElement('div');
-            wrapper.className =
-                'acf-field acf-field-true-false knabbel-radionieuws-injected -r0';
-            wrapper.dataset.width = '50';
-            wrapper.style.width = '50%';
-            wrapper.style.minHeight = '0';
-
-            const acfLabel = document.createElement('div');
-            acfLabel.className = 'acf-label';
-            const labelEl = document.createElement('label');
-            labelEl.textContent = 'Radionieuws';
-            acfLabel.appendChild(labelEl);
-
-            const acfInput = document.createElement('div');
-            acfInput.className = 'acf-input';
-            const trueFalse = document.createElement('div');
-            trueFalse.className = 'acf-true-false';
-            acfInput.appendChild(trueFalse);
-
-            wrapper.appendChild(acfLabel);
-            wrapper.appendChild(acfInput);
-
-            // Move (not clone) checkbox and hidden input to ACF area.
-            // This ensures only one checkbox exists in the form.
-            const checkbox = inside.querySelector('input[type="checkbox"]');
-            const hidden = inside.querySelector('input[type="hidden"]');
-
-            if (checkbox) {
-                const inputLabel = document.createElement('label');
-                if (hidden) inputLabel.appendChild(hidden);
-                inputLabel.appendChild(checkbox);
-                trueFalse.appendChild(inputLabel);
-            }
-
-            // Insert after the first field to fill its empty 50% space.
-            const firstField = acfBox.querySelector('.acf-field:first-child');
-            if (firstField) {
-                firstField.insertAdjacentElement('afterend', wrapper);
-            }
-        }, 200);
-    }
-
-    /**
      * Initialize on DOM ready
      */
     if (document.readyState === 'loading') {
@@ -157,6 +90,5 @@
     function init() {
         initApiTest();
         initWeekdayToggles();
-        initAcfIntegration();
     }
 })();

@@ -24,26 +24,6 @@ add_filter(
 	2
 );
 
-add_action(
-	'add_meta_boxes_post',
-	static function (): void {
-		add_meta_box(
-			// This exact ID is load-bearing: assets/admin.js and assets/admin.css
-			// target #acf-group_5f21a05a18b57 (the production ACF group) to inject
-			// the radionieuws checkbox, and the original metabox is hidden
-			// unconditionally. Without a box of this ID the checkbox is unusable.
-			'acf-group_5f21a05a18b57',
-			'Knabbel E2E article fields',
-			static function (): void {
-				echo '<div class="acf-fields"><div class="acf-field"></div></div>';
-			},
-			'post',
-			'normal',
-			'high'
-		);
-	}
-);
-
 /**
  * Run due Action Scheduler actions for a hook and fail loudly on errors.
  *

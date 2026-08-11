@@ -49,14 +49,6 @@ function metabox_enqueue_assets( string $hook ): void {
 		array(),
 		KNABBEL_VERSION
 	);
-
-	wp_enqueue_script(
-		'zw-knabbel-wp-admin',
-		KNABBEL_PLUGIN_URL . 'assets/admin.js',
-		array(),
-		KNABBEL_VERSION,
-		true
-	);
 }
 
 /**
