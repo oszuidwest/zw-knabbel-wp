@@ -447,6 +447,8 @@ function get_story_sync_error( array $state ): ?array {
  * @since 0.4.0
  * @param array<string, mixed>|null $sync_error Sync error data.
  * @return bool Whether the sync error can be rendered.
+ *
+ * @phpstan-assert-if-true !null $sync_error
  */
 function is_story_sync_error_renderable( ?array $sync_error ): bool {
 	return null !== $sync_error

@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @since 0.1.0
  */
 function metabox_init(): void {
-	add_action( 'add_meta_boxes', __NAMESPACE__ . '\\metabox_add' );
+	add_action( 'post_submitbox_misc_actions', __NAMESPACE__ . '\\submitbox_render' );
 	add_action( 'add_meta_boxes', __NAMESPACE__ . '\\metabox_add_status' );
 	add_action( 'save_post', __NAMESPACE__ . '\\metabox_save' );
 	add_action( 'admin_enqueue_scripts', __NAMESPACE__ . '\\metabox_enqueue_assets' );
@@ -52,22 +52,6 @@ function metabox_enqueue_assets( string $hook ): void {
 }
 
 /**
- * Adds the Radionieuws metabox to the post edit screen.
- *
- * @since 0.1.0
- */
-function metabox_add(): void {
-	add_meta_box(
-		'knabbel-radionieuws',
-		__( 'Radio News', 'zw-knabbel-wp' ),
-		__NAMESPACE__ . '\\metabox_render',
-		'post',
-		'side',
-		'high'
-	);
-}
-
-/**
  * Adds the per-post status metabox when Debug Mode is enabled.
  *
  * @since 0.1.0
@@ -88,32 +72,46 @@ function metabox_add_status(): void {
 }
 
 /**
- * Displays the Radionieuws metabox content.
+ * Displays the Radionieuws control in the Publish metabox.
  *
  * @since 0.1.0
  *
  * @param \WP_Post $post The current post object.
  */
-function metabox_render( \WP_Post $post ): void {
-		wp_nonce_field( 'knabbel_metabox_nonce', 'knabbel_nonce' );
-
-		$send_to_babbel = get_post_meta( $post->ID, '_zw_knabbel_send_to_babbel', true );
-		$state          = get_story_state( $post->ID );
-		$sync_error     = get_story_sync_error( $state );
-
-		echo '<p>';
-		echo '<label for="knabbel_send_to_babbel">';
-		echo '<input type="checkbox" id="knabbel_send_to_babbel" name="knabbel_send_to_babbel" value="1" ' . checked( 1, $send_to_babbel, false ) . ' />';
-		echo ' ' . esc_html__( 'Radio News', 'zw-knabbel-wp' );
-		echo '</label>';
-		echo '</p>';
-
-	if ( is_story_sync_error_renderable( $sync_error ) && null !== $sync_error ) {
-		echo '<div class="knabbel-sync-warning" role="alert">';
-		echo '<strong>' . esc_html__( 'Babbel sync warning', 'zw-knabbel-wp' ) . '</strong>';
-		echo '<div>' . esc_html( $sync_error['message'] ) . '</div>';
-		echo '</div>';
+function submitbox_render( \WP_Post $post ): void {
+	if ( 'post' !== $post->post_type ) {
+		return;
 	}
+
+	$send_to_babbel = (bool) get_post_meta( $post->ID, '_zw_knabbel_send_to_babbel', true );
+	$state          = get_story_state( $post->ID );
+	$sync_error     = get_story_sync_error( $state );
+
+	wp_nonce_field( 'knabbel_metabox_nonce', 'knabbel_nonce' );
+	?>
+	<div class="misc-pub-section misc-pub-knabbel">
+		<span class="dashicons dashicons-microphone" aria-hidden="true"></span>
+		<label for="knabbel_send_to_babbel"><?php esc_html_e( 'Radio News', 'zw-knabbel-wp' ); ?>:</label>
+		<input
+			type="checkbox"
+			id="knabbel_send_to_babbel"
+			name="knabbel_send_to_babbel"
+			value="1"
+			<?php checked( $send_to_babbel ); ?>
+		/>
+		<label class="knabbel-submitbox-toggle" for="knabbel_send_to_babbel">
+			<span class="knabbel-submitbox-toggle-enabled" aria-hidden="true"><?php esc_html_e( 'Yes', 'zw-knabbel-wp' ); ?></span>
+			<span class="knabbel-submitbox-toggle-disabled" aria-hidden="true"><?php esc_html_e( 'No', 'zw-knabbel-wp' ); ?></span>
+		</label>
+
+		<?php if ( is_story_sync_error_renderable( $sync_error ) ) : ?>
+			<div class="knabbel-sync-warning" role="alert">
+				<strong><?php esc_html_e( 'Babbel sync warning', 'zw-knabbel-wp' ); ?></strong>
+				<div><?php echo esc_html( $sync_error['message'] ); ?></div>
+			</div>
+		<?php endif; ?>
+	</div>
+	<?php
 }
 
 /**
@@ -173,7 +171,7 @@ function metabox_render_status( \WP_Post $post ): void {
 				?>
 			</li>
 			<?php endif; ?>
-			<?php if ( is_story_sync_error_renderable( $sync_error ) && null !== $sync_error ) : ?>
+			<?php if ( is_story_sync_error_renderable( $sync_error ) ) : ?>
 			<li>
 				<strong><?php esc_html_e( 'Last sync error', 'zw-knabbel-wp' ); ?>:</strong>
 				<div class="knabbel-sync-warning">
