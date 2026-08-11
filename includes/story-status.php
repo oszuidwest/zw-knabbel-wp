@@ -1,6 +1,6 @@
 <?php
 /**
- * Story status enum definition
+ * Story processing status definitions.
  *
  * Defines the possible processing states for stories sent to the Babbel API.
  *
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Represents the processing status for a story.
+ * Represents the processing status of a story.
  *
  * @since 0.1.0
  */

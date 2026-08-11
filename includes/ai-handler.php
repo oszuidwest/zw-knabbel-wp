@@ -1,6 +1,6 @@
 <?php
 /**
- * WordPress AI Client integration
+ * WordPress AI Client integration for speech-text generation.
  *
  * Handles provider-independent speech text generation through WordPress Core.
  *
@@ -28,7 +28,7 @@ const AI_DEFAULT_INSTRUCTION = "Transformeer naar natuurlijke radiospreektekst m
 const AI_ARTICLE_PROMPT      = "Artikel:\n\"\"\"\n%s\n\"\"\"";
 
 /**
- * Get configured AI models that support text generation.
+ * Returns configured text-generation models.
  *
  * Model keys are "provider/model" setting values as understood by ai_parse_model_setting().
  *
@@ -68,7 +68,7 @@ function ai_get_available_models(): array {
 }
 
 /**
- * Parse a "provider/model" ai_model setting value into a model preference tuple.
+ * Parses a provider and model preference.
  *
  * @since 0.6.0
  * @param mixed $value The stored setting value.
@@ -84,7 +84,7 @@ function ai_parse_model_setting( mixed $value ): ?array {
 }
 
 /**
- * Generate speech text through the WordPress AI Client.
+ * Generates speech text through the WordPress AI Client.
  *
  * @since 0.1.0
  * @param string $content The source content.

@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Weekday bitmask values per Babbel API specification.
+ * Defines the Babbel weekday bitmask values.
  * Each day is a power of 2, starting with Sunday.
  */
 const WEEKDAY_SUNDAY    = 1;
@@ -27,7 +27,7 @@ const WEEKDAY_SATURDAY  = 64;
 const WEEKDAY_ALL       = 127;
 
 /**
- * Mapping of day names to bitmask values.
+ * Maps day names to bitmask values.
  * Order matches the bit positions (Sunday = bit 0).
  */
 const WEEKDAY_MAP = array(
@@ -41,7 +41,7 @@ const WEEKDAY_MAP = array(
 );
 
 /**
- * Convert plugin settings to weekdays bitmask.
+ * Converts plugin settings to a weekday bitmask.
  *
  * @since 0.1.0
  * @param array<string, mixed> $options Plugin settings array.

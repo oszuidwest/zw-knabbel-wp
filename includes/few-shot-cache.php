@@ -1,6 +1,6 @@
 <?php
 /**
- * Few-shot example cache for AI prompt improvement
+ * Few-shot example caching for AI prompt improvement.
  *
  * Syncs editor-corrected stories from the Babbel API with their original WordPress
  * source content to build few-shot examples for AI speech text generation.
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Register the Action Scheduler hook for nightly few-shot sync.
+ * Registers the nightly synchronization hook.
  *
  * @since 0.3.0
  */
@@ -27,9 +27,7 @@ function few_shot_register_hook(): void {
 }
 
 /**
- * Schedule the nightly few-shot example sync.
- *
- * Uses Action Scheduler for reliable recurring execution.
+ * Schedules the nightly example synchronization.
  *
  * @since 0.3.0
  */
@@ -46,7 +44,7 @@ function few_shot_schedule_sync(): void {
 }
 
 /**
- * Unschedule the few-shot sync and clean up cached data.
+ * Cancels synchronization and clears cached examples.
  *
  * @since 0.3.0
  */
@@ -57,7 +55,7 @@ function few_shot_unschedule_sync(): void {
 }
 
 /**
- * Sync few-shot examples from Babbel API.
+ * Refreshes examples from the Babbel API.
  *
  * Fetches recent editor-reviewed stories, matches them with their original
  * WordPress posts, calculates edit-intensity scores, and caches the best
@@ -139,7 +137,7 @@ function sync_few_shot_examples(): void {
 }
 
 /**
- * Build few-shot candidates by matching Babbel stories with WordPress posts.
+ * Matches Babbel stories with WordPress posts.
  *
  * @since 0.3.0
  * @param array<int, array<string, mixed>> $stories Stories from the Babbel API.
@@ -203,7 +201,7 @@ function build_few_shot_candidates( array $stories ): array {
 }
 
 /**
- * Calculate edit-intensity score between AI-generated and editor-corrected text.
+ * Measures AI-to-editor text changes.
  *
  * Uses similar_text() to measure the percentage of difference.
  * A score of 0% means identical, 100% means completely rewritten.
@@ -226,7 +224,7 @@ function calculate_edit_score( string $ai_text, string $editor_text ): float {
 }
 
 /**
- * Select diverse examples ensuring a mix of short and long articles.
+ * Selects a mix of short and long articles.
  *
  * Splits candidates into short and long halves by word count, then picks
  * the highest-scoring examples from each half alternately.
