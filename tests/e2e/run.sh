@@ -131,7 +131,7 @@ wp core install \
 	--locale=en_US \
 	--skip-email
 wp option update timezone_string Europe/Amsterdam
-wp plugin install ai-provider-for-openai --version=1.0.3 --activate
+wp plugin install ai-provider-for-openai --activate
 wp plugin install classic-editor --activate
 wp plugin activate zw-knabbel-wp
 wp option update connectors_ai_openai_api_key e2e-openai-key
