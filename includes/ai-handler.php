@@ -5,7 +5,7 @@
  * Handles provider-independent speech text generation through WordPress Core.
  *
  * @package KnabbelWP
- * @since   0.0.1
+ * @since   0.5.0
  */
 
 declare(strict_types=1);
@@ -86,7 +86,7 @@ function ai_parse_model_setting( mixed $value ): ?array {
 /**
  * Generates speech text through the WordPress AI Client.
  *
- * @since 0.1.0
+ * @since 0.5.0
  * @param string $content The source content.
  * @return string|null The generated content or null on failure.
  */

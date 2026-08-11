@@ -5,7 +5,7 @@
  * Manages plugin settings page, field registration, sanitization, and validation.
  *
  * @package KnabbelWP
- * @since   0.0.1
+ * @since   0.1.0
  */
 
 declare(strict_types=1);
@@ -30,7 +30,7 @@ function settings_init(): void {
 /**
  * Clears recent errors for an administrator.
  *
- * @since 0.4.0
+ * @since 0.5.0
  */
 function handle_clear_recent_errors(): void {
 	if ( ! current_user_can( 'manage_options' ) ) {
@@ -248,7 +248,7 @@ function settings_page(): void {
  * Only top-level fields are rendered. Stored context remains intentionally
  * hidden so nested API data can never become an unfiltered admin output path.
  *
- * @since 0.4.0
+ * @since 0.5.0
  */
 function render_recent_errors(): void {
 	if ( ! current_user_can( 'manage_options' ) ) {
@@ -330,7 +330,7 @@ function render_recent_errors(): void {
 /**
  * Returns the safe shape of a stored error.
  *
- * @since 0.4.0
+ * @since 0.5.0
  * @param mixed $entry Raw entry from the knabbel_recent_errors option.
  * @return array{timestamp: string, component: string, message: string}|null Normalized entry, or null when invalid.
  */
@@ -352,7 +352,7 @@ function normalize_recent_error_entry( mixed $entry ): ?array {
 /**
  * Displays the Babbel API settings card.
  *
- * @since 0.1.05
+ * @since 0.1.0
  * @param array<string, mixed> $settings Current settings.
  */
 function render_babbel_api_card( array $settings ): void {
@@ -437,7 +437,7 @@ function render_babbel_api_card( array $settings ): void {
 /**
  * Displays the AI settings card.
  *
- * @since 0.1.05
+ * @since 0.5.0
  * @param array<string, mixed> $settings Current settings.
  */
 function render_ai_card( array $settings ): void {
@@ -527,7 +527,7 @@ function render_ai_card( array $settings ): void {
 /**
  * Displays the story defaults card.
  *
- * @since 0.1.05
+ * @since 0.1.0
  * @param array<string, mixed> $settings Current settings.
  */
 function render_defaults_card( array $settings ): void {
@@ -621,7 +621,7 @@ function render_defaults_card( array $settings ): void {
 /**
  * Displays the Verzonden Artikelen card.
  *
- * @since 0.1.05
+ * @since 0.1.0
  */
 function render_articles_overview(): void {
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Debug post selector, no state change.

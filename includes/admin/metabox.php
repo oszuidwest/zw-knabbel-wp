@@ -6,7 +6,7 @@
  * This file is only loaded in admin context.
  *
  * @package KnabbelWP
- * @since   0.0.1
+ * @since   0.1.0
  */
 
 declare(strict_types=1);
@@ -72,7 +72,7 @@ function metabox_add_status(): void {
 /**
  * Displays the Radionieuws control in the Publish metabox.
  *
- * @since 0.1.0
+ * @since 0.6.0
  *
  * @param \WP_Post $post The current post object.
  */

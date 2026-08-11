@@ -6,7 +6,7 @@
  * This file is NOT loaded at runtime and is excluded from release builds.
  *
  * @package KnabbelWP
- * @since   0.0.1
+ * @since   0.1.0
  *
  * phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
  */

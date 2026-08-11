@@ -5,7 +5,7 @@
  * Handles authentication, session management, and API communication with the Babbel API.
  *
  * @package KnabbelWP
- * @since   0.0.1
+ * @since   0.1.0
  */
 
 declare(strict_types=1);
@@ -36,7 +36,7 @@ function babbel_get_credentials(): array {
 /**
  * Builds the session transient key.
  *
- * @since 0.1.0
+ * @since 0.5.0
  * @param array{base_url: string, username: string, password: string}|null $credentials Optional credential snapshot.
  * @return string Transient key.
  *

@@ -3,7 +3,7 @@
  * Plugin Name: ZuidWest Knabbel
  * Plugin URI: https://github.com/oszuidwest/zw-knabbel-wp
  * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Gebruikt de WordPress AI Client voor AI-gegenereerde content.
- * Version: 0.5.0
+ * Version: 0.6.0
  * Requires at least: 7.0
  * Requires PHP: 8.3
  * Requires Plugins: classic-editor
@@ -66,7 +66,7 @@ function debug_enabled(): bool {
  * Debug logs retain the complete context, but persistent production data is
  * limited to known diagnostic fields and excludes response/request bodies.
  *
- * @since 0.4.0
+ * @since 0.5.0
  * @param array<string, mixed> $context Raw log context.
  * @return array<string, mixed> Safe context for persistent storage.
  *
@@ -83,7 +83,7 @@ function prepare_log_context_for_storage( array $context ): array {
 /**
  * Sanitizes textual diagnostic context.
  *
- * @since 0.4.0
+ * @since 0.5.0
  * @param array<string, mixed> $context Raw log context.
  * @return array<string, string>
  */
@@ -114,7 +114,7 @@ function prepare_log_text_context( array $context ): array {
 /**
  * Sanitizes scalar diagnostic context.
  *
- * @since 0.4.0
+ * @since 0.5.0
  * @param array<string, mixed> $context Raw log context.
  * @return array<string, int|bool>
  */
@@ -133,7 +133,7 @@ function prepare_log_scalar_context( array $context ): array {
 /**
  * Sanitizes list-valued diagnostic context.
  *
- * @since 0.4.0
+ * @since 0.5.0
  * @param array<string, mixed> $context Raw log context.
  * @return array<string, list<string>>
  */
@@ -158,7 +158,7 @@ function prepare_log_list_context( array $context ): array {
  * This also normalizes legacy entries before they are written back, ensuring
  * previously stored response bodies do not remain in the rolling list.
  *
- * @since 0.4.0
+ * @since 0.5.0
  * @param array<string, mixed> $entry Raw error entry.
  * @return array<string, mixed>|null Sanitized entry, or null when invalid.
  *
@@ -185,7 +185,7 @@ function prepare_recent_error_for_storage( array $entry ): ?array {
 /**
  * Normalizes a stored error history.
  *
- * @since 0.4.0
+ * @since 0.5.0
  * @param mixed $stored_errors Stored option value.
  * @return list<array<string, mixed>>
  *
@@ -218,7 +218,7 @@ function prepare_error_history( mixed $stored_errors ): array {
  * overwrites another request's entry, while the small retry limit keeps error
  * bursts from adding unbounded latency to the request that emitted the log.
  *
- * @since 0.4.0
+ * @since 0.5.0
  * @param array<string, mixed> $new_error Prepared error entry.
  *
  * @phpstan-param RecentError $new_error
@@ -392,7 +392,7 @@ function get_story_state( int $post_id ): array {
 /**
  * Builds a bounded error for persistent story state.
  *
- * @since 0.4.0
+ * @since 0.5.0
  * @param string $message   Error message to show to operators and editors.
  * @param string $operation Sync operation: create, update, restore, or delete.
  * @return array{message: string, occurred_at: string, operation: string} Sync error data.
@@ -413,7 +413,7 @@ function build_story_sync_error( string $message, string $operation ): array {
 /**
  * Returns a valid sync error from story state.
  *
- * @since 0.4.0
+ * @since 0.5.0
  * @param array<string, mixed> $state Story state data.
  * @return array{message: string, occurred_at: string, operation: string}|null Sync error, or null when absent or malformed.
  *
@@ -438,7 +438,7 @@ function get_story_sync_error( array $state ): ?array {
 /**
  * Reports whether an error can be rendered.
  *
- * @since 0.4.0
+ * @since 0.5.0
  * @param array<string, mixed>|null $sync_error Sync error data.
  * @return bool Whether the sync error can be rendered.
  *
