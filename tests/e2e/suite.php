@@ -339,9 +339,10 @@ final class Knabbel_E2E_Suite {
 		$recent_errors = get_option( 'knabbel_recent_errors', array() );
 		$this->assert_same( true, ! empty( $recent_errors ), 'A synchronization failure must be visible in recent errors.' );
 		$error_json = wp_json_encode( $recent_errors );
+		$this->assert_same( true, is_string( $error_json ), 'Persistent diagnostics must be JSON-encodable.' );
 		$this->assert_same(
 			true,
-			! is_string( $error_json ) || ! str_contains( $error_json, 'definitely-wrong-password' ),
+			is_string( $error_json ) && ! str_contains( $error_json, 'definitely-wrong-password' ),
 			'Persistent diagnostics must never contain the Babbel password.'
 		);
 
@@ -494,9 +495,10 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 'create', $state['last_sync_error']['operation'] ?? null, 'Babbel create failure must identify the operation.' );
 		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'Rejected authentication must not create a story.' );
 		$error_json = wp_json_encode( get_option( 'knabbel_recent_errors', array() ) );
+		$this->assert_same( true, is_string( $error_json ), 'Recent errors must be JSON-encodable.' );
 		$this->assert_same(
 			true,
-			! is_string( $error_json ) || ! str_contains( $error_json, 'wrong-create-password' ),
+			is_string( $error_json ) && ! str_contains( $error_json, 'wrong-create-password' ),
 			'Recent errors must exclude failed credentials.'
 		);
 

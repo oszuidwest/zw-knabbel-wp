@@ -61,21 +61,16 @@ require_once dirname( __DIR__, 2 ) . '/includes/few-shot-selection.php';
 		'Fallback selection must not reintroduce edited examples below the minimum edit score.'
 	);
 	$ensure( array() === KnabbelWP\select_example_mix( $candidates, 0 ), 'A zero example count must select nothing.' );
+	$valid_candidate = $candidates[6];
 	foreach (
 		array(
-			array(
-				'post_id' => 99,
-				'input'   => 'Bron zonder score',
-				'output'  => 'Uitvoer zonder score. Deze cachewaarde is niet bruikbaar.',
-			),
-			array(
-				'input'      => 'Bron zonder WordPress-bericht',
-				'output'     => 'Uitvoer zonder WordPress-bericht. Deze cachewaarde is niet veilig uit te sluiten.',
-				'edit_score' => 12.0,
-			),
-		) as $invalid_candidate
+			'post_id'    => 'A cached candidate without a WordPress post ID must be rejected.',
+			'edit_score' => 'A cached candidate without an edit score must be rejected.',
+		) as $missing_key => $message
 	) {
-		$ensure( null === KnabbelWP\normalize_few_shot_candidate( $invalid_candidate ), 'Incomplete cached candidates must be rejected.' );
+		$invalid_candidate = $valid_candidate;
+		unset( $invalid_candidate[ $missing_key ] );
+		$ensure( null === KnabbelWP\normalize_few_shot_candidate( $invalid_candidate ), $message );
 	}
 	$ensure( 6 === KnabbelWP\few_shot_count_words( 'Er is 3,8 miljoen euro beschikbaar.' ), 'Decimal numbers must count as one word.' );
 	$ensure( 2 === KnabbelWP\few_shot_count_sentences( 'Het evenement begint vandaag. 365 kinderen doen mee.' ), 'Numeric sentences must count.' );
