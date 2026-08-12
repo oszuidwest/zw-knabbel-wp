@@ -71,6 +71,7 @@ function few_shot_count_sentences( string $text ): int {
  * Uses byte-level distance, sufficient for provenance and coarse ranking.
  *
  * @since 0.3.0
+ * @since 0.7.0 Normalizes inputs and uses Levenshtein distance.
  * @param string $ai_text     Original AI-generated text.
  * @param string $editor_text Text stored in Babbel.
  * @return float Percentage of difference (0.0 to 100.0).
@@ -130,6 +131,7 @@ function normalize_few_shot_candidate( array $candidate ): ?array {
  * Selects examples spanning output length, edit score, source length and sentences.
  *
  * @since 0.3.0
+ * @since 0.7.0 Diversifies across four metrics using the expanded candidate shape.
  * @param array<int, array<string, mixed>> $candidates Candidate examples.
  * @param int                              $max_count  Maximum examples to select.
  * @return array<int, array<string, mixed>> Selected examples.

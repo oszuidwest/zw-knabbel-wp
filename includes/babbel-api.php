@@ -672,6 +672,7 @@ function babbel_restore_story( string $story_id ): array {
  * edited first), which are most likely to have been reviewed by editors.
  *
  * @since 0.3.0
+ * @since 0.7.0 Replaced the `$limit` parameter with `$created_after` and added response validation.
  * @param string $created_after Inclusive ISO 8601 creation cutoff.
  * @return array<int, array<string, mixed>>|\WP_Error Array of story objects or WP_Error on failure.
  */

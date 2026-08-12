@@ -76,6 +76,7 @@ function few_shot_cutoff_timestamp(): int {
  * be excluded without reducing the configured example count.
  *
  * @since 0.3.0
+ * @since 0.7.0 Stores a recent candidate pool for per-request selection.
  */
 function sync_few_shot_examples(): void {
 	$stories = babbel_fetch_recent_stories( gmdate( DATE_ATOM, few_shot_cutoff_timestamp() ) );
@@ -115,6 +116,7 @@ function sync_few_shot_examples(): void {
  * Matches recent Babbel stories with their WordPress sources.
  *
  * @since 0.3.0
+ * @since 0.7.0 Added age, quality, duplicate, and provenance handling.
  * @param array<int, array<string, mixed>> $stories Stories from the Babbel API.
  * @return array<int, array<string, mixed>> Candidate examples.
  *

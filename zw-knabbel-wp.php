@@ -3,7 +3,7 @@
  * Plugin Name: ZuidWest Knabbel
  * Plugin URI: https://github.com/oszuidwest/zw-knabbel-wp
  * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Gebruikt de WordPress AI Client voor AI-gegenereerde content.
- * Version: 0.6.0
+ * Version: 0.7.0
  * Requires at least: 7.0
  * Requires PHP: 8.3
  * Requires Plugins: classic-editor
@@ -525,6 +525,7 @@ function admin_init(): void {
  * Returns defaults for the knabbel_settings option.
  *
  * @since 0.6.0
+ * @since 0.7.0 Removed the `few_shot_count` setting.
  * @return array<string, mixed> The default settings.
  */
 function default_settings(): array {
@@ -601,6 +602,7 @@ function deactivate(): void {
  * removed up to and including 0.7.0.
  *
  * @since 0.1.0
+ * @since 0.7.0 Removes the obsolete `few_shot_count` setting.
  */
 function cleanup_legacy_data(): void {
 	// Raw read on purpose: this rewrites the stored value, and reading through
@@ -641,6 +643,7 @@ function ajax_test_api(): void {
  * Generates and sends a story through Action Scheduler.
  *
  * @since 0.1.0
+ * @since 0.7.0 Excludes the current post from the AI few-shot examples.
  * @param int|array{post_id?: int} $post_id_or_args The WordPress post ID or Action Scheduler args array.
  */
 function process_story_async( int|array $post_id_or_args ): void {
