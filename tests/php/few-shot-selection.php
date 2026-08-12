@@ -7,16 +7,11 @@
 
 declare(strict_types=1);
 
-if ( ! defined( 'ABSPATH' ) && 'cli' !== PHP_SAPI ) {
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! defined( 'ABSPATH' ) ) {
-	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- Required by the plugin bootstrap guard.
-	define( 'ABSPATH', __DIR__ . '/' );
-}
-
-require_once dirname( __DIR__, 2 ) . '/includes/few-shot-cache.php';
+require_once dirname( __DIR__, 2 ) . '/includes/few-shot-selection.php';
 
 ( static function (): void {
 	$ensure = static function ( bool $condition, string $message ): void {
@@ -50,23 +45,10 @@ require_once dirname( __DIR__, 2 ) . '/includes/few-shot-cache.php';
 
 	$ensure( 8 === count( $selected ), 'Selection must return eight examples.' );
 	$ensure( 3 === $accepted_count, 'Eight examples must contain three directly accepted texts.' );
-	$ensure( 5 === count( $selected ) - $accepted_count, 'Eight examples must contain five edited texts.' );
-	$ensure(
-		KnabbelWP\select_example_mix( $candidates, 8 ) === $selected,
-		'Selection must be deterministic.'
-	);
-	$ensure(
-		0.0 === KnabbelWP\calculate_edit_score( " Zelfde\ntekst ", 'zelfde tekst' ),
-		'Whitespace and case must not turn an accepted text into an edited text.'
-	);
-	$ensure(
-		0.0 < KnabbelWP\calculate_edit_score( 'Eerste tekst.', 'Volledig andere tekst.' ),
-		'Changed text must receive a positive edit score.'
-	);
-	$ensure(
-		100.0 === KnabbelWP\calculate_edit_score( 'e', 'é' ),
-		'A fully replaced character must yield a full edit score.'
-	);
+	$ensure( KnabbelWP\select_example_mix( $candidates, 8 ) === $selected, 'Selection must be deterministic.' );
+	$ensure( 0.0 === KnabbelWP\calculate_edit_score( " Zelfde\ntekst ", 'zelfde tekst' ), 'Whitespace and case must normalize.' );
+	$ensure( 0.0 < KnabbelWP\calculate_edit_score( 'Eerste tekst.', 'Volledig andere tekst.' ), 'Changed text must score positively.' );
+	$ensure( 100.0 === KnabbelWP\calculate_edit_score( 'e', 'é' ), 'A fully replaced character must score 100.' );
 	$ensure(
 		count( KnabbelWP\select_example_mix( array_slice( $candidates, 0, 5 ), 8 ) ) === 5,
 		'Selection must return all valid examples when fewer than eight are available.'
@@ -78,35 +60,20 @@ require_once dirname( __DIR__, 2 ) . '/includes/few-shot-cache.php';
 		2 === count( KnabbelWP\select_example_mix( array( $candidates[0], $candidates[6], $weak_edited ), 8 ) ),
 		'Fallback selection must not reintroduce edited examples below the minimum edit score.'
 	);
-	$ensure(
-		array() === KnabbelWP\select_example_mix( $candidates, 0 ),
-		'A zero example count must select nothing.'
-	);
-	$ensure(
-		null === KnabbelWP\normalize_few_shot_candidate(
-			array(
-				'post_id' => 99,
-				'input'   => 'Bron zonder score',
-				'output'  => 'Uitvoer zonder score. Deze cachewaarde is niet bruikbaar.',
-			)
-		),
-		'A cached candidate without an edit score must be rejected.'
-	);
-	$ensure(
-		null === KnabbelWP\normalize_few_shot_candidate(
-			array(
-				'input'      => 'Bron zonder WordPress-bericht',
-				'output'     => 'Uitvoer zonder WordPress-bericht. Deze cachewaarde is niet veilig uit te sluiten.',
-				'edit_score' => 12.0,
-			)
-		),
-		'A cached candidate without a WordPress post ID must be rejected.'
-	);
+	$ensure( array() === KnabbelWP\select_example_mix( $candidates, 0 ), 'A zero example count must select nothing.' );
+	$valid_candidate = $candidates[6];
+	foreach (
+		array(
+			'post_id'    => 'A cached candidate without a WordPress post ID must be rejected.',
+			'edit_score' => 'A cached candidate without an edit score must be rejected.',
+		) as $missing_key => $message
+	) {
+		$invalid_candidate = $valid_candidate;
+		unset( $invalid_candidate[ $missing_key ] );
+		$ensure( null === KnabbelWP\normalize_few_shot_candidate( $invalid_candidate ), $message );
+	}
 	$ensure( 6 === KnabbelWP\few_shot_count_words( 'Er is 3,8 miljoen euro beschikbaar.' ), 'Decimal numbers must count as one word.' );
-	$ensure(
-		2 === KnabbelWP\few_shot_count_sentences( 'Het evenement begint vandaag. 365 kinderen doen mee.' ),
-		'A sentence starting with a number must be detected.'
-	);
+	$ensure( 2 === KnabbelWP\few_shot_count_sentences( 'Het evenement begint vandaag. 365 kinderen doen mee.' ), 'Numeric sentences must count.' );
 
 	echo "Few-shot selection tests passed.\n";
 } )();

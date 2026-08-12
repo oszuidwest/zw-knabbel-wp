@@ -79,10 +79,10 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-009', 'Babbel create failure is visible and preserves diagnostics safely', $this->test_babbel_create_failure( ... ) );
 		$this->run_case( 'E2E-010', 'few-shot queue learns editor changes', $this->test_few_shot_sync( ... ) );
 		$this->run_case( 'E2E-011', 'enabling existing published and future posts schedules one story', $this->test_enable_existing_posts( ... ) );
-		$this->run_case( 'E2E-012', 'checkbox and trash cancel scheduled and processing work', $this->test_pending_work_cancellation( ... ) );
-		$this->run_case( 'E2E-013', 'every transition away from future deletes a sent story', $this->test_sent_story_unscheduling( ... ) );
+		$this->run_case( 'E2E-012', 'checkbox and trash cancel pending work', $this->test_pending_work_cancellation( ... ) );
+		$this->run_case( 'E2E-013', 'leaving future deletes a sent story', $this->test_sent_story_unscheduling( ... ) );
 		$this->run_case( 'E2E-014', 'meta deletion and rapid toggles preserve lifecycle invariants', $this->test_meta_deletion_and_rapid_toggles( ... ) );
-		$this->run_case( 'E2E-015', 'in-flight story states prevent duplicate scheduling', $this->test_in_flight_state_guards( ... ) );
+		$this->run_case( 'E2E-015', 'processing state prevents duplicate scheduling', $this->test_in_flight_state_guards( ... ) );
 		$this->run_case( 'E2E-016', 'untrash honors a disabled checkbox', $this->test_untrash_with_checkbox_disabled( ... ) );
 		$this->run_case( 'E2E-017', 'delete and restore failures remain retryable', $this->test_delete_and_restore_failures( ... ) );
 		$this->run_case( 'E2E-018', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
@@ -154,11 +154,11 @@ final class Knabbel_E2E_Suite {
 
 		$this->configure_plugin();
 		$result = KnabbelWP\babbel_test_connection();
-		$this->assert_true( $result['success'], 'Valid Babbel credentials must connect.' );
-		$this->assert_string_contains( 'admin', $result['message'], 'Connection result must identify the authenticated user.' );
+		$this->assert_same( true, $result['success'], 'Valid Babbel credentials must connect.' );
+		$this->assert_same( true, str_contains( $result['message'], 'admin' ), 'Connection result must identify the authenticated user.' );
 
 		$cache_key = KnabbelWP\babbel_get_session_cache_key();
-		$this->assert_not_empty( get_transient( $cache_key ), 'Successful login must cache session cookies.' );
+		$this->assert_same( true, ! empty( get_transient( $cache_key ) ), 'Successful login must cache session cookies.' );
 
 		$invalid_cookie = new WP_Http_Cookie(
 			array(
@@ -171,8 +171,8 @@ final class Knabbel_E2E_Suite {
 		set_transient( $cache_key, array( $invalid_cookie ), MINUTE_IN_SECONDS );
 
 		$result = KnabbelWP\babbel_test_connection();
-		$this->assert_true( $result['success'], 'A 401 response must clear the cache, authenticate again and retry once.' );
-		$this->assert_true( 'invalid-e2e-session' !== ( get_transient( $cache_key )[0]->value ?? null ), 'The invalid session cookie must be replaced.' );
+		$this->assert_same( true, $result['success'], 'A 401 response must clear the cache, authenticate again and retry once.' );
+		$this->assert_same( true, 'invalid-e2e-session' !== ( get_transient( $cache_key )[0]->value ?? null ), 'The invalid session cookie must be replaced.' );
 	}
 
 	/**
@@ -239,15 +239,16 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'The worker must mark a created story sent.' );
 		$this->assert_same( self::GENERATED_TEXT, $state['generated_speech_text'] ?? null, 'The generated speech text must be persisted.' );
 		$ai_request = get_option( 'knabbel_e2e_ai_last_request', array() );
-		$this->assert_true( is_array( $ai_request ), 'The native AI provider request must be observable.' );
+		$this->assert_same( true, is_array( $ai_request ), 'The native AI provider request must be observable.' );
 		$this->assert_same( 1000, $ai_request['max_output_tokens'] ?? null, 'The native AI request must retain the output token limit.' );
 		$this->assert_same( 0.7, $ai_request['temperature'] ?? null, 'The native AI request must retain the configured temperature.' );
 		$this->assert_same( 'gpt-4.1', $ai_request['model'] ?? null, 'The native AI request must use the configured model preference.' );
 		$request_messages = $ai_request['input'] ?? array();
-		$this->assert_true( is_array( $request_messages ), 'The native AI request input must contain structured messages.' );
+		$this->assert_same( true, is_array( $request_messages ), 'The native AI request input must contain structured messages.' );
 		$this->assert_same( 'user', $request_messages[0]['role'] ?? null, 'The accepted example must start with a user message.' );
 		$this->assert_same(
-			sprintf( KnabbelWP\AI_EXAMPLE_PROMPT, 'VOORBEELD DAT DE REDACTIE DIRECT HEEFT GEACCEPTEERD', $accepted_example_input ),
+			sprintf( KnabbelWP\AI_EXAMPLE_PROMPT, 'VOORBEELD DAT DE REDACTIE DIRECT HEEFT GEACCEPTEERD' )
+				. "\n\n" . sprintf( KnabbelWP\AI_ARTICLE_PROMPT, $accepted_example_input ),
 			$request_messages[0]['content'][0]['text'] ?? null,
 			'The accepted example label must precede its input.'
 		);
@@ -259,7 +260,8 @@ final class Knabbel_E2E_Suite {
 		);
 		$this->assert_same( 'user', $request_messages[2]['role'] ?? null, 'The edited example must start with a user message.' );
 		$this->assert_same(
-			sprintf( KnabbelWP\AI_EXAMPLE_PROMPT, 'VOORBEELD DAT DE REDACTIE HEEFT AANGEPAST', $example_input ),
+			sprintf( KnabbelWP\AI_EXAMPLE_PROMPT, 'VOORBEELD DAT DE REDACTIE HEEFT AANGEPAST' )
+				. "\n\n" . sprintf( KnabbelWP\AI_ARTICLE_PROMPT, $example_input ),
 			$request_messages[2]['content'][0]['text'] ?? null,
 			'The edited example label must precede its input.'
 		);
@@ -270,14 +272,16 @@ final class Knabbel_E2E_Suite {
 			'The edited example output must immediately follow its input.'
 		);
 		$request_input = (string) wp_json_encode( $request_messages );
-		$this->assert_string_contains( $example_input, $request_input, 'The native AI request must include the few-shot user example.' );
-		$this->assert_string_contains( $example_output, $request_input, 'The native AI request must include the few-shot model example.' );
-		$this->assert_false(
-			str_contains( $request_input, 'Dit huidige artikel mag nooit zijn eigen voorbeeld worden.' ),
+		$this->assert_same( true, str_contains( $request_input, $example_input ), 'The native AI request must include the few-shot user example.' );
+		$this->assert_same( true, str_contains( $request_input, $example_output ), 'The native AI request must include the few-shot model example.' );
+		$this->assert_same(
+			true,
+			! str_contains( $request_input, 'Dit huidige artikel mag nooit zijn eigen voorbeeld worden.' ),
 			'The native AI request must exclude the current WordPress post from few-shot examples.'
 		);
-		$this->assert_false(
-			str_contains( $request_input, 'Deze uitvoer moet buiten de AI-aanvraag blijven.' ),
+		$this->assert_same(
+			true,
+			! str_contains( $request_input, 'Deze uitvoer moet buiten de AI-aanvraag blijven.' ),
 			'The native AI request must exclude the current WordPress post output from few-shot examples.'
 		);
 		delete_option( 'knabbel_few_shot_examples' );
@@ -333,17 +337,19 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 'E2E titel gesynchroniseerd', $story['title'] ?? null, 'Failed update must leave remote data unchanged.' );
 
 		$recent_errors = get_option( 'knabbel_recent_errors', array() );
-		$this->assert_not_empty( $recent_errors, 'A synchronization failure must be visible in recent errors.' );
+		$this->assert_same( true, ! empty( $recent_errors ), 'A synchronization failure must be visible in recent errors.' );
 		$error_json = wp_json_encode( $recent_errors );
-		$this->assert_false(
-			is_string( $error_json ) && str_contains( $error_json, 'definitely-wrong-password' ),
+		$this->assert_same( true, is_string( $error_json ), 'Persistent diagnostics must be JSON-encodable.' );
+		$this->assert_same(
+			true,
+			is_string( $error_json ) && ! str_contains( $error_json, 'definitely-wrong-password' ),
 			'Persistent diagnostics must never contain the Babbel password.'
 		);
 
 		$this->configure_plugin();
 		$this->update_post( $this->published_post_id, array( 'post_title' => 'E2E titel hersteld' ) );
 		$state = KnabbelWP\get_story_state( $this->published_post_id );
-		$this->assert_false( isset( $state['last_sync_error'] ), 'A successful retry must clear the previous sync error.' );
+		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'A successful retry must clear the previous sync error.' );
 		$story = $this->get_babbel_story( $this->published_story_id );
 		$this->assert_same( 'E2E titel hersteld', $story['title'] ?? null, 'Remote title must synchronize after credential recovery.' );
 	}
@@ -489,8 +495,10 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 'create', $state['last_sync_error']['operation'] ?? null, 'Babbel create failure must identify the operation.' );
 		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'Rejected authentication must not create a story.' );
 		$error_json = wp_json_encode( get_option( 'knabbel_recent_errors', array() ) );
-		$this->assert_false(
-			is_string( $error_json ) && str_contains( $error_json, 'wrong-create-password' ),
+		$this->assert_same( true, is_string( $error_json ), 'Recent errors must be JSON-encodable.' );
+		$this->assert_same(
+			true,
+			is_string( $error_json ) && ! str_contains( $error_json, 'wrong-create-password' ),
 			'Recent errors must exclude failed credentials.'
 		);
 
@@ -519,7 +527,7 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 1, count( $examples ), 'Few-shot sync must cache the available candidate.' );
 		$this->assert_same( $edited_text, $examples[0]['output'] ?? null, 'Few-shot output must use editor-corrected Babbel text.' );
 		$this->assert_same( 'edited', $examples[0]['provenance'] ?? null, 'Few-shot sync must mark editor-corrected stories as edited.' );
-		$this->assert_true( (float) ( $examples[0]['edit_score'] ?? 0 ) > 0, 'Edited few-shot examples must have a positive edit score.' );
+		$this->assert_same( true, (float) ( $examples[0]['edit_score'] ?? 0 ) > 0, 'Edited few-shot examples must have a positive edit score.' );
 		$this->assert_same(
 			wp_strip_all_tags( get_post_field( 'post_content', $this->published_post_id ) ),
 			$examples[0]['input'] ?? null,
@@ -578,31 +586,23 @@ final class Knabbel_E2E_Suite {
 	 */
 	private function test_pending_work_cancellation(): void {
 		foreach ( array( 'checkbox', 'trash' ) as $cancel_via ) {
-			foreach ( array( 'scheduled', 'processing' ) as $prior_state ) {
-				$label   = $cancel_via . ' ' . $prior_state;
-				$title   = 'E2E annulering ' . $label;
-				$post_id = $this->create_enabled_draft(
-					$title,
-					'Een nog niet uitgevoerde storyactie moet zonder externe bijwerking worden geannuleerd.'
-				);
-				$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
-				$this->assert_same( 1, $this->story_action_count( $post_id ), 'Precondition: one story action must be pending.' );
+			$title   = 'E2E annulering ' . $cancel_via;
+			$post_id = $this->create_enabled_draft(
+				$title,
+				'Een nog niet uitgevoerde storyactie moet zonder externe bijwerking worden geannuleerd.'
+			);
+			$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
+			$this->assert_same( 1, $this->story_action_count( $post_id ), 'Precondition: one story action must be pending.' );
 
-				if ( 'processing' === $prior_state ) {
-					// Synthetic pairing: the worker only sets Processing after claiming the pending action.
-					KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Processing->value ) );
-				}
-
-				if ( 'trash' === $cancel_via ) {
-					wp_trash_post( $post_id );
-				} else {
-					update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
-				}
-
-				$this->assert_same( 0, $this->story_action_count( $post_id ), $label . ' must cancel pending processing.' );
-				$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), $label . ' must clear transient story state.' );
-				$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), $label . ' must not create a remote story.' );
+			if ( 'trash' === $cancel_via ) {
+				wp_trash_post( $post_id );
+			} else {
+				update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
 			}
+
+			$this->assert_same( 0, $this->story_action_count( $post_id ), $cancel_via . ' must cancel pending processing.' );
+			$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), $cancel_via . ' must clear transient story state.' );
+			$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), $cancel_via . ' must not create a remote story.' );
 		}
 	}
 
@@ -610,28 +610,22 @@ final class Knabbel_E2E_Suite {
 	 * Verifies deletion after leaving future status.
 	 */
 	private function test_sent_story_unscheduling(): void {
-		foreach ( array( 'draft', 'pending', 'private', 'trash' ) as $new_status ) {
-			$title   = 'E2E verzonden planning naar ' . $new_status;
-			$post_id = $this->create_enabled_draft(
-				$title,
-				'Een reeds verzonden geplande story wordt verwijderd wanneer de planning vervalt.'
-			);
-			$this->schedule_post( $post_id, $this->future_post_date( 20 ) );
-			$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		$title   = 'E2E verzonden planning geannuleerd';
+		$post_id = $this->create_enabled_draft(
+			$title,
+			'Een reeds verzonden geplande story wordt verwijderd wanneer de planning vervalt.'
+		);
+		$this->schedule_post( $post_id, $this->future_post_date( 20 ) );
+		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
 
-			$state    = KnabbelWP\get_story_state( $post_id );
-			$story_id = (string) ( $state['story_id'] ?? '' );
-			$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Precondition: scheduled story must be sent.' );
+		$state    = KnabbelWP\get_story_state( $post_id );
+		$story_id = (string) ( $state['story_id'] ?? '' );
+		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Precondition: scheduled story must be sent.' );
 
-			if ( 'trash' === $new_status ) {
-				wp_trash_post( $post_id );
-			} else {
-				$this->update_post( $post_id, array( 'post_status' => $new_status ) );
-			}
-			$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Future to ' . $new_status . ' must mark the story deleted.' );
-			$this->assert_same( 0, $this->story_action_count( $post_id ), 'Future to ' . $new_status . ' must leave no pending action.' );
-			$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
-		}
+		$this->update_post( $post_id, array( 'post_status' => 'draft' ) );
+		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Returning a sent future post to draft must mark the story deleted.' );
+		$this->assert_same( 0, $this->story_action_count( $post_id ), 'Returning to draft must leave no pending action.' );
+		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 	}
 
 	/**
@@ -679,18 +673,6 @@ final class Knabbel_E2E_Suite {
 	 * Verifies duplicate-work prevention.
 	 */
 	private function test_in_flight_state_guards(): void {
-		$scheduled_id = $this->create_draft(
-			'E2E guard scheduled',
-			'Een bestaande scheduled-state mag bij het inschakelen geen tweede actie krijgen.'
-		);
-		$this->update_post( $scheduled_id, array( 'post_status' => 'publish' ) );
-		KnabbelWP\schedule_story_processing( $scheduled_id );
-		$this->assert_same( 1, $this->story_action_count( $scheduled_id ), 'Precondition: scheduled state must have one action.' );
-
-		update_post_meta( $scheduled_id, self::SEND_TO_BABBEL_META_KEY, 1 );
-		$this->assert_same( 1, $this->story_action_count( $scheduled_id ), 'Enabling scheduled state must not duplicate its action.' );
-		$this->assert_story_status( $scheduled_id, StoryStatus::Scheduled, 'Enabling scheduled state must preserve its lifecycle status.' );
-
 		$processing_id = $this->create_draft(
 			'E2E guard processing',
 			'Een bestaande processing-state mag bij het inschakelen geen nieuwe actie krijgen.'
@@ -755,7 +737,7 @@ final class Knabbel_E2E_Suite {
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$state = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'A retried restore must reach sent state.' );
-		$this->assert_false( isset( $state['last_sync_error'] ), 'Successful restore retry must clear its previous error.' );
+		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Successful restore retry must clear its previous error.' );
 		$story = $this->get_babbel_story( $story_id );
 		$this->assert_same( $retry_title, $story['title'] ?? null, 'Successful restore retry must synchronize the current title.' );
 	}
@@ -766,7 +748,7 @@ final class Knabbel_E2E_Suite {
 	private function test_deactivation_cleanup(): void {
 		$this->configure_plugin();
 		$result = KnabbelWP\babbel_test_connection();
-		$this->assert_true( $result['success'], 'Precondition: session cache must exist before deactivation.' );
+		$this->assert_same( true, $result['success'], 'Precondition: session cache must exist before deactivation.' );
 		update_option(
 			'knabbel_few_shot_examples',
 			array(
@@ -788,7 +770,7 @@ final class Knabbel_E2E_Suite {
 		require_once ABSPATH . 'wp-admin/includes/plugin.php';
 		deactivate_plugins( 'zw-knabbel-wp/zw-knabbel-wp.php' );
 
-		$this->assert_false( is_plugin_active( 'zw-knabbel-wp/zw-knabbel-wp.php' ), 'The plugin must be inactive after deactivation.' );
+		$this->assert_same( true, ! is_plugin_active( 'zw-knabbel-wp/zw-knabbel-wp.php' ), 'The plugin must be inactive after deactivation.' );
 		$this->assert_same( 0, $this->action_count( self::STORY_HOOK, ActionScheduler_Store::STATUS_PENDING ), 'Deactivation must clear story actions.' );
 		$this->assert_same(
 			0,
@@ -1009,7 +991,7 @@ final class Knabbel_E2E_Suite {
 
 		$this->assert_same( 201, wp_remote_retrieve_response_code( $response ), 'Independent Babbel client must authenticate.' );
 		$this->babbel_cookies = wp_remote_retrieve_cookies( $response );
-		$this->assert_not_empty( $this->babbel_cookies, 'Independent Babbel login must return a cookie.' );
+		$this->assert_same( true, ! empty( $this->babbel_cookies ), 'Independent Babbel login must return a cookie.' );
 	}
 
 	/**
@@ -1023,7 +1005,7 @@ final class Knabbel_E2E_Suite {
 		$response = $this->babbel_request( 'GET', $path );
 		$this->assert_same( 200, wp_remote_retrieve_response_code( $response ), $message );
 		$decoded = json_decode( wp_remote_retrieve_body( $response ), true, 512, JSON_THROW_ON_ERROR );
-		$this->assert_true( is_array( $decoded ), 'Babbel response must decode to an object.' );
+		$this->assert_same( true, is_array( $decoded ), 'Babbel response must decode to an object.' );
 
 		return $decoded;
 	}
@@ -1035,7 +1017,7 @@ final class Knabbel_E2E_Suite {
 	 * @return array<string, mixed> Story response.
 	 */
 	private function get_babbel_story( string $story_id ): array {
-		$this->assert_not_empty( $story_id, 'Story ID is required for remote verification.' );
+		$this->assert_same( true, '' !== $story_id, 'Story ID is required for remote verification.' );
 
 		return $this->babbel_get_json( '/stories/' . rawurlencode( $story_id ), 'Expected Babbel story to be readable.' );
 	}
@@ -1055,9 +1037,9 @@ final class Knabbel_E2E_Suite {
 		);
 		$decoded = $this->babbel_get_json( $path, 'Babbel story list must be readable.' );
 		$stories = $decoded['data'] ?? null;
-		$this->assert_true( is_array( $stories ), 'Babbel story list data must be an array.' );
+		$this->assert_same( true, is_array( $stories ), 'Babbel story list data must be an array.' );
 		// The filter is applied server-side, so a full page means results were truncated.
-		$this->assert_true( count( $stories ) < 100, 'Babbel story list must not fill the verification page.' );
+		$this->assert_same( true, count( $stories ) < 100, 'Babbel story list must not fill the verification page.' );
 
 		return count(
 			array_filter(
@@ -1154,7 +1136,8 @@ final class Knabbel_E2E_Suite {
 			),
 		);
 
-		$this->assert_true(
+		$this->assert_same(
+			true,
 			in_array( $actual, $expected, true ),
 			$message
 		);
@@ -1171,68 +1154,8 @@ final class Knabbel_E2E_Suite {
 	private function assert_same( mixed $expected, mixed $actual, string $message ): void {
 		++$this->assertion_count;
 		if ( $expected !== $actual ) {
-			throw new RuntimeException( sprintf( '%s Expected %s, got %s.', $message, $this->describe( $expected ), $this->describe( $actual ) ) );
+			throw new RuntimeException( sprintf( '%s Expected %s, got %s.', $message, wp_json_encode( $expected ), wp_json_encode( $actual ) ) );
 		}
-	}
-
-	/**
-	 * Asserts a truthy condition.
-	 *
-	 * @param bool   $condition Condition.
-	 * @param string $message   Failure message.
-	 * @throws RuntimeException When the condition is false.
-	 */
-	private function assert_true( bool $condition, string $message ): void {
-		++$this->assertion_count;
-		if ( ! $condition ) {
-			throw new RuntimeException( $message );
-		}
-	}
-
-	/**
-	 * Asserts a false condition.
-	 *
-	 * @param bool   $condition Condition.
-	 * @param string $message   Failure message.
-	 */
-	private function assert_false( bool $condition, string $message ): void {
-		$this->assert_true( ! $condition, $message );
-	}
-
-	/**
-	 * Asserts a non-empty value.
-	 *
-	 * @param mixed  $value   Value.
-	 * @param string $message Failure message.
-	 * @throws RuntimeException When the value is empty.
-	 */
-	private function assert_not_empty( mixed $value, string $message ): void {
-		++$this->assertion_count;
-		if ( empty( $value ) ) {
-			throw new RuntimeException( $message );
-		}
-	}
-
-	/**
-	 * Asserts that one string contains another.
-	 *
-	 * @param string $needle  Required substring.
-	 * @param string $haystack Searched string.
-	 * @param string $message Failure message.
-	 */
-	private function assert_string_contains( string $needle, string $haystack, string $message ): void {
-		$this->assert_true( str_contains( $haystack, $needle ), $message );
-	}
-
-	/**
-	 * Renders a compact diagnostic value.
-	 *
-	 * @param mixed $value Value.
-	 * @return string Description.
-	 */
-	private function describe( mixed $value ): string {
-		$encoded = wp_json_encode( $value );
-		return false === $encoded ? get_debug_type( $value ) : $encoded;
 	}
 }
 

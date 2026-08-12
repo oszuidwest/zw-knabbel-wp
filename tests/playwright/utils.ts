@@ -183,33 +183,6 @@ export async function babbelStoryStatus(storyID: string): Promise<number> {
     return response.status();
 }
 
-export async function updateBabbelStory(
-    storyID: string,
-    data: { text: string; status: string },
-): Promise<void> {
-    await babbelRequest(`/stories/${encodeURIComponent(storyID)}`, {
-        method: 'PUT',
-        data,
-    });
-}
-
-export async function countBabbelStoriesByTitle(
-    title: string,
-): Promise<number> {
-    const query = new URLSearchParams({
-        'filter[title]': title,
-        limit: '100',
-    });
-    const response = await babbelRequest(`/stories?${query.toString()}`);
-    const rawBody = await response.text();
-    expect(response.status(), rawBody).toBe(200);
-    const { data } = JSON.parse(rawBody) as { data: BabbelStory[] };
-    // The filter is applied server-side, so a full page means results were truncated.
-    expect(data.length, rawBody).toBeLessThan(100);
-
-    return data.filter((story) => story.title === title).length;
-}
-
 export async function disposeBabbelContext(): Promise<void> {
     const contextPromise = babbelContextPromise;
     babbelContextPromise = undefined;
