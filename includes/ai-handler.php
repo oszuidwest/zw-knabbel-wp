@@ -89,6 +89,7 @@ function ai_parse_model_setting( mixed $value ): ?array {
  * Generates speech text through the WordPress AI Client.
  *
  * @since 0.5.0
+ * @since 0.7.0 Added the `$current_post_id` parameter and curated example mix.
  * @param string $content         The source content.
  * @param int    $current_post_id Current post ID to exclude from examples, 0 for none.
  * @return string|null The generated content or null on failure.

@@ -94,6 +94,7 @@ function settings_register_settings(): void {
  * Sanitizes settings before storage.
  *
  * @since 0.1.0
+ * @since 0.7.0 Removed support for the `few_shot_count` setting.
  * @param array<string, mixed> $input The raw input array from the form.
  * @return array<string, mixed> The sanitized settings array.
  */
@@ -434,6 +435,7 @@ function render_babbel_api_card( array $settings ): void {
  * Displays the AI settings card.
  *
  * @since 0.5.0
+ * @since 0.7.0 Removed the configurable few-shot count field.
  * @param array<string, mixed> $settings Current settings.
  */
 function render_ai_card( array $settings ): void {
