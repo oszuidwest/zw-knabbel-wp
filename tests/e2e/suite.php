@@ -241,7 +241,7 @@ final class Knabbel_E2E_Suite {
 		$ai_request = get_option( 'knabbel_e2e_ai_last_request', array() );
 		$this->assert_same( true, is_array( $ai_request ), 'The native AI provider request must be observable.' );
 		$this->assert_same( 1000, $ai_request['max_output_tokens'] ?? null, 'The native AI request must retain the output token limit.' );
-		$this->assert_same( 0.7, $ai_request['temperature'] ?? null, 'The native AI request must retain the configured temperature.' );
+		$this->assert_same( false, array_key_exists( 'temperature', $ai_request ), 'The native AI request must omit optional temperature.' );
 		$this->assert_same( 'gpt-4.1', $ai_request['model'] ?? null, 'The native AI request must use the configured model preference.' );
 		$request_messages = $ai_request['input'] ?? array();
 		$this->assert_same( true, is_array( $request_messages ), 'The native AI request input must contain structured messages.' );

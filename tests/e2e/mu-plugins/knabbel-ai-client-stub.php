@@ -34,13 +34,20 @@ add_filter(
 
 			update_option( 'knabbel_e2e_ai_call_count', (int) get_option( 'knabbel_e2e_ai_call_count', 0 ) + 1, false );
 
-			if ( 'error' === get_option( 'knabbel_e2e_ai_mode', 'success' ) ) {
-				return new WP_Error( 'knabbel_e2e_ai_error', 'Deterministic AI provider failure' );
-			}
-
 			$request_body = json_decode( (string) ( $parsed_args['body'] ?? '' ), true );
 			if ( is_array( $request_body ) ) {
 				update_option( 'knabbel_e2e_ai_last_request', $request_body, false );
+
+				if ( array_key_exists( 'temperature', $request_body ) ) {
+					return new WP_Error(
+						'knabbel_e2e_ai_unsupported_parameter',
+						'Unsupported parameter: temperature is not supported with this model.'
+					);
+				}
+			}
+
+			if ( 'error' === get_option( 'knabbel_e2e_ai_mode', 'success' ) ) {
+				return new WP_Error( 'knabbel_e2e_ai_error', 'Deterministic AI provider failure' );
 			}
 
 			$body = array(
