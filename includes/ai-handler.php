@@ -148,8 +148,7 @@ function ai_generate_content( string $content, int $current_post_id ): ?string {
 	for ( $attempt = 1; $attempt <= $max_attempts; ++$attempt ) {
 		$prompt = wp_ai_client_prompt( $messages )
 			->using_system_instruction( $instruction )
-			->using_max_tokens( 1000 )
-			->using_temperature( 0.7 );
+			->using_max_tokens( 1000 );
 		if ( null !== $model_preference ) {
 			$prompt = $prompt->using_model_preference( $model_preference );
 		}
