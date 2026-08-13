@@ -68,7 +68,7 @@ final class Knabbel_E2E_Suite {
 	 * Executes all scenarios in dependency order.
 	 */
 	public function run(): void {
-		$this->run_case( 'E2E-001', 'recurring queue and Babbel authentication', $this->test_queue_and_authentication( ... ) );
+		$this->run_case( 'E2E-001', 'recurring queue, credential snapshots and Babbel authentication', $this->test_queue_and_authentication( ... ) );
 		$this->run_case( 'E2E-002', 'published post creates exactly one complete Babbel story', $this->test_published_story_creation( ... ) );
 		$this->run_case( 'E2E-003', 'edits synchronize and recover from an authentication failure', $this->test_update_and_error_recovery( ... ) );
 		$this->run_case( 'E2E-004', 'checkbox disable soft-deletes and re-enable restores', $this->test_checkbox_delete_and_restore( ... ) );
@@ -159,6 +159,7 @@ final class Knabbel_E2E_Suite {
 
 		$cache_key = KnabbelWP\babbel_get_session_cache_key();
 		$this->assert_same( true, ! empty( get_transient( $cache_key ) ), 'Successful login must cache session cookies.' );
+		$this->assert_session_credential_snapshots( $cache_key );
 
 		$invalid_cookie = new WP_Http_Cookie(
 			array(
@@ -173,6 +174,64 @@ final class Knabbel_E2E_Suite {
 		$result = KnabbelWP\babbel_test_connection();
 		$this->assert_same( true, $result['success'], 'A 401 response must clear the cache, authenticate again and retry once.' );
 		$this->assert_same( true, 'invalid-e2e-session' !== ( get_transient( $cache_key )[0]->value ?? null ), 'The invalid session cookie must be replaced.' );
+	}
+
+	/**
+	 * Verifies that authentication reads and caches against one credential snapshot.
+	 *
+	 * @param string $configured_cache_key Cache key for the configured admin credentials.
+	 */
+	private function assert_session_credential_snapshots( string $configured_cache_key ): void {
+		$settings                         = get_option( 'knabbel_settings', array() );
+		$credentials                      = KnabbelWP\babbel_get_credentials();
+		$changed_settings                 = $settings;
+		$changed_credentials              = $credentials;
+		$changed_settings['api_username'] = 'changeduser';
+		$changed_credentials['username']  = 'changeduser';
+		$changed_cache_key                = KnabbelWP\babbel_get_session_cache_key( $changed_credentials );
+
+		$this->assert_same(
+			'knabbel_session_' . md5( $changed_credentials['base_url'] . $changed_credentials['username'] ),
+			$changed_cache_key,
+			'The session key must be derived exclusively from the supplied credential snapshot.'
+		);
+
+		delete_transient( $configured_cache_key );
+		$changed_cookie = new WP_Http_Cookie(
+			array(
+				'name'   => 'babbel_session',
+				'value'  => 'changed-user-session',
+				'path'   => '/',
+				'domain' => 'babbel',
+			)
+		);
+		set_transient( $changed_cache_key, array( $changed_cookie ), MINUTE_IN_SECONDS );
+
+		$settings_reads  = 0;
+		$settings_filter = static function () use ( &$settings_reads, $settings, $changed_settings ): array {
+			return 0 === $settings_reads++ ? $settings : $changed_settings;
+		};
+
+		add_filter( 'option_knabbel_settings', $settings_filter );
+		try {
+			$cookies = KnabbelWP\babbel_get_session_cookies();
+		} finally {
+			remove_filter( 'option_knabbel_settings', $settings_filter );
+		}
+
+		$this->assert_same( true, is_array( $cookies ), 'Authentication with the captured credential snapshot must succeed.' );
+		$this->assert_same( 1, $settings_reads, 'Authentication must read configured credentials exactly once.' );
+		$this->assert_same(
+			$cookies[0]->value ?? null,
+			get_transient( $configured_cache_key )[0]->value ?? null,
+			'The authenticated session must be written under its captured credential key.'
+		);
+		$this->assert_same(
+			'changed-user-session',
+			get_transient( $changed_cache_key )[0]->value ?? null,
+			'Authentication must not reuse or overwrite another user session.'
+		);
+		delete_transient( $changed_cache_key );
 	}
 
 	/**
