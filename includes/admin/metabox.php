@@ -102,7 +102,7 @@ function submitbox_render( \WP_Post $post ): void {
 			<span class="knabbel-submitbox-toggle-disabled" aria-hidden="true"><?php esc_html_e( 'No', 'zw-knabbel-wp' ); ?></span>
 		</label>
 
-		<?php if ( is_story_sync_error_renderable( $sync_error ) ) : ?>
+		<?php if ( null !== $sync_error ) : ?>
 			<div class="knabbel-sync-warning" role="alert">
 				<strong><?php esc_html_e( 'Babbel sync warning', 'zw-knabbel-wp' ); ?></strong>
 				<div><?php echo esc_html( $sync_error['message'] ); ?></div>
@@ -133,25 +133,14 @@ function metabox_render_status( \WP_Post $post ): void {
 				<strong><?php esc_html_e( 'Status', 'zw-knabbel-wp' ); ?>:</strong>
 				<?php
 				$status_slug = $status ? sanitize_key( $status ) : 'none';
-				$label_map   = array(
-					'scheduled'  => __( 'Scheduled', 'zw-knabbel-wp' ),
-					'processing' => __( 'Processing', 'zw-knabbel-wp' ),
-					'sent'       => __( 'Sent', 'zw-knabbel-wp' ),
-					'error'      => __( 'Error', 'zw-knabbel-wp' ),
-					'deleted'    => __( 'Deleted', 'zw-knabbel-wp' ),
-				);
-				$label       = $status && isset( $label_map[ $status ] ) ? $label_map[ $status ] : ( $status ? $status : __( '—', 'zw-knabbel-wp' ) );
+				$label       = $status ? ( StoryStatus::tryFrom( $status )?->label() ?? $status ) : __( '—', 'zw-knabbel-wp' );
 				echo '<span class="knabbel-status-badge ' . esc_attr( $status_slug ) . '">' . esc_html( $label ) . '</span>';
 				?>
 			</li>
 			<?php if ( ! empty( $updated ) ) : ?>
 			<li class="knabbel-status-muted">
 				<?php esc_html_e( 'Last status change:', 'zw-knabbel-wp' ); ?>
-				<?php
-				// status_changed_at is stored as local time string via current_time('mysql').
-				$updated_ts = strtotime( $updated . ' ' . wp_timezone_string() );
-				echo esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $updated_ts ) );
-				?>
+				<?php echo esc_html( format_stored_datetime( $updated ) ); ?>
 			</li>
 			<?php endif; ?>
 			<?php if ( ! empty( $story_id ) ) : ?>
@@ -165,35 +154,28 @@ function metabox_render_status( \WP_Post $post ): void {
 				<?php esc_html_e( 'Scheduled:', 'zw-knabbel-wp' ); ?>
 				<?php
 				// Action Scheduler returns UTC timestamp.
-				echo esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $scheduled ) );
+				echo esc_html( format_stored_datetime( (int) $scheduled ) );
 				?>
 			</li>
 			<?php endif; ?>
-			<?php if ( is_story_sync_error_renderable( $sync_error ) ) : ?>
+			<?php if ( null !== $sync_error ) : ?>
 			<li>
 				<strong><?php esc_html_e( 'Last sync error', 'zw-knabbel-wp' ); ?>:</strong>
 				<div class="knabbel-sync-warning">
 					<?php echo esc_html( $sync_error['message'] ); ?>
-					<?php if ( ! empty( $sync_error['operation'] ) || ! empty( $sync_error['occurred_at'] ) ) : ?>
-						<div class="knabbel-status-muted">
-							<?php if ( ! empty( $sync_error['operation'] ) ) : ?>
-								<?php esc_html_e( 'Operation', 'zw-knabbel-wp' ); ?>:
-								<code><?php echo esc_html( $sync_error['operation'] ); ?></code>
-							<?php endif; ?>
-							<?php if ( ! empty( $sync_error['occurred_at'] ) ) : ?>
-								<?php
-								$sync_error_ts = strtotime( $sync_error['occurred_at'] . ' ' . wp_timezone_string() );
-								if ( $sync_error_ts ) {
-									echo ' · ' . esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $sync_error_ts ) );
-								}
-								?>
-							<?php endif; ?>
-						</div>
-					<?php endif; ?>
+					<div class="knabbel-status-muted">
+						<?php if ( ! empty( $sync_error['operation'] ) ) : ?>
+							<?php esc_html_e( 'Operation', 'zw-knabbel-wp' ); ?>:
+							<code><?php echo esc_html( $sync_error['operation'] ); ?></code>
+						<?php endif; ?>
+						<?php if ( ! empty( $sync_error['occurred_at'] ) ) : ?>
+							<?php echo ' · ' . esc_html( format_stored_datetime( $sync_error['occurred_at'] ) ); ?>
+						<?php endif; ?>
+					</div>
 				</div>
 			</li>
 			<?php endif; ?>
-			<?php if ( ! empty( $message ) && ! is_story_sync_error_renderable( $sync_error ) ) : ?>
+			<?php if ( ! empty( $message ) && null === $sync_error ) : ?>
 			<li>
 				<strong><?php esc_html_e( 'Message', 'zw-knabbel-wp' ); ?>:</strong>
 				<div class="knabbel-pre"><?php echo esc_html( $message ); ?></div>

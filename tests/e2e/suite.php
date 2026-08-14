@@ -85,7 +85,8 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-015', 'processing state prevents duplicate scheduling', $this->test_in_flight_state_guards( ... ) );
 		$this->run_case( 'E2E-016', 'untrash honors a disabled checkbox', $this->test_untrash_with_checkbox_disabled( ... ) );
 		$this->run_case( 'E2E-017', 'delete and restore failures remain retryable', $this->test_delete_and_restore_failures( ... ) );
-		$this->run_case( 'E2E-018', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
+		$this->run_case( 'E2E-018', 'stored Unix timestamps retain their meaning after serialization', $this->test_stored_datetime_formatting( ... ) );
+		$this->run_case( 'E2E-019', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
 	}
@@ -799,6 +800,20 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Successful restore retry must clear its previous error.' );
 		$story = $this->get_babbel_story( $story_id );
 		$this->assert_same( $retry_title, $story['title'] ?? null, 'Successful restore retry must synchronize the current title.' );
+	}
+
+	/**
+	 * Verifies integer timestamps survive WordPress option serialization.
+	 */
+	private function test_stored_datetime_formatting(): void {
+		$timestamp  = 1_700_000_000;
+		$serialized = maybe_unserialize( maybe_serialize( (string) $timestamp ) );
+
+		$this->assert_same(
+			KnabbelWP\format_stored_datetime( $timestamp ),
+			KnabbelWP\format_stored_datetime( $serialized ),
+			'Integer and serialized-string timestamps must render identically.'
+		);
 	}
 
 	/**
