@@ -410,7 +410,9 @@ function get_story_sync_error( array $state ): ?array {
  * @return string Localized date and time in the site's display format.
  */
 function format_stored_datetime( int|string $datetime ): string {
-	$timestamp = is_int( $datetime ) ? $datetime : strtotime( $datetime . ' ' . wp_timezone_string() );
+	$timestamp = is_int( $datetime ) || false !== filter_var( $datetime, FILTER_VALIDATE_INT )
+		? (int) $datetime
+		: strtotime( $datetime . ' ' . wp_timezone_string() );
 	if ( false === $timestamp ) {
 		return (string) $datetime;
 	}
