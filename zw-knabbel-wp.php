@@ -74,23 +74,10 @@ function debug_enabled(): bool {
  * @phpstan-param LogContext $context
  */
 function prepare_log_context_for_storage( array $context ): array {
-	return array_merge(
-		prepare_log_text_context( $context ),
-		prepare_log_scalar_context( $context ),
-		prepare_log_list_context( $context )
-	);
-}
-
-/**
- * Sanitizes textual diagnostic context.
- *
- * @since 0.5.0
- * @param array<string, mixed> $context Raw log context.
- * @return array<string, string>
- */
-function prepare_log_text_context( array $context ): array {
 	$safe_context = array();
-	$text_fields  = array(
+
+	// Textual diagnostic fields, bounded per field.
+	$text_fields = array(
 		'endpoint'   => 500,
 		'story_id'   => 100,
 		'error'      => 500,
@@ -99,58 +86,32 @@ function prepare_log_text_context( array $context ): array {
 		'json_error' => 500,
 		'error_code' => 100,
 	);
-
 	foreach ( $text_fields as $key => $max_length ) {
-		if ( ! isset( $context[ $key ] ) || ! is_scalar( $context[ $key ] ) ) {
-			continue;
+		if ( isset( $context[ $key ] ) && is_scalar( $context[ $key ] ) ) {
+			$value                = sanitize_textarea_field( (string) $context[ $key ] );
+			$safe_context[ $key ] = wp_html_excerpt( $value, $max_length, '' );
 		}
-
-		$value                = sanitize_textarea_field( (string) $context[ $key ] );
-		$safe_context[ $key ] = wp_html_excerpt( $value, $max_length, '' );
 	}
 
-	return $safe_context;
-}
-
-/**
- * Sanitizes scalar diagnostic context.
- *
- * @since 0.5.0
- * @param array<string, mixed> $context Raw log context.
- * @return array<string, int|bool>
- */
-function prepare_log_scalar_context( array $context ): array {
-	$safe_context = array();
-
+	// Numeric diagnostic fields.
 	foreach ( array( 'post_id', 'response_code' ) as $key ) {
 		if ( isset( $context[ $key ] ) && is_numeric( $context[ $key ] ) ) {
 			$safe_context[ $key ] = (int) $context[ $key ];
 		}
 	}
 
-	return $safe_context;
-}
-
-/**
- * Sanitizes list-valued diagnostic context.
- *
- * @since 0.5.0
- * @param array<string, mixed> $context Raw log context.
- * @return array<string, list<string>>
- */
-function prepare_log_list_context( array $context ): array {
-	if ( ! isset( $context['fields'] ) || ! is_array( $context['fields'] ) ) {
-		return array();
-	}
-
-	$fields = array();
-	foreach ( array_slice( $context['fields'], 0, 20 ) as $field ) {
-		if ( is_scalar( $field ) ) {
-			$fields[] = sanitize_key( (string) $field );
+	// Bounded list of field names.
+	if ( isset( $context['fields'] ) && is_array( $context['fields'] ) ) {
+		$fields = array();
+		foreach ( array_slice( $context['fields'], 0, 20 ) as $field ) {
+			if ( is_scalar( $field ) ) {
+				$fields[] = sanitize_key( (string) $field );
+			}
 		}
+		$safe_context['fields'] = $fields;
 	}
 
-	return array( 'fields' => $fields );
+	return $safe_context;
 }
 
 /**
@@ -271,7 +232,6 @@ function append_recent_error( array $new_error ): void {
 			if ( 1 === $updated ) {
 				wp_cache_delete( $option_name, 'options' );
 				wp_cache_delete( 'alloptions', 'options' );
-				wp_cache_delete( 'notoptions', 'options' );
 				return;
 			}
 		}
@@ -416,7 +376,7 @@ function build_story_sync_error( string $message, string $operation ): array {
  *
  * @since 0.5.0
  * @param array<string, mixed> $state Story state data.
- * @return array{message: string, occurred_at: string, operation: string}|null Sync error, or null when absent or malformed.
+ * @return array{message: string, occurred_at: string, operation: string}|null Sync error, or null when absent, malformed, or blank.
  *
  * @phpstan-return LastSyncError|null
  */
@@ -428,6 +388,9 @@ function get_story_sync_error( array $state ): ?array {
 	if ( ! is_string( $error['message'] ) || ! is_string( $error['occurred_at'] ) || ! is_string( $error['operation'] ) ) {
 		return null;
 	}
+	if ( '' === trim( $error['message'] ) ) {
+		return null;
+	}
 
 	return array(
 		'message'     => $error['message'],
@@ -437,19 +400,23 @@ function get_story_sync_error( array $state ): ?array {
 }
 
 /**
- * Reports whether an error can be rendered.
+ * Formats a stored datetime for admin display.
  *
- * @since 0.5.0
- * @param array<string, mixed>|null $sync_error Sync error data.
- * @return bool Whether the sync error can be rendered.
+ * Accepts a local-time MySQL string as written by current_time( 'mysql' ), or a
+ * Unix timestamp. Falls back to the raw input when it cannot be parsed.
  *
- * @phpstan-assert-if-true !null $sync_error
+ * @since 0.7.0
+ * @param int|string $datetime Stored local-time string or Unix timestamp.
+ * @return string Localized date and time in the site's display format.
  */
-function is_story_sync_error_renderable( ?array $sync_error ): bool {
-	return null !== $sync_error
-		&& isset( $sync_error['message'] )
-		&& is_string( $sync_error['message'] )
-		&& '' !== trim( $sync_error['message'] );
+function format_stored_datetime( int|string $datetime ): string {
+	$timestamp = is_int( $datetime ) ? $datetime : strtotime( $datetime . ' ' . wp_timezone_string() );
+	if ( false === $timestamp ) {
+		return (string) $datetime;
+	}
+
+	$formatted = wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $timestamp );
+	return false === $formatted ? (string) $datetime : $formatted;
 }
 
 /**
@@ -484,7 +451,12 @@ function calculate_story_dates( string $base_date = 'now' ): array {
  */
 function init(): void {
 	load_plugin_textdomain( 'zw-knabbel-wp', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
-	cleanup_legacy_data();
+
+	// Run one-time migrations only when the installed version changes.
+	if ( KNABBEL_VERSION !== get_option( 'knabbel_version' ) ) {
+		cleanup_legacy_data();
+		update_option( 'knabbel_version', KNABBEL_VERSION, false );
+	}
 
 	// Register cron hook for async story processing (always, not just admin).
 	add_action( 'knabbel_process_story', __NAMESPACE__ . '\\process_story_async', 10, 1 );
@@ -572,10 +544,8 @@ function activate(): void {
 		// WP 6.6+ changed the default autoload behavior from 'yes' to dynamic heuristics.
 		add_option( 'knabbel_settings', default_settings(), '', true );
 
-		// Cleanup all legacy data on activation.
-		cleanup_legacy_data();
-
-		// Schedule nightly few-shot example sync.
+		// Schedule nightly few-shot example sync. Legacy cleanup runs from init()
+		// via the version gate.
 		few_shot_schedule_sync();
 }
 
@@ -596,7 +566,7 @@ function deactivate(): void {
 }
 
 /**
- * Removes deprecated settings during activation.
+ * Removes deprecated settings when the installed version changes.
  *
  * Safe to run multiple times. Keep through the migration window for settings
  * removed up to and including 0.7.0.
@@ -644,12 +614,9 @@ function ajax_test_api(): void {
  *
  * @since 0.1.0
  * @since 0.7.0 Excludes the current post from the AI few-shot examples.
- * @param int|array{post_id?: int} $post_id_or_args The WordPress post ID or Action Scheduler args array.
+ * @param int $post_id The WordPress post ID.
  */
-function process_story_async( int|array $post_id_or_args ): void {
-	// Handle both WP-Cron (int) and Action Scheduler (array) formats.
-	$post_id = is_array( $post_id_or_args ) ? (int) ( $post_id_or_args['post_id'] ?? 0 ) : $post_id_or_args;
-
+function process_story_async( int $post_id ): void {
 	if ( ! $post_id ) {
 		log( 'error', 'CronProcessor', 'Invalid post_id in process_story_async' );
 		return;
@@ -657,16 +624,10 @@ function process_story_async( int|array $post_id_or_args ): void {
 
 	log( 'info', 'CronProcessor', 'Starting async story processing', array( 'post_id' => $post_id ) );
 
-		// Send-once safety: if already sent, do nothing.
-		$existing_state = get_post_meta( $post_id, '_zw_knabbel_story_state', true );
-	if ( is_array( $existing_state ) && isset( $existing_state['status'] ) && \KnabbelWP\StoryStatus::Sent->value === $existing_state['status'] ) {
-		update_story_state(
-			$post_id,
-			array(
-				'status'  => \KnabbelWP\StoryStatus::Sent->value,
-				'message' => __( 'Already sent — skipping', 'zw-knabbel-wp' ),
-			)
-		);
+	// Send-once safety: if already sent, do nothing.
+	$existing_state = get_story_state( $post_id );
+	if ( isset( $existing_state['status'] ) && StoryStatus::Sent->value === $existing_state['status'] ) {
+		log( 'info', 'CronProcessor', 'Story already sent — skipping', array( 'post_id' => $post_id ) );
 		return;
 	}
 

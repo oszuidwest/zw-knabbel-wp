@@ -39,14 +39,12 @@ function handle_clear_recent_errors(): void {
 
 	check_admin_referer( 'knabbel_clear_recent_errors' );
 
-	$missing_option = new \stdClass();
-	$stored_errors  = get_option( 'knabbel_recent_errors', $missing_option );
-	$errors_cleared = $missing_option === $stored_errors || delete_option( 'knabbel_recent_errors' );
+	delete_option( 'knabbel_recent_errors' );
 
 	$redirect_url = add_query_arg(
 		array(
 			'page'                   => 'zw-knabbel-wp-settings',
-			'knabbel_errors_cleared' => $errors_cleared ? '1' : '0',
+			'knabbel_errors_cleared' => '1',
 		),
 		admin_url( 'options-general.php' )
 	);
@@ -203,10 +201,6 @@ function settings_page(): void {
 			<div class="notice notice-success is-dismissible">
 				<p><?php esc_html_e( 'Recent errors cleared.', 'zw-knabbel-wp' ); ?></p>
 			</div>
-		<?php elseif ( '0' === $clear_status ) : ?>
-			<div class="notice notice-error is-dismissible">
-				<p><?php esc_html_e( 'Recent errors could not be cleared. Please try again.', 'zw-knabbel-wp' ); ?></p>
-			</div>
 		<?php endif; ?>
 		<!-- Page Header -->
 		<div class="knabbel-page-header">
@@ -257,13 +251,7 @@ function render_recent_errors(): void {
 		return;
 	}
 
-	$recent_errors = array();
-	foreach ( array_reverse( $stored_errors ) as $entry ) {
-		$normalized_entry = normalize_recent_error_entry( $entry );
-		if ( null !== $normalized_entry ) {
-			$recent_errors[] = $normalized_entry;
-		}
-	}
+	$recent_errors = array_reverse( prepare_error_history( $stored_errors ) );
 
 	?>
 	<div id="knabbel-recent-errors" class="knabbel-settings-card" style="margin-top: 24px;">
@@ -289,20 +277,8 @@ function render_recent_errors(): void {
 						</tr>
 					<?php else : ?>
 						<?php foreach ( $recent_errors as $entry ) : ?>
-							<?php
-							$timestamp    = $entry['timestamp'];
-							$timestamp_ts = $timestamp ? strtotime( $timestamp . ' ' . wp_timezone_string() ) : false;
-							?>
 							<tr>
-								<td>
-									<?php
-									echo esc_html(
-										$timestamp_ts
-											? wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $timestamp_ts )
-											: $timestamp
-									);
-									?>
-								</td>
+								<td><?php echo esc_html( format_stored_datetime( $entry['timestamp'] ) ); ?></td>
 								<td class="mono"><?php echo esc_html( $entry['component'] ); ?></td>
 								<td class="error-message"><?php echo esc_html( $entry['message'] ); ?></td>
 							</tr>
@@ -322,28 +298,6 @@ function render_recent_errors(): void {
 		</div>
 	</div>
 	<?php
-}
-
-/**
- * Returns the safe shape of a stored error.
- *
- * @since 0.5.0
- * @param mixed $entry Raw entry from the knabbel_recent_errors option.
- * @return array{timestamp: string, component: string, message: string}|null Normalized entry, or null when invalid.
- */
-function normalize_recent_error_entry( mixed $entry ): ?array {
-	if ( ! is_array( $entry ) || ! isset( $entry['component'], $entry['message'] ) ) {
-		return null;
-	}
-	if ( ! is_scalar( $entry['component'] ) || ! is_scalar( $entry['message'] ) ) {
-		return null;
-	}
-
-	return array(
-		'timestamp' => isset( $entry['timestamp'] ) && is_scalar( $entry['timestamp'] ) ? (string) $entry['timestamp'] : '',
-		'component' => (string) $entry['component'],
-		'message'   => (string) $entry['message'],
-	);
 }
 
 /**
@@ -653,13 +607,11 @@ function render_articles_overview(): void {
 	// Select current item.
 	$selected       = null;
 	$selected_state = null;
-	$selected_ts    = 0;
 	if ( $selected_id && ! empty( $candidates ) ) {
 		foreach ( $candidates as $item ) {
 			if ( $item['post']->ID === $selected_id ) {
 				$selected       = $item['post'];
 				$selected_state = $item['state'];
-				$selected_ts    = $item['ts'];
 				break;
 			}
 		}
@@ -667,7 +619,6 @@ function render_articles_overview(): void {
 	if ( ! $selected && $latest_post ) {
 		$selected       = $latest_post;
 		$selected_state = $latest_state;
-		$selected_ts    = $latest_ts;
 	}
 
 	if ( ! $selected || ! $selected_state ) {
@@ -675,14 +626,8 @@ function render_articles_overview(): void {
 	}
 
 	$status     = $selected_state['status'] ?? '';
-	$label_map  = array(
-		'scheduled'  => __( 'Scheduled', 'zw-knabbel-wp' ),
-		'processing' => __( 'Processing', 'zw-knabbel-wp' ),
-		'sent'       => __( 'Sent', 'zw-knabbel-wp' ),
-		'error'      => __( 'Error', 'zw-knabbel-wp' ),
-	);
 	$slug       = $status ? sanitize_key( $status ) : 'none';
-	$label      = $status ? ( $label_map[ $status ] ?? $status ) : '—';
+	$label      = $status ? ( StoryStatus::tryFrom( $status )?->label() ?? $status ) : '—';
 	$is_error   = 'error' === $status;
 	$is_sent    = 'sent' === $status;
 	$sync_error = get_story_sync_error( $selected_state );
@@ -743,7 +688,7 @@ function render_articles_overview(): void {
 				<tr>
 					<td class="label-cell"><?php esc_html_e( 'Last status change', 'zw-knabbel-wp' ); ?></td>
 					<td>
-						<?php echo esc_html( wp_date( get_option( 'date_format' ) . ', ' . get_option( 'time_format' ), $selected_ts ) ); ?>
+						<?php echo esc_html( format_stored_datetime( $selected_state['status_changed_at'] ) ); ?>
 					</td>
 				</tr>
 				<?php if ( $is_sent && ! empty( $selected_state['story_id'] ) ) : ?>
@@ -752,7 +697,7 @@ function render_articles_overview(): void {
 					<td class="mono"><?php echo esc_html( $selected_state['story_id'] ); ?></td>
 				</tr>
 				<?php endif; ?>
-				<?php if ( $is_error && ! empty( $selected_state['message'] ) && ! is_story_sync_error_renderable( $sync_error ) ) : ?>
+				<?php if ( $is_error && ! empty( $selected_state['message'] ) && null === $sync_error ) : ?>
 				<tr>
 					<td class="label-cell"><?php esc_html_e( 'Message', 'zw-knabbel-wp' ); ?></td>
 					<td class="error-message"><?php echo esc_html( $selected_state['message'] ); ?></td>
@@ -768,7 +713,7 @@ function render_articles_overview(): void {
 					<td class="muted">—</td>
 				</tr>
 				<?php endif; ?>
-				<?php if ( is_story_sync_error_renderable( $sync_error ) ) : ?>
+				<?php if ( null !== $sync_error ) : ?>
 				<tr>
 					<td class="label-cell"><?php esc_html_e( 'Last sync error', 'zw-knabbel-wp' ); ?></td>
 					<td class="error-message">
@@ -779,30 +724,16 @@ function render_articles_overview(): void {
 								<code><?php echo esc_html( $sync_error['operation'] ); ?></code>
 							</div>
 						<?php endif; ?>
-						<?php
-						$sync_error_ts = strtotime( $sync_error['occurred_at'] . ' ' . wp_timezone_string() );
-						if ( $sync_error_ts ) :
-							?>
-							<div class="muted">
-								<?php esc_html_e( 'Occurred', 'zw-knabbel-wp' ); ?>:
-								<?php echo esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $sync_error_ts ) ); ?>
-							</div>
-						<?php endif; ?>
+						<div class="muted">
+							<?php esc_html_e( 'Occurred', 'zw-knabbel-wp' ); ?>:
+							<?php echo esc_html( format_stored_datetime( $sync_error['occurred_at'] ) ); ?>
+						</div>
 					</td>
 				</tr>
 				<?php endif; ?>
 			</table>
 		</div>
 		<div class="knabbel-articles-footer">
-			<?php if ( $is_error ) : ?>
-			<button type="button"
-				class="knabbel-btn knabbel-btn-secondary"
-				id="knabbel-retry-btn"
-				data-post-id="<?php echo intval( $selected->ID ); ?>"
-				style="padding: 6px 12px;">
-				<?php esc_html_e( 'Retry', 'zw-knabbel-wp' ); ?>
-			</button>
-			<?php endif; ?>
 			<div class="footer-right">
 				<button type="button" class="knabbel-refresh" onclick="<?php echo esc_attr( $refresh_js ); ?>">
 					<?php esc_html_e( 'Refresh', 'zw-knabbel-wp' ); ?>

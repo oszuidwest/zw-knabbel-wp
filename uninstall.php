@@ -22,6 +22,7 @@ KnabbelWP\babbel_cleanup_sessions();
 delete_option( 'knabbel_recent_errors' );
 delete_option( 'knabbel_migration_status_changed_at' );
 delete_option( 'knabbel_few_shot_examples' );
+delete_option( 'knabbel_version' );
 
 // Clean up any remaining Action Scheduler jobs.
 if ( function_exists( 'as_unschedule_all_actions' ) ) {

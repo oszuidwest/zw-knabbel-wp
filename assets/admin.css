@@ -404,24 +404,6 @@
     gap: 8px;
 }
 
-.knabbel-action-retry {
-    display: inline-flex;
-    align-items: center;
-    padding: 6px 12px;
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 3px;
-    cursor: pointer;
-    background: #fff;
-    color: #d63638;
-    border: 1px solid #d63638;
-}
-
-.knabbel-action-retry:hover {
-    background: #d63638;
-    color: #fff;
-}
-
 .knabbel-refresh {
     background: none;
     border: 1px solid #c3c4c7;

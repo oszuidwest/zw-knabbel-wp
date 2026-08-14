@@ -144,21 +144,22 @@ function ai_generate_content( string $content, int $current_post_id ): ?string {
 
 	$model_preference = ai_parse_model_setting( $options['ai_model'] );
 
-	$max_attempts = 3;
-	for ( $attempt = 1; $attempt <= $max_attempts; ++$attempt ) {
+	// The prompt builder stores caught exceptions, so every attempt needs a fresh instance.
+	$build_prompt = static function () use ( $messages, $instruction, $model_preference ): \WP_AI_Client_Prompt_Builder {
 		$prompt = wp_ai_client_prompt( $messages )
 			->using_system_instruction( $instruction )
 			->using_max_tokens( 1000 );
-		if ( null !== $model_preference ) {
-			$prompt = $prompt->using_model_preference( $model_preference );
-		}
+		return null === $model_preference ? $prompt : $prompt->using_model_preference( $model_preference );
+	};
 
-		if ( 1 === $attempt && ! $prompt->is_supported_for_text_generation() ) {
-			log( 'error', 'AiHandler', 'WordPress AI Client does not support text generation for this prompt' );
-			return null;
-		}
+	if ( ! $build_prompt()->is_supported_for_text_generation() ) {
+		log( 'error', 'AiHandler', 'WordPress AI Client does not support text generation for this prompt' );
+		return null;
+	}
 
-		$result = $prompt->generate_text();
+	$max_attempts = 3;
+	for ( $attempt = 1; $attempt <= $max_attempts; ++$attempt ) {
+		$result = $build_prompt()->generate_text();
 
 		if ( is_wp_error( $result ) ) {
 			log(
