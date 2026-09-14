@@ -17,18 +17,6 @@ name: Babbel E2E
       - 'tests/e2e/**'
       - '.github/workflows/e2e.yml'
   pull_request:
-    paths:
-      - '**/*.php'
-      - 'assets/**'
-      - 'composer.json'
-      - 'composer.lock'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'playwright.config.ts'
-      - 'tsconfig.json'
-      - 'tests/playwright/**'
-      - 'tests/e2e/**'
-      - '.github/workflows/e2e.yml'
   schedule:
     - cron: '30 4 * * 0'
   workflow_dispatch:
