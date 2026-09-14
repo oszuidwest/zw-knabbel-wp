@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   release:
-    uses: oszuidwest/.github-templates/.github/workflows/wp-release.yml@v2
+    uses: oszuidwest/.github-templates/.github/workflows/wp-release.yml@v3
     with:
       force: ${{ inputs.force }}
     permissions:
