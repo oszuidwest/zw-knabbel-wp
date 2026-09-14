@@ -24,4 +24,4 @@ permissions:
 
 jobs:
   lint:
-    uses: oszuidwest/.github-templates/.github/workflows/wp-js-ci.yml@v2
+    uses: oszuidwest/.github-templates/.github/workflows/wp-js-ci.yml@v3
