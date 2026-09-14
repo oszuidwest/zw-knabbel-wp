@@ -10,9 +10,9 @@
     "test:e2e:browser": "playwright test"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.9",
+    "@biomejs/biome": "^2.5.11",
     "@playwright/test": "^1.62.1",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.5.1",
     "typescript": "^7.0.2"
   }
 }
