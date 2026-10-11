@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ZuidWest Knabbel 0.7.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/zw-knabbel-wp\n"
-"POT-Creation-Date: 2026-10-11T21:49:24+00:00\n"
+"POT-Creation-Date: 2026-10-11T22:12:09+00:00\n"
 "PO-Revision-Date: 2026-08-11T14:51:44+00:00\n"
 "Last-Translator: Remon Mens\n"
 "Language-Team: Dutch\n"
@@ -312,7 +312,7 @@ msgstr "Laatste statuswijziging"
 msgid "Babbel ID"
 msgstr "Babbel ID"
 
-#: includes/admin/settings.php:708 zw-knabbel-wp.php:666
+#: includes/admin/settings.php:708 zw-knabbel-wp.php:669
 msgid "Story is being processed..."
 msgstr "Verhaal wordt verwerkt..."
 
@@ -324,11 +324,11 @@ msgstr "Opgetreden"
 msgid "Refresh"
 msgstr "Vernieuwen"
 
-#: includes/babbel-api.php:60 includes/babbel-api.php:354
+#: includes/babbel-api.php:60 includes/babbel-api.php:355
 msgid "Username and password are required"
 msgstr "Gebruikersnaam en wachtwoord zijn vereist"
 
-#: includes/babbel-api.php:94 includes/babbel-api.php:365
+#: includes/babbel-api.php:94
 msgid "Login failed: "
 msgstr "Inloggen mislukt: "
 
@@ -337,68 +337,68 @@ msgid "No session cookies received"
 msgstr "Geen sessiecookies ontvangen"
 
 #. translators: %1$d is the HTTP status code, %2$s is the error message.
-#: includes/babbel-api.php:148
+#: includes/babbel-api.php:149
 #, php-format
 msgid "API error: HTTP %1$d - %2$s"
 msgstr "API-fout: HTTP %1$d - %2$s"
 
-#: includes/babbel-api.php:232 includes/babbel-api.php:238
+#: includes/babbel-api.php:233 includes/babbel-api.php:239
 msgid "Could not encode story data"
 msgstr "Kon verhaalgegevens niet coderen"
 
-#: includes/babbel-api.php:263 includes/babbel-api.php:463
-#: includes/babbel-api.php:537 includes/babbel-api.php:634
+#: includes/babbel-api.php:264 includes/babbel-api.php:462
+#: includes/babbel-api.php:536 includes/babbel-api.php:633
 msgid "API connection failed: "
 msgstr "API-verbinding mislukt: "
 
-#: includes/babbel-api.php:302 includes/babbel-api.php:393
-#: includes/babbel-api.php:750 includes/babbel-api.php:755
+#: includes/babbel-api.php:303 includes/babbel-api.php:392
+#: includes/babbel-api.php:751 includes/babbel-api.php:756
 msgid "Invalid API response"
 msgstr "Ongeldige API-respons"
 
-#: includes/babbel-api.php:318
+#: includes/babbel-api.php:319
 msgid "No story ID received from API"
 msgstr "Geen verhaal-ID ontvangen van API"
 
-#: includes/babbel-api.php:336 zw-knabbel-wp.php:721
+#: includes/babbel-api.php:337 zw-knabbel-wp.php:724
 msgid "Story created successfully"
 msgstr "Verhaal succesvol aangemaakt"
 
-#: includes/babbel-api.php:376
+#: includes/babbel-api.php:375
 msgid "Session verification failed: "
 msgstr "Sessieverificatie mislukt: "
 
 #. translators: %s is the username.
-#: includes/babbel-api.php:400
+#: includes/babbel-api.php:399
 #, php-format
 msgid "Connected as: %s"
 msgstr "Verbonden als: %s"
 
-#: includes/babbel-api.php:422
+#: includes/babbel-api.php:421
 msgid "No data to update"
 msgstr "Geen gegevens om bij te werken"
 
-#: includes/babbel-api.php:431 includes/babbel-api.php:437
+#: includes/babbel-api.php:430 includes/babbel-api.php:436
 msgid "Could not encode update data"
 msgstr "Kon updategegevens niet coderen"
 
-#: includes/babbel-api.php:500
+#: includes/babbel-api.php:499
 msgid "Story updated successfully"
 msgstr "Verhaal succesvol bijgewerkt"
 
-#: includes/babbel-api.php:574
+#: includes/babbel-api.php:573
 msgid "Story deleted successfully"
 msgstr "Verhaal succesvol verwijderd"
 
-#: includes/babbel-api.php:602 includes/babbel-api.php:608
+#: includes/babbel-api.php:601 includes/babbel-api.php:607
 msgid "Could not encode restore data"
 msgstr "Kon herstelgegevens niet coderen"
 
-#: includes/babbel-api.php:671
+#: includes/babbel-api.php:670
 msgid "Story restored successfully"
 msgstr "Verhaal succesvol hersteld"
 
-#: includes/babbel-api.php:690
+#: includes/babbel-api.php:689
 msgid "Babbel API base URL not configured"
 msgstr "Babbel API basis-URL niet geconfigureerd"
 
@@ -458,19 +458,19 @@ msgstr "Fout"
 msgid "Deleted"
 msgstr "Verwijderd"
 
-#: zw-knabbel-wp.php:602
+#: zw-knabbel-wp.php:605
 msgid "Insufficient permissions"
 msgstr "Onvoldoende rechten"
 
-#: zw-knabbel-wp.php:642
+#: zw-knabbel-wp.php:645
 msgid "Post not found"
 msgstr "Bericht niet gevonden"
 
-#: zw-knabbel-wp.php:655
+#: zw-knabbel-wp.php:658
 msgid "Send to Babbel is disabled for this post"
 msgstr "Verzenden naar Babbel is uitgeschakeld voor dit bericht"
 
-#: zw-knabbel-wp.php:682
+#: zw-knabbel-wp.php:685
 msgid "Could not generate speech text"
 msgstr "Kon spreektekst niet genereren"
 

@@ -37,7 +37,7 @@
                 result.className = `knabbel-test-result ${statusClass}`;
                 // The message can contain an upstream response body; never parse it as HTML.
                 result.innerHTML = icon;
-                result.append(` ${String(data.data)}`);
+                result.append(` ${data.data}`);
             } catch (error) {
                 console.error('Knabbel API test failed:', error);
                 result.className = 'knabbel-test-result error';

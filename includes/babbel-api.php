@@ -141,8 +141,8 @@ function babbel_error_message( int $code, string $body ): string {
 			$detail .= ' (' . implode( '; ', $field_errors ) . ')';
 		}
 	} else {
-		$text   = trim( wp_strip_all_tags( $body, true ) );
-		$detail = '' !== $text ? substr( $text, 0, 1000 ) : get_status_header_desc( $code );
+		$text   = wp_html_excerpt( $body, 1000 );
+		$detail = '' !== $text ? $text : get_status_header_desc( $code );
 	}
 
 	// translators: %1$d is the HTTP status code, %2$s is the error message.
@@ -359,11 +359,9 @@ function babbel_test_connection(): array {
 	// First authenticate.
 	$cookies = babbel_get_session_cookies();
 	if ( is_wp_error( $cookies ) ) {
-		// Rejected logins already carry the "Login failed" prefix.
-		$message = $cookies->get_error_message();
 		return array(
 			'success' => false,
-			'message' => 'login_failed' === $cookies->get_error_code() ? $message : __( 'Login failed: ', 'zw-knabbel-wp' ) . $message,
+			'message' => $cookies->get_error_message(),
 		);
 	}
 
@@ -388,7 +386,7 @@ function babbel_test_connection(): array {
 	}
 
 	$decoded = json_decode( $body, true );
-	if ( ! is_array( $decoded ) || ! is_string( $decoded['username'] ?? null ) ) {
+	if ( ! is_string( $decoded['username'] ?? null ) ) {
 		return array(
 			'success' => false,
 			'message' => __( 'Invalid API response', 'zw-knabbel-wp' ),
@@ -693,11 +691,13 @@ function babbel_fetch_recent_stories( string $created_after ): array|\WP_Error {
 
 	// add_query_arg() does not encode values; an unencoded "+" in an offset decodes as a space.
 	$endpoint = add_query_arg(
-		array(
-			'sort'                    => '-updated_at',
-			'limit'                   => 100,
-			'filter[status][ne]'      => 'draft',
-			'filter[created_at][gte]' => rawurlencode( $created_after ),
+		rawurlencode_deep(
+			array(
+				'sort'                    => '-updated_at',
+				'limit'                   => 100,
+				'filter[status][ne]'      => 'draft',
+				'filter[created_at][gte]' => $created_after,
+			)
 		),
 		$credentials['base_url'] . '/stories'
 	);

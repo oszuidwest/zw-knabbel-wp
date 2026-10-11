@@ -392,8 +392,13 @@ final class Knabbel_E2E_Suite {
 
 		$this->configure_plugin( 'definitely-wrong-password' );
 		$this->update_post( $this->published_post_id, array( 'post_title' => 'E2E titel tijdens fout' ) );
-		$this->assert_sync_failure_preserved( $this->published_post_id, $this->published_story_id, StoryStatus::Sent, 'update' );
-		$this->assert_sync_error_message( $this->published_post_id, 'Invalid username or password', 'Login failures must report the Babbel problem detail.' );
+		$this->assert_sync_failure_preserved(
+			$this->published_post_id,
+			$this->published_story_id,
+			StoryStatus::Sent,
+			'update',
+			'API connection failed: Login failed: API error: HTTP 401 - Invalid username or password'
+		);
 		$connection = KnabbelWP\babbel_test_connection();
 		$this->assert_same( false, $connection['success'], 'Connection test must fail with wrong credentials.' );
 		$this->assert_same(
@@ -835,11 +840,12 @@ final class Knabbel_E2E_Suite {
 		$this->assert_babbel_response_code( 204, 'DELETE', '/stories/' . $story_id );
 
 		$this->update_post( $post_id, array( 'post_title' => 'E2E bewerking na verwijdering' ) );
-		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'update' );
-		$this->assert_sync_error_message(
+		$this->assert_sync_failure_preserved(
 			$post_id,
-			'API error: HTTP 410 - Story with id ' . $story_id . ' has been deleted',
-			'Writes to a deleted story must report the 410 problem detail.'
+			$story_id,
+			StoryStatus::Sent,
+			'update',
+			'API error: HTTP 410 - Story with id ' . $story_id . ' has been deleted'
 		);
 	}
 
@@ -1200,29 +1206,27 @@ final class Knabbel_E2E_Suite {
 	/**
 	 * Asserts retryable lifecycle state.
 	 *
-	 * @param int         $post_id   Post ID.
-	 * @param string      $story_id  Expected Babbel story ID.
-	 * @param StoryStatus $status    Expected preserved lifecycle status.
-	 * @param string      $operation Expected failed sync operation.
+	 * @param int         $post_id       Post ID.
+	 * @param string      $story_id      Expected Babbel story ID.
+	 * @param StoryStatus $status        Expected preserved lifecycle status.
+	 * @param string      $operation     Expected failed sync operation.
+	 * @param string|null $error_message Expected sync error message, when asserted.
 	 */
-	private function assert_sync_failure_preserved( int $post_id, string $story_id, StoryStatus $status, string $operation ): void {
+	private function assert_sync_failure_preserved(
+		int $post_id,
+		string $story_id,
+		StoryStatus $status,
+		string $operation,
+		?string $error_message = null
+	): void {
 		$state          = KnabbelWP\get_story_state( $post_id );
 		$message_prefix = ucfirst( $operation ) . ' failure must ';
 		$this->assert_same( $status->value, $state['status'] ?? null, $message_prefix . 'preserve ' . $status->value . ' state.' );
 		$this->assert_same( $story_id, (string) ( $state['story_id'] ?? '' ), $message_prefix . 'preserve the story ID.' );
 		$this->assert_same( $operation, $state['last_sync_error']['operation'] ?? null, $message_prefix . 'identify its operation.' );
-	}
-
-	/**
-	 * Asserts the stored sync error contains a readable message.
-	 *
-	 * @param int    $post_id  Post ID.
-	 * @param string $expected Expected message fragment.
-	 * @param string $message  Failure message.
-	 */
-	private function assert_sync_error_message( int $post_id, string $expected, string $message ): void {
-		$error = (string) ( KnabbelWP\get_story_state( $post_id )['last_sync_error']['message'] ?? '' );
-		$this->assert_same( true, str_contains( $error, $expected ) && ! str_contains( $error, '"type"' ), $message . ' Got: ' . $error );
+		if ( null !== $error_message ) {
+			$this->assert_same( $error_message, $state['last_sync_error']['message'] ?? null, $message_prefix . 'report the Babbel problem detail.' );
+		}
 	}
 
 	/**
