@@ -79,7 +79,7 @@ function few_shot_cutoff_timestamp(): int {
  * @since 0.7.0 Stores a recent candidate pool for per-request selection.
  */
 function sync_few_shot_examples(): void {
-	$stories = babbel_fetch_recent_stories( gmdate( DATE_ATOM, few_shot_cutoff_timestamp() ) );
+	$stories = babbel_fetch_recent_stories( gmdate( 'Y-m-d\TH:i:s\Z', few_shot_cutoff_timestamp() ) );
 
 	if ( is_wp_error( $stories ) ) {
 		log(

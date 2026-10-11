@@ -86,7 +86,8 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-016', 'untrash honors a disabled checkbox', $this->test_untrash_with_checkbox_disabled( ... ) );
 		$this->run_case( 'E2E-017', 'delete and restore failures remain retryable', $this->test_delete_and_restore_failures( ... ) );
 		$this->run_case( 'E2E-018', 'stored Unix timestamps retain their meaning after serialization', $this->test_stored_datetime_formatting( ... ) );
-		$this->run_case( 'E2E-019', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
+		$this->run_case( 'E2E-019', 'a story deleted in Babbel reports a readable 410 on update', $this->test_story_deleted_in_babbel( ... ) );
+		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
 	}
@@ -393,6 +394,7 @@ final class Knabbel_E2E_Suite {
 		$this->configure_plugin( 'definitely-wrong-password' );
 		$this->update_post( $this->published_post_id, array( 'post_title' => 'E2E titel tijdens fout' ) );
 		$this->assert_sync_failure_preserved( $this->published_post_id, $this->published_story_id, StoryStatus::Sent, 'update' );
+		$this->assert_sync_error_message( $this->published_post_id, 'Invalid username or password', 'Login failures must report the Babbel problem detail.' );
 		$story = $this->get_babbel_story( $this->published_story_id );
 		$this->assert_same( 'E2E titel gesynchroniseerd', $story['title'] ?? null, 'Failed update must leave remote data unchanged.' );
 
@@ -817,6 +819,25 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
+	 * Verifies an update to a story deleted outside WordPress.
+	 */
+	private function test_story_deleted_in_babbel(): void {
+		list( $post_id, $story_id ) = $this->create_sent_story(
+			'E2E buiten WordPress verwijderd',
+			'Een redacteur verwijdert het verhaal in Babbel terwijl het bericht in WordPress gepubliceerd blijft.'
+		);
+		$this->assert_babbel_response_code( 204, 'DELETE', '/stories/' . $story_id );
+
+		$this->update_post( $post_id, array( 'post_title' => 'E2E bewerking na verwijdering' ) );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'update' );
+		$this->assert_sync_error_message(
+			$post_id,
+			'API error: HTTP 410 - Story with id ' . $story_id . ' has been deleted',
+			'Writes to a deleted story must report the 410 problem detail.'
+		);
+	}
+
+	/**
 	 * Verifies plugin lifecycle cleanup.
 	 */
 	private function test_deactivation_cleanup(): void {
@@ -1184,6 +1205,18 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( $status->value, $state['status'] ?? null, $message_prefix . 'preserve ' . $status->value . ' state.' );
 		$this->assert_same( $story_id, (string) ( $state['story_id'] ?? '' ), $message_prefix . 'preserve the story ID.' );
 		$this->assert_same( $operation, $state['last_sync_error']['operation'] ?? null, $message_prefix . 'identify its operation.' );
+	}
+
+	/**
+	 * Asserts the stored sync error contains a readable message.
+	 *
+	 * @param int    $post_id  Post ID.
+	 * @param string $expected Expected message fragment.
+	 * @param string $message  Failure message.
+	 */
+	private function assert_sync_error_message( int $post_id, string $expected, string $message ): void {
+		$error = (string) ( KnabbelWP\get_story_state( $post_id )['last_sync_error']['message'] ?? '' );
+		$this->assert_same( true, str_contains( $error, $expected ) && ! str_contains( $error, '"type"' ), $message . ' Got: ' . $error );
 	}
 
 	/**
