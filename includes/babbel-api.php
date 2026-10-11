@@ -683,12 +683,14 @@ function babbel_fetch_recent_stories( string $created_after ): array|\WP_Error {
 		return new \WP_Error( 'missing_config', __( 'Babbel API base URL not configured', 'zw-knabbel-wp' ) );
 	}
 
+	// add_query_arg() does not encode values; an unencoded "+" in a UTC offset
+	// decodes as a space, which Babbel rejects with 422.
 	$endpoint = add_query_arg(
 		array(
 			'sort'                    => '-updated_at',
 			'limit'                   => 100,
 			'filter[status][ne]'      => 'draft',
-			'filter[created_at][gte]' => $created_after,
+			'filter[created_at][gte]' => rawurlencode( $created_after ),
 		),
 		$credentials['base_url'] . '/stories'
 	);
