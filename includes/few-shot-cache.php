@@ -134,7 +134,7 @@ function build_few_shot_candidates( array $stories ): array {
 	}
 
 	foreach ( $stories as $story ) {
-		// Re-check the cutoff client-side in case the API ignores the created_at filter.
+		// Babbel compares created_at in its server timezone; enforce the cutoff as an instant.
 		$created_at = $story['created_at'] ?? null;
 		$created    = is_string( $created_at ) ? strtotime( $created_at ) : false;
 		if ( false === $created || $created < $cutoff ) {

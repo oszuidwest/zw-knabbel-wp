@@ -90,7 +90,8 @@ function babbel_get_session_cookies(): array|\WP_Error {
 
 		$response_code = wp_remote_retrieve_response_code( $response );
 		if ( 201 !== $response_code ) {
-			return new \WP_Error( 'login_failed', __( 'Login failed: ', 'zw-knabbel-wp' ) . babbel_problem_message( wp_remote_retrieve_body( $response ) ) );
+			$error = babbel_error_message( $response_code, wp_remote_retrieve_body( $response ) );
+			return new \WP_Error( 'login_failed', __( 'Login failed: ', 'zw-knabbel-wp' ) . $error );
 		}
 
 		$cookies = wp_remote_retrieve_cookies( $response );
@@ -98,8 +99,8 @@ function babbel_get_session_cookies(): array|\WP_Error {
 			return new \WP_Error( 'no_cookies', __( 'No session cookies received', 'zw-knabbel-wp' ) );
 		}
 
-		// Cache session cookies for 50 minutes (sessions expire after 1 hour).
-		set_transient( $cache_key, $cookies, 50 * MINUTE_IN_SECONDS );
+		// Babbel sessions last 24 hours; renew an hour early. A 401 still forces a new login.
+		set_transient( $cache_key, $cookies, DAY_IN_SECONDS - HOUR_IN_SECONDS );
 
 		return $cookies;
 }
@@ -114,30 +115,37 @@ function babbel_clear_session_cache(): void {
 }
 
 /**
- * Returns a readable message from a Babbel error response.
+ * Formats a Babbel error response.
  *
  * Babbel reports errors as RFC 9457 Problem Details; field errors from
- * `errors[]` follow `detail` in parentheses. A body that is not Problem Details,
- * such as a proxy error page, is returned truncated.
+ * `errors[]` follow `detail` in parentheses. Responses Babbel does not shape,
+ * such as unknown routes, recovered panics or proxy errors, fall back to the
+ * truncated body or the HTTP status description.
  *
  * @since 0.8.0
+ * @param int    $code HTTP status code.
  * @param string $body Raw response body.
- * @return string Error message.
+ * @return string Translated error message.
  */
-function babbel_problem_message( string $body ): string {
+function babbel_error_message( int $code, string $body ): string {
 	$problem = json_decode( $body, true );
-	if ( ! is_array( $problem ) || ! is_string( $problem['detail'] ?? null ) ) {
-		return substr( $body, 0, 1000 );
-	}
-
-	$field_errors = array();
-	foreach ( (array) ( $problem['errors'] ?? array() ) as $error ) {
-		if ( is_array( $error ) && is_string( $error['field'] ?? null ) && is_string( $error['message'] ?? null ) ) {
-			$field_errors[] = $error['field'] . ': ' . $error['message'];
+	if ( is_array( $problem ) && is_string( $problem['detail'] ?? null ) ) {
+		$detail       = $problem['detail'];
+		$field_errors = array();
+		foreach ( (array) ( $problem['errors'] ?? array() ) as $error ) {
+			if ( is_array( $error ) && is_string( $error['field'] ?? null ) && is_string( $error['message'] ?? null ) ) {
+				$field_errors[] = $error['field'] . ': ' . $error['message'];
+			}
 		}
+		if ( array() !== $field_errors ) {
+			$detail .= ' (' . implode( '; ', $field_errors ) . ')';
+		}
+	} else {
+		$detail = '' !== trim( $body ) ? substr( $body, 0, 1000 ) : get_status_header_desc( $code );
 	}
 
-	return array() === $field_errors ? $problem['detail'] : $problem['detail'] . ' (' . implode( '; ', $field_errors ) . ')';
+	// translators: %1$d is the HTTP status code, %2$s is the error message.
+	return sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $code, $detail );
 }
 
 /**
@@ -272,8 +280,7 @@ function babbel_create_story( array $story_data ): array {
 		);
 		return array(
 			'success' => false,
-			// translators: %1$d is the HTTP status code, %2$s is the error message.
-			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, babbel_problem_message( $body ) ),
+			'message' => babbel_error_message( $response_code, $body ),
 		);
 	}
 
@@ -296,7 +303,7 @@ function babbel_create_story( array $story_data ): array {
 		);
 	}
 
-	if ( ! isset( $decoded['id'] ) ) {
+	if ( ! is_int( $decoded['id'] ?? null ) ) {
 		log(
 			'error',
 			'BabbelApi',
@@ -325,7 +332,7 @@ function babbel_create_story( array $story_data ): array {
 
 		return array(
 			'success'  => true,
-			'story_id' => $decoded['id'],
+			'story_id' => (string) $decoded['id'],
 			'message'  => __( 'Story created successfully', 'zw-knabbel-wp' ),
 		);
 }
@@ -351,9 +358,11 @@ function babbel_test_connection(): array {
 	// First authenticate.
 	$cookies = babbel_get_session_cookies();
 	if ( is_wp_error( $cookies ) ) {
+		// Rejected logins already carry the "Login failed" prefix.
+		$message = $cookies->get_error_message();
 		return array(
 			'success' => false,
-			'message' => __( 'Login failed: ', 'zw-knabbel-wp' ) . $cookies->get_error_message(),
+			'message' => 'login_failed' === $cookies->get_error_code() ? $message : __( 'Login failed: ', 'zw-knabbel-wp' ) . $message,
 		);
 	}
 
@@ -369,28 +378,26 @@ function babbel_test_connection(): array {
 	}
 
 	$response_code = wp_remote_retrieve_response_code( $response );
-	if ( 200 === $response_code ) {
-		$body = wp_remote_retrieve_body( $response );
-		try {
-			$decoded  = json_decode( $body, true, 512, JSON_THROW_ON_ERROR );
-			$username = $decoded['username'] ?? 'unknown';
-			return array(
-				'success' => true,
-				// translators: %s is the username.
-				'message' => sprintf( __( 'Connected as: %s', 'zw-knabbel-wp' ), $username ),
-			);
-		} catch ( \JsonException $e ) {
-			return array(
-				'success' => true,
-				'message' => __( 'Connection successful', 'zw-knabbel-wp' ),
-			);
-		}
+	$body          = wp_remote_retrieve_body( $response );
+	if ( 200 !== $response_code ) {
+		return array(
+			'success' => false,
+			'message' => babbel_error_message( $response_code, $body ),
+		);
+	}
+
+	$decoded = json_decode( $body, true );
+	if ( ! is_array( $decoded ) || ! is_string( $decoded['username'] ?? null ) ) {
+		return array(
+			'success' => false,
+			'message' => __( 'Invalid API response', 'zw-knabbel-wp' ),
+		);
 	}
 
 	return array(
-		'success' => false,
-		// translators: %d is the HTTP status code.
-		'message' => sprintf( __( 'Unexpected response: HTTP %d', 'zw-knabbel-wp' ), $response_code ),
+		'success' => true,
+		// translators: %s is the username.
+		'message' => sprintf( __( 'Connected as: %s', 'zw-knabbel-wp' ), $decoded['username'] ),
 	);
 }
 
@@ -474,8 +481,7 @@ function babbel_update_story( string $story_id, array $story_data ): array {
 		);
 		return array(
 			'success' => false,
-			// translators: %1$d is the HTTP status code, %2$s is the error message.
-			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, babbel_problem_message( $body ) ),
+			'message' => babbel_error_message( $response_code, $body ),
 		);
 	}
 
@@ -549,8 +555,7 @@ function babbel_delete_story( string $story_id ): array {
 		);
 		return array(
 			'success' => false,
-			// translators: %1$d is the HTTP status code, %2$s is the error message.
-			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, babbel_problem_message( $body ) ),
+			'message' => babbel_error_message( $response_code, $body ),
 		);
 	}
 
@@ -647,8 +652,7 @@ function babbel_restore_story( string $story_id ): array {
 		);
 		return array(
 			'success' => false,
-			// translators: %1$d is the HTTP status code, %2$s is the error message.
-			'message' => sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, babbel_problem_message( $body ) ),
+			'message' => babbel_error_message( $response_code, $body ),
 		);
 	}
 
@@ -730,8 +734,7 @@ function babbel_fetch_recent_stories( string $created_after ): array|\WP_Error {
 		);
 		return new \WP_Error(
 			'api_error',
-			// translators: %1$d is the HTTP status code, %2$s is the error message.
-			sprintf( __( 'API error: HTTP %1$d - %2$s', 'zw-knabbel-wp' ), $response_code, babbel_problem_message( $body ) )
+			babbel_error_message( $response_code, $body )
 		);
 	}
 

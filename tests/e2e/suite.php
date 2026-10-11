@@ -395,6 +395,13 @@ final class Knabbel_E2E_Suite {
 		$this->update_post( $this->published_post_id, array( 'post_title' => 'E2E titel tijdens fout' ) );
 		$this->assert_sync_failure_preserved( $this->published_post_id, $this->published_story_id, StoryStatus::Sent, 'update' );
 		$this->assert_sync_error_message( $this->published_post_id, 'Invalid username or password', 'Login failures must report the Babbel problem detail.' );
+		$connection = KnabbelWP\babbel_test_connection();
+		$this->assert_same( false, $connection['success'], 'Connection test must fail with wrong credentials.' );
+		$this->assert_same(
+			'Login failed: API error: HTTP 401 - Invalid username or password',
+			$connection['message'],
+			'Connection test must report the login problem once.'
+		);
 		$story = $this->get_babbel_story( $this->published_story_id );
 		$this->assert_same( 'E2E titel gesynchroniseerd', $story['title'] ?? null, 'Failed update must leave remote data unchanged.' );
 
