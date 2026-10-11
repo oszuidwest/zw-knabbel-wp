@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-11T21:41:22+00:00\n"
+"POT-Creation-Date: 2026-10-11T21:49:24+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: zw-knabbel-wp\n"
@@ -320,103 +320,90 @@ msgid "Refresh"
 msgstr ""
 
 #: includes/babbel-api.php:60
-#: includes/babbel-api.php:347
+#: includes/babbel-api.php:354
 msgid "Username and password are required"
 msgstr ""
 
-#: includes/babbel-api.php:93
-#: includes/babbel-api.php:356
+#: includes/babbel-api.php:94
+#: includes/babbel-api.php:365
 msgid "Login failed: "
 msgstr ""
 
-#: includes/babbel-api.php:98
+#: includes/babbel-api.php:99
 msgid "No session cookies received"
 msgstr ""
 
-#: includes/babbel-api.php:224
-#: includes/babbel-api.php:230
-msgid "Could not encode story data"
-msgstr ""
-
-#: includes/babbel-api.php:255
-#: includes/babbel-api.php:456
-#: includes/babbel-api.php:531
-#: includes/babbel-api.php:629
-msgid "API connection failed: "
-msgstr ""
-
 #. translators: %1$d is the HTTP status code, %2$s is the error message.
-#: includes/babbel-api.php:276
-#: includes/babbel-api.php:478
-#: includes/babbel-api.php:553
-#: includes/babbel-api.php:651
-#: includes/babbel-api.php:734
+#: includes/babbel-api.php:148
 #, php-format
 msgid "API error: HTTP %1$d - %2$s"
 msgstr ""
 
-#: includes/babbel-api.php:295
-#: includes/babbel-api.php:747
-#: includes/babbel-api.php:752
+#: includes/babbel-api.php:232
+#: includes/babbel-api.php:238
+msgid "Could not encode story data"
+msgstr ""
+
+#: includes/babbel-api.php:263
+#: includes/babbel-api.php:463
+#: includes/babbel-api.php:537
+#: includes/babbel-api.php:634
+msgid "API connection failed: "
+msgstr ""
+
+#: includes/babbel-api.php:302
+#: includes/babbel-api.php:393
+#: includes/babbel-api.php:750
+#: includes/babbel-api.php:755
 msgid "Invalid API response"
 msgstr ""
 
-#: includes/babbel-api.php:311
+#: includes/babbel-api.php:318
 msgid "No story ID received from API"
 msgstr ""
 
-#: includes/babbel-api.php:329
+#: includes/babbel-api.php:336
 #: zw-knabbel-wp.php:721
 msgid "Story created successfully"
 msgstr ""
 
-#: includes/babbel-api.php:367
+#: includes/babbel-api.php:376
 msgid "Session verification failed: "
 msgstr ""
 
 #. translators: %s is the username.
-#: includes/babbel-api.php:380
+#: includes/babbel-api.php:400
 #, php-format
 msgid "Connected as: %s"
 msgstr ""
 
-#: includes/babbel-api.php:385
-msgid "Connection successful"
-msgstr ""
-
-#. translators: %d is the HTTP status code.
-#: includes/babbel-api.php:393
-#, php-format
-msgid "Unexpected response: HTTP %d"
-msgstr ""
-
-#: includes/babbel-api.php:415
+#: includes/babbel-api.php:422
 msgid "No data to update"
 msgstr ""
 
-#: includes/babbel-api.php:424
-#: includes/babbel-api.php:430
+#: includes/babbel-api.php:431
+#: includes/babbel-api.php:437
 msgid "Could not encode update data"
 msgstr ""
 
-#: includes/babbel-api.php:494
+#: includes/babbel-api.php:500
 msgid "Story updated successfully"
 msgstr ""
 
-#: includes/babbel-api.php:569
+#: includes/babbel-api.php:574
 msgid "Story deleted successfully"
 msgstr ""
 
-#: includes/babbel-api.php:597
-#: includes/babbel-api.php:603
+#: includes/babbel-api.php:602
+#: includes/babbel-api.php:608
 msgid "Could not encode restore data"
 msgstr ""
 
-#: includes/babbel-api.php:667
+#: includes/babbel-api.php:671
 msgid "Story restored successfully"
 msgstr ""
 
-#: includes/babbel-api.php:686
+#: includes/babbel-api.php:690
 msgid "Babbel API base URL not configured"
 msgstr ""
 

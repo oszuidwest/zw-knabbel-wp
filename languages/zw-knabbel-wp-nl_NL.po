@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ZuidWest Knabbel 0.7.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/zw-knabbel-wp\n"
-"POT-Creation-Date: 2026-10-11T21:41:22+00:00\n"
+"POT-Creation-Date: 2026-10-11T21:49:24+00:00\n"
 "PO-Revision-Date: 2026-08-11T14:51:44+00:00\n"
 "Last-Translator: Remon Mens\n"
 "Language-Team: Dutch\n"
@@ -324,93 +324,81 @@ msgstr "Opgetreden"
 msgid "Refresh"
 msgstr "Vernieuwen"
 
-#: includes/babbel-api.php:60 includes/babbel-api.php:347
+#: includes/babbel-api.php:60 includes/babbel-api.php:354
 msgid "Username and password are required"
 msgstr "Gebruikersnaam en wachtwoord zijn vereist"
 
-#: includes/babbel-api.php:93 includes/babbel-api.php:356
+#: includes/babbel-api.php:94 includes/babbel-api.php:365
 msgid "Login failed: "
 msgstr "Inloggen mislukt: "
 
-#: includes/babbel-api.php:98
+#: includes/babbel-api.php:99
 msgid "No session cookies received"
 msgstr "Geen sessiecookies ontvangen"
 
-#: includes/babbel-api.php:224 includes/babbel-api.php:230
-msgid "Could not encode story data"
-msgstr "Kon verhaalgegevens niet coderen"
-
-#: includes/babbel-api.php:255 includes/babbel-api.php:456
-#: includes/babbel-api.php:531 includes/babbel-api.php:629
-msgid "API connection failed: "
-msgstr "API-verbinding mislukt: "
-
 #. translators: %1$d is the HTTP status code, %2$s is the error message.
-#: includes/babbel-api.php:276 includes/babbel-api.php:478
-#: includes/babbel-api.php:553 includes/babbel-api.php:651
-#: includes/babbel-api.php:734
+#: includes/babbel-api.php:148
 #, php-format
 msgid "API error: HTTP %1$d - %2$s"
 msgstr "API-fout: HTTP %1$d - %2$s"
 
-#: includes/babbel-api.php:295 includes/babbel-api.php:747
-#: includes/babbel-api.php:752
+#: includes/babbel-api.php:232 includes/babbel-api.php:238
+msgid "Could not encode story data"
+msgstr "Kon verhaalgegevens niet coderen"
+
+#: includes/babbel-api.php:263 includes/babbel-api.php:463
+#: includes/babbel-api.php:537 includes/babbel-api.php:634
+msgid "API connection failed: "
+msgstr "API-verbinding mislukt: "
+
+#: includes/babbel-api.php:302 includes/babbel-api.php:393
+#: includes/babbel-api.php:750 includes/babbel-api.php:755
 msgid "Invalid API response"
 msgstr "Ongeldige API-respons"
 
-#: includes/babbel-api.php:311
+#: includes/babbel-api.php:318
 msgid "No story ID received from API"
 msgstr "Geen verhaal-ID ontvangen van API"
 
-#: includes/babbel-api.php:329 zw-knabbel-wp.php:721
+#: includes/babbel-api.php:336 zw-knabbel-wp.php:721
 msgid "Story created successfully"
 msgstr "Verhaal succesvol aangemaakt"
 
-#: includes/babbel-api.php:367
+#: includes/babbel-api.php:376
 msgid "Session verification failed: "
 msgstr "Sessieverificatie mislukt: "
 
 #. translators: %s is the username.
-#: includes/babbel-api.php:380
+#: includes/babbel-api.php:400
 #, php-format
 msgid "Connected as: %s"
 msgstr "Verbonden als: %s"
 
-#: includes/babbel-api.php:385
-msgid "Connection successful"
-msgstr "Verbinding succesvol"
-
-#. translators: %d is the HTTP status code.
-#: includes/babbel-api.php:393
-#, php-format
-msgid "Unexpected response: HTTP %d"
-msgstr "Onverwachte respons: HTTP %d"
-
-#: includes/babbel-api.php:415
+#: includes/babbel-api.php:422
 msgid "No data to update"
 msgstr "Geen gegevens om bij te werken"
 
-#: includes/babbel-api.php:424 includes/babbel-api.php:430
+#: includes/babbel-api.php:431 includes/babbel-api.php:437
 msgid "Could not encode update data"
 msgstr "Kon updategegevens niet coderen"
 
-#: includes/babbel-api.php:494
+#: includes/babbel-api.php:500
 msgid "Story updated successfully"
 msgstr "Verhaal succesvol bijgewerkt"
 
-#: includes/babbel-api.php:569
+#: includes/babbel-api.php:574
 msgid "Story deleted successfully"
 msgstr "Verhaal succesvol verwijderd"
 
-#: includes/babbel-api.php:597 includes/babbel-api.php:603
+#: includes/babbel-api.php:602 includes/babbel-api.php:608
 msgid "Could not encode restore data"
 msgstr "Kon herstelgegevens niet coderen"
 
-#: includes/babbel-api.php:667
+#: includes/babbel-api.php:671
 msgid "Story restored successfully"
 msgstr "Verhaal succesvol hersteld"
 
-#: includes/babbel-api.php:686
+#: includes/babbel-api.php:690
 msgid "Babbel API base URL not configured"
 msgstr "Babbel API basis-URL niet geconfigureerd"
 
@@ -485,6 +473,13 @@ msgstr "Verzenden naar Babbel is uitgeschakeld voor dit bericht"
 #: zw-knabbel-wp.php:682
 msgid "Could not generate speech text"
 msgstr "Kon spreektekst niet genereren"
+
+#~ msgid "Connection successful"
+#~ msgstr "Verbinding succesvol"
+
+#, php-format
+#~ msgid "Unexpected response: HTTP %d"
+#~ msgstr "Onverwachte respons: HTTP %d"
 
 #~ msgid "API error"
 #~ msgstr "API-fout"
