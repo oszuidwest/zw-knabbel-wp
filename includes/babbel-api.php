@@ -120,7 +120,7 @@ function babbel_clear_session_cache(): void {
  * Babbel reports errors as RFC 9457 Problem Details; field errors from
  * `errors[]` follow `detail` in parentheses. Responses Babbel does not shape,
  * such as unknown routes, recovered panics or proxy errors, fall back to the
- * truncated body or the HTTP status description.
+ * body as plain text or the HTTP status description.
  *
  * @since 0.8.0
  * @param int    $code HTTP status code.
@@ -141,7 +141,8 @@ function babbel_error_message( int $code, string $body ): string {
 			$detail .= ' (' . implode( '; ', $field_errors ) . ')';
 		}
 	} else {
-		$detail = '' !== trim( $body ) ? substr( $body, 0, 1000 ) : get_status_header_desc( $code );
+		$text   = trim( wp_strip_all_tags( $body, true ) );
+		$detail = '' !== $text ? substr( $text, 0, 1000 ) : get_status_header_desc( $code );
 	}
 
 	// translators: %1$d is the HTTP status code, %2$s is the error message.
