@@ -140,7 +140,6 @@ final class Knabbel_E2E_Suite {
 		);
 
 		update_option( 'knabbel_settings', $settings );
-		KnabbelWP\babbel_clear_session_cache();
 	}
 
 	/**
