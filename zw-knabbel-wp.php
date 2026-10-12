@@ -321,7 +321,8 @@ function update_story_state( int $post_id, array $updates = array() ): bool {
 		}
 	}
 
-	$success = update_post_meta( $post_id, '_zw_knabbel_story_state', $new_state );
+	// Post meta is stored unslashed, so the state is slashed to keep backslashes in titles and texts.
+	$success = update_post_meta( $post_id, '_zw_knabbel_story_state', wp_slash( $new_state ) );
 
 	if ( $success ) {
 		/**
@@ -656,14 +657,59 @@ function process_story_async( int $post_id ): void {
 
 	log( 'info', 'CronProcessor', 'Starting async story processing', array( 'post_id' => $post_id ) );
 
+	// The checks and state changes before generation run under the post's sync lock, on fresh state,
+	// so they never overwrite an attempt another worker recorded; generation itself runs outside it.
+	$post    = null;
+	$prepare = static function () use ( $post_id, &$post ) {
+		$post = prepare_story_processing( $post_id );
+	};
+	if ( ! with_story_sync_lock( $post_id, $prepare ) ) {
+		log( 'info', 'CronProcessor', 'A sync of this post is running — processing again shortly', array( 'post_id' => $post_id ) );
+		\as_schedule_single_action( time() + 60, 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
+		return;
+	}
+	if ( null === $post ) {
+		return;
+	}
+
+	$content = wp_strip_all_tags( $post->post_content );
+
+	// Generate speech text.
+	$speech_text = ai_generate_content( $content, $post_id );
+
+	// The rest runs under the post's sync lock: a sync during the create could otherwise settle or
+	// clear the attempt before its answer arrives. A sync that is running now is waited for.
+	if ( ! with_story_sync_lock( $post_id, static fn () => send_generated_story( $post_id, $speech_text ) ) ) {
+		log( 'info', 'CronProcessor', 'A sync of this post is running — processing again shortly', array( 'post_id' => $post_id ) );
+		\as_schedule_single_action( time() + 60, 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
+	}
+}
+
+/**
+ * Checks whether a post still needs a story and marks it as processing.
+ *
+ * Runs while holding the post's sync lock, after a pending create attempt is
+ * settled.
+ *
+ * @since 0.9.0
+ *
+ * @param int $post_id The WordPress post ID.
+ * @return \WP_Post|null The post to generate a story for, or null when there is nothing to do.
+ */
+function prepare_story_processing( int $post_id ): ?\WP_Post {
+	// A create whose answer was lost may have made the story: settle that before anything else.
+	if ( settle_pending_create( $post_id ) ) {
+		return null;
+	}
+
 	// Send-once safety: a post that has a story, even one gone from Babbel, never gets another.
 	$existing_state = get_story_state( $post_id );
 	if ( story_exists_for_post( $existing_state ) ) {
 		log( 'info', 'CronProcessor', 'Story already sent — skipping', array( 'post_id' => $post_id ) );
-		return;
+		return null;
 	}
 
-		$post = get_post( $post_id );
+	$post = get_post( $post_id );
 	if ( ! $post ) {
 		update_story_state(
 			$post_id,
@@ -672,7 +718,7 @@ function process_story_async( int $post_id ): void {
 				'message' => __( 'Post not found', 'zw-knabbel-wp' ) . ' (ID: ' . $post_id . ')',
 			)
 		);
-		return;
+		return null;
 	}
 
 	// Check if still enabled for this post.
@@ -685,14 +731,14 @@ function process_story_async( int $post_id ): void {
 				'message' => __( 'Send to Babbel is disabled for this post', 'zw-knabbel-wp' ),
 			)
 		);
-		return;
+		return null;
 	}
 
 	// Only published and scheduled posts get a story; the post may have left publication since queueing.
 	if ( ! in_array( $post->post_status, array( 'publish', 'future' ), true ) ) {
 		log( 'info', 'CronProcessor', 'Post is no longer published or scheduled — skipping', array( 'post_id' => $post_id ) );
 		delete_post_meta( $post_id, '_zw_knabbel_story_state' );
-		return;
+		return null;
 	}
 
 	// Update status to processing.
@@ -704,10 +750,26 @@ function process_story_async( int $post_id ): void {
 		)
 	);
 
-	$content = wp_strip_all_tags( $post->post_content );
+	return $post;
+}
 
-	// Generate speech text.
-	$speech_text = ai_generate_content( $content, $post_id );
+/**
+ * Sends generated speech text to Babbel as the post's story.
+ *
+ * Runs while holding the post's sync lock, so no sync settles or clears the
+ * create attempt while its answer is outstanding.
+ *
+ * @since 0.9.0
+ *
+ * @param int         $post_id     The WordPress post ID.
+ * @param string|null $speech_text The generated speech text, or null when generation failed.
+ */
+function send_generated_story( int $post_id, ?string $speech_text ): void {
+	// Another worker may have made an attempt during generation whose answer was lost: settle it
+	// first, so this one neither replaces its token nor makes a second story.
+	if ( settle_pending_create( $post_id ) ) {
+		return;
+	}
 
 	// Generation takes a while: another request may have given the post a story meanwhile, and
 	// neither a new story nor an error state may replace it.
@@ -753,6 +815,8 @@ function process_story_async( int $post_id ): void {
 	$base_date = 'future' === $post->post_status ? $post->post_date : current_time( 'mysql' );
 	$dates     = calculate_story_dates( $base_date );
 
+	$window_base = 'future' === $post->post_status ? null : $base_date;
+
 	$story_data = array(
 		'title'      => $title,
 		'text'       => $speech_text,
@@ -766,38 +830,108 @@ function process_story_async( int $post_id ): void {
 		),
 	);
 
-	// Send to Babbel API.
-	$result = babbel_create_story( $story_data );
+	// A token in the metadata identifies this attempt, and stays recorded until the attempt is
+	// settled: if its answer is lost, Babbel may have created the story anyway.
+	// The token is also the idempotency key, so the request is kept to repeat it if its answer is lost.
+	$create_id                                   = wp_generate_uuid4();
+	$story_data['metadata']['knabbel_create_id'] = $create_id;
+	$story_data['idempotency_key']               = $create_id;
+	$pending                                     = array(
+		'id'          => $create_id,
+		'since'       => time(),
+		'window_base' => $window_base,
+		'speech_text' => $speech_text,
+		'request'     => $story_data,
+	);
+	// The attempt counts as outstanding before it is recorded, as recording it fires a hook that may
+	// save, and until its outcome is recorded: a save in between, from a hook for example, waits, so
+	// it can neither settle the attempt early nor have its result overwritten.
+	story_create_in_flight( $post_id, true );
+	try {
+		// An attempt that could not be recorded could never be found again if its answer were lost.
+		$result = update_story_state( $post_id, array( 'pending_create' => $pending ) ) ? babbel_create_story( $story_data ) : null;
+		// Babbel v0.17.0 rejects the key without creating anything; the attempt is then found by its token.
+		if ( ! empty( $result['unsupported'] ) ) {
+			unset( $story_data['idempotency_key'], $pending['request'] );
+			$pending['since'] = time();
+			$result           = update_story_state( $post_id, array( 'pending_create' => $pending ) ) ? babbel_create_story( $story_data ) : null;
+		}
 
-	if ( $result['success'] ) {
-		update_story_state(
-			$post_id,
-			array(
-				'status'                => \KnabbelWP\StoryStatus::Sent->value,
-				'story_id'              => $result['story_id'],
-				'message'               => __( 'Story created successfully', 'zw-knabbel-wp' ),
-				'generated_speech_text' => $speech_text,
-				'last_sync_error'       => null,
-				// What Babbel confirmed, and when a published story went live.
-				'synced'                => array(
-					'title'      => $title,
-					'start_date' => $dates['start_date'],
-					'end_date'   => $dates['end_date'],
-					'weekdays'   => $dates['weekdays'],
-				),
-				'window_base'           => 'future' === $post->post_status ? null : $base_date,
-			)
-		);
-		// Saves during generation and creation found no story to update, so bring it in line now.
-		sync_story_state( $post_id );
-	} else {
-		update_story_state(
-			$post_id,
-			array(
-				'status'          => \KnabbelWP\StoryStatus::Error->value,
-				'message'         => $result['message'],
-				'last_sync_error' => build_story_sync_error( $result['message'], 'create' ),
-			)
-		);
+		if ( null === $result ) {
+			update_story_state(
+				$post_id,
+				array(
+					'status'  => \KnabbelWP\StoryStatus::Error->value,
+					'message' => __( 'Could not record the create attempt; the story was not sent', 'zw-knabbel-wp' ),
+				)
+			);
+			return;
+		}
+
+		if ( $result['success'] ) {
+			update_story_state(
+				$post_id,
+				array(
+					'status'                => \KnabbelWP\StoryStatus::Sent->value,
+					'story_id'              => $result['story_id'],
+					'message'               => __( 'Story created successfully', 'zw-knabbel-wp' ),
+					'generated_speech_text' => $speech_text,
+					'last_sync_error'       => null,
+					// What Babbel confirmed, and when a published story went live.
+					'synced'                => array(
+						'title'      => $title,
+						'start_date' => $dates['start_date'],
+						'end_date'   => $dates['end_date'],
+						'weekdays'   => $dates['weekdays'],
+					),
+					'window_base'           => $window_base,
+					'pending_create'        => null,
+				)
+			);
+		} else {
+			// An unanswered create may have made the story; a rejected one made nothing.
+			$adopted = babbel_write_uncertain( $result ) ? resolve_pending_create( $post_id ) : false;
+			if ( true !== $adopted ) {
+				$error_state = array(
+					'status'  => \KnabbelWP\StoryStatus::Error->value,
+					'message' => $result['message'],
+				);
+				// A failed lookup keeps the attempt pending and its own error; it is looked up again first.
+				if ( null !== $adopted ) {
+					$error_state['last_sync_error'] = build_story_sync_error( $result['message'], 'create' );
+					$error_state['pending_create']  = null;
+				}
+				update_story_state( $post_id, $error_state );
+				return;
+			}
+		}
+	} finally {
+		story_create_in_flight( $post_id, false );
 	}
+
+	// Saves during generation and creation waited for the outcome, so bring the story in line now.
+	sync_story_state( $post_id );
+}
+
+/**
+ * Settles a create attempt still pending before a worker goes on.
+ *
+ * Runs while holding the post's sync lock. A story the attempt made is
+ * adopted and brought in line with the post.
+ *
+ * @since 0.9.0
+ *
+ * @param int $post_id The WordPress post ID.
+ * @return bool True when the worker stops: the story was adopted, or the lookup failed and is retried.
+ */
+function settle_pending_create( int $post_id ): bool {
+	if ( empty( get_story_state( $post_id )['pending_create'] ) ) {
+		return false;
+	}
+
+	$adopted = resolve_pending_create( $post_id );
+	if ( true === $adopted ) {
+		sync_story_state( $post_id );
+	}
+	return false !== $adopted;
 }
