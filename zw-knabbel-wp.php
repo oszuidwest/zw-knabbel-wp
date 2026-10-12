@@ -289,6 +289,7 @@ function log( string $level, string $component, string $message, array $context 
  * Triggers WordPress action hook for extensibility.
  *
  * @since 0.1.0
+ * @since 0.9.0 A null value removes any key, not only `last_sync_error`.
  * @param int                  $post_id The post ID.
  * @param array<string, mixed> $updates Partial state updates to apply.
  * @return bool True on successful update, false on failure.
@@ -313,9 +314,11 @@ function update_story_state( int $post_id, array $updates = array() ): bool {
 		$new_state['status_changed_at'] = current_time( 'mysql' );
 	}
 
-	// Null is an update-only sentinel: remove the error instead of persisting it.
-	if ( array_key_exists( 'last_sync_error', $updates ) && null === $updates['last_sync_error'] ) {
-		unset( $new_state['last_sync_error'] );
+	// Null is an update-only sentinel: remove the key instead of persisting it.
+	foreach ( $updates as $key => $value ) {
+		if ( null === $value ) {
+			unset( $new_state[ $key ] );
+		}
 	}
 
 	$success = update_post_meta( $post_id, '_zw_knabbel_story_state', $new_state );
@@ -568,6 +571,8 @@ function deactivate(): void {
 	// Clear Action Scheduler jobs. Hook-only takes the bulk-cancel path; passing
 	// args or a group forces an exact args match and would skip per-post actions.
 	\as_unschedule_all_actions( 'knabbel_process_story' );
+	\as_unschedule_all_actions( 'knabbel_retry_story_sync' );
+	\as_unschedule_all_actions( 'knabbel_deferred_story_sync' );
 
 	// Clear few-shot sync schedule and cached data.
 	few_shot_unschedule_sync();
@@ -624,7 +629,8 @@ function ajax_test_api(): void {
  * @since 0.1.0
  * @since 0.7.0 Excludes the current post from the AI few-shot examples.
  * @since 0.8.0 Accepts only a post ID and leaves already sent stories untouched.
- * @since 0.9.0 Skips posts that are no longer published, scheduled or enabled, also after generation.
+ * @since 0.9.0 Skips posts that are no longer published, scheduled or enabled, also after generation, and
+ *              records what Babbel confirmed.
  * @param int $post_id The WordPress post ID.
  */
 function process_story_async( int $post_id ): void {
@@ -721,7 +727,7 @@ function process_story_async( int $post_id ): void {
 	// Calculate dates based on post status:
 	// - For scheduled posts (future): use the scheduled publish time (post_date).
 	// - For published posts: use current time.
-	$base_date = 'future' === $post->post_status ? $post->post_date : 'now';
+	$base_date = 'future' === $post->post_status ? $post->post_date : current_time( 'mysql' );
 	$dates     = calculate_story_dates( $base_date );
 
 	$story_data = array(
@@ -749,6 +755,14 @@ function process_story_async( int $post_id ): void {
 				'message'               => __( 'Story created successfully', 'zw-knabbel-wp' ),
 				'generated_speech_text' => $speech_text,
 				'last_sync_error'       => null,
+				// What Babbel confirmed, and when a published story went live.
+				'synced'                => array(
+					'title'      => $title,
+					'start_date' => $dates['start_date'],
+					'end_date'   => $dates['end_date'],
+					'weekdays'   => $dates['weekdays'],
+				),
+				'window_base'           => 'future' === $post->post_status ? null : $base_date,
 			)
 		);
 	} else {

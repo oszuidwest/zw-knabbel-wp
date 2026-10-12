@@ -414,9 +414,10 @@ function babbel_test_connection(): array {
  *
  * @since 0.2.0
  * @since 0.8.0 Reports Problem Details errors.
+ * @since 0.9.0 Returns the HTTP status as `status_code` on an HTTP error.
  * @param string                                                                        $story_id   The Babbel story ID.
  * @param array{title?: string, start_date?: string, end_date?: string, weekdays?: int} $story_data The story data to update.
- * @return array{success: bool, message: string} Response with success status and message.
+ * @return array{success: bool, message: string, status_code?: int} Response with success status and message.
  *
  * @phpstan-param StoryUpdateData $story_data
  * @phpstan-return BabbelApiResponse
@@ -489,8 +490,9 @@ function babbel_update_story( string $story_id, array $story_data ): array {
 			)
 		);
 		return array(
-			'success' => false,
-			'message' => babbel_error_message( $response_code, $body ),
+			'success'     => false,
+			'message'     => babbel_error_message( $response_code, $body ),
+			'status_code' => $response_code,
 		);
 	}
 
@@ -515,8 +517,9 @@ function babbel_update_story( string $story_id, array $story_data ): array {
  *
  * @since 0.2.0
  * @since 0.8.0 Accepts only HTTP 204 and reports Problem Details errors.
+ * @since 0.9.0 Returns the HTTP status as `status_code` on an HTTP error.
  * @param string $story_id The Babbel story ID.
- * @return array{success: bool, message: string} Response with success status and message.
+ * @return array{success: bool, message: string, status_code?: int} Response with success status and message.
  *
  * @phpstan-return BabbelApiResponse
  */
@@ -564,8 +567,9 @@ function babbel_delete_story( string $story_id ): array {
 			)
 		);
 		return array(
-			'success' => false,
-			'message' => babbel_error_message( $response_code, $body ),
+			'success'     => false,
+			'message'     => babbel_error_message( $response_code, $body ),
+			'status_code' => $response_code,
 		);
 	}
 
@@ -593,8 +597,9 @@ function babbel_delete_story( string $story_id ): array {
  *
  * @since 0.2.0
  * @since 0.8.0 Reports Problem Details errors.
+ * @since 0.9.0 Returns the restored story as `story`, and the HTTP status as `status_code` on an HTTP error.
  * @param string $story_id The Babbel story ID.
- * @return array{success: bool, message: string} Response with success status and message.
+ * @return array{success: bool, message: string, story?: array<string, mixed>, status_code?: int} Response with success status and message.
  *
  * @phpstan-return BabbelApiResponse
  */
@@ -662,8 +667,9 @@ function babbel_restore_story( string $story_id ): array {
 			)
 		);
 		return array(
-			'success' => false,
-			'message' => babbel_error_message( $response_code, $body ),
+			'success'     => false,
+			'message'     => babbel_error_message( $response_code, $body ),
+			'status_code' => $response_code,
 		);
 	}
 
@@ -677,9 +683,65 @@ function babbel_restore_story( string $story_id ): array {
 		)
 	);
 
+	$story = json_decode( $body, true );
+
 	return array(
 		'success' => true,
 		'message' => __( 'Story restored successfully', 'zw-knabbel-wp' ),
+		// PATCH returns the restored story.
+		'story'   => is_array( $story ) ? $story : array(),
+	);
+}
+
+/**
+ * Reads one Babbel story.
+ *
+ * @since 0.9.0
+ * @param string $story_id The Babbel story ID.
+ * @return array{success: bool, message: string, story?: array<string, mixed>, status_code?: int} Response with the decoded story on success.
+ *
+ * @phpstan-return BabbelApiResponse
+ */
+function babbel_get_story( string $story_id ): array {
+	$credentials = babbel_get_credentials();
+	$endpoint    = $credentials['base_url'] . '/stories/' . $story_id;
+
+	$response = babbel_make_authenticated_request(
+		$endpoint,
+		array(
+			'method'  => 'GET',
+			'timeout' => 30,
+		)
+	);
+	if ( is_wp_error( $response ) ) {
+		return array(
+			'success' => false,
+			'message' => __( 'API connection failed: ', 'zw-knabbel-wp' ) . $response->get_error_message(),
+		);
+	}
+
+	$response_code = wp_remote_retrieve_response_code( $response );
+	$body          = wp_remote_retrieve_body( $response );
+	if ( 200 !== $response_code ) {
+		return array(
+			'success'     => false,
+			'message'     => babbel_error_message( $response_code, $body ),
+			'status_code' => $response_code,
+		);
+	}
+
+	$story = json_decode( $body, true );
+	if ( ! is_array( $story ) ) {
+		return array(
+			'success' => false,
+			'message' => __( 'Invalid API response', 'zw-knabbel-wp' ),
+		);
+	}
+
+	return array(
+		'success' => true,
+		'message' => __( 'Story read successfully', 'zw-knabbel-wp' ),
+		'story'   => $story,
 	);
 }
 

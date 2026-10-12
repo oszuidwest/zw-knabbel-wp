@@ -106,6 +106,11 @@ function submitbox_render( \WP_Post $post ): void {
 			<div class="knabbel-sync-warning" role="alert">
 				<strong><?php esc_html_e( 'Babbel sync warning', 'zw-knabbel-wp' ); ?></strong>
 				<div><?php echo esc_html( $sync_error['message'] ); ?></div>
+				<?php if ( ! empty( $state['story_id'] ) && 'create' !== $sync_error['operation'] ) : ?>
+					<button type="submit" class="button button-small knabbel-sync-retry" name="knabbel_retry_sync" value="1">
+						<?php esc_html_e( 'Save and sync again', 'zw-knabbel-wp' ); ?>
+					</button>
+				<?php endif; ?>
 			</div>
 		<?php endif; ?>
 	</div>
@@ -189,9 +194,11 @@ function metabox_render_status( \WP_Post $post ): void {
  * Saves the Radionieuws checkbox state.
  *
  * The post-meta and post-save hooks reconcile story state after WordPress has
- * persisted the checkbox and post status.
+ * persisted the checkbox and post status. "Save and sync again" submits the
+ * whole form, so no edit is lost, and retries a failed sync after the save.
  *
  * @since 0.1.0
+ * @since 0.9.0 Handles "Save and sync again".
  *
  * @param int $post_id The post ID being saved.
  */
@@ -224,4 +231,17 @@ function metabox_save( int $post_id ): void {
 	// Save new checkbox state.
 	$send_to_babbel = isset( $_POST['knabbel_send_to_babbel'] ) ? 1 : 0;
 	update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', $send_to_babbel );
+
+	if ( isset( $_POST['knabbel_retry_sync'] ) ) {
+		// After the regular sync of this save, which already sends any pending fields.
+		add_action(
+			'wp_after_insert_post',
+			static function ( int $saved_post_id ) use ( $post_id ): void {
+				if ( $saved_post_id === $post_id ) {
+					retry_story_sync( $post_id );
+				}
+			},
+			20
+		);
+	}
 }
