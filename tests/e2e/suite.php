@@ -87,7 +87,8 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-017', 'delete and restore failures remain retryable', $this->test_delete_and_restore_failures( ... ) );
 		$this->run_case( 'E2E-018', 'stored Unix timestamps retain their meaning after serialization', $this->test_stored_datetime_formatting( ... ) );
 		$this->run_case( 'E2E-019', 'a story deleted in Babbel reports a readable 410 on update', $this->test_story_deleted_in_babbel( ... ) );
-		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
+		$this->run_case( 'E2E-020', 'default prompt carries the site year and retries nonconforming output', $this->test_default_prompt_constraints( ... ) );
+		$this->run_case( 'E2E-021', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
 	}
@@ -844,6 +845,163 @@ final class Knabbel_E2E_Suite {
 			'update',
 			'API error: HTTP 410 - Story with id ' . $story_id . ' has been deleted'
 		);
+	}
+
+	/**
+	 * Verifies the default prompt's year and form rules.
+	 */
+	private function test_default_prompt_constraints(): void {
+		// The snapshot also restores whether the option existed at all.
+		$timezone = $this->snapshot_options( array( 'timezone_string' ) );
+		// 31 December 2026 11:00 UTC is already 2027 at UTC+14 and still 2026 at UTC-11.
+		$timestamp = gmmktime( 11, 0, 0, 12, 31, 2026 );
+		try {
+			update_option( 'timezone_string', 'Pacific/Kiritimati' );
+			$this->assert_same(
+				true,
+				str_contains( KnabbelWP\ai_default_instruction( $timestamp ), 'Het is 2027.' ),
+				'The year must follow the site timezone ahead of UTC.'
+			);
+			update_option( 'timezone_string', 'Pacific/Pago_Pago' );
+			$this->assert_same(
+				true,
+				str_contains( KnabbelWP\ai_default_instruction( $timestamp ), 'Het is 2026.' ),
+				'The year must follow the site timezone behind UTC.'
+			);
+		} finally {
+			$this->restore_options( $timezone );
+		}
+		$this->assert_same( false, str_contains( KnabbelWP\ai_default_instruction(), '{year}' ), 'The year placeholder must always be replaced.' );
+
+		$too_long   = implode( ' ', array_fill( 0, 66, 'woord' ) ) . '.';
+		$paragraphs = "Eerste alinea van het bericht.\n\nTweede alinea van het bericht.";
+		$valid      = 'Een geldige radiotekst van één alinea.';
+		$settings   = get_option( 'knabbel_settings', array() );
+		$snapshot   = $this->snapshot_options(
+			array( 'knabbel_settings', 'knabbel_recent_errors', 'knabbel_e2e_ai_outputs', 'knabbel_e2e_ai_call_count', 'knabbel_e2e_ai_last_request' )
+		);
+
+		try {
+			delete_option( 'knabbel_recent_errors' );
+			update_option( 'knabbel_e2e_ai_outputs', array( $too_long, $valid, 'Ongebruikte derde uitvoer.' ), false );
+			update_option( 'knabbel_e2e_ai_call_count', 0, false );
+			$this->assert_same(
+				$valid,
+				KnabbelWP\ai_generate_content( 'Een artikel voor de standaardprompt.', 0 ),
+				'Nonconforming default output must be retried.'
+			);
+			$this->assert_same( 2, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'A conforming retry must end the attempts.' );
+			$this->assert_same( array( 'Ongebruikte derde uitvoer.' ), get_option( 'knabbel_e2e_ai_outputs' ), 'The third output must stay unused.' );
+			$this->assert_recent_errors(
+				array(
+					array( 'Speech text breaks the default prompt form rules', 'Text has 66 words; the limit is 65' ),
+				),
+				'A rejected attempt must record its reason without a fallback error.'
+			);
+			$request_json = (string) wp_json_encode( get_option( 'knabbel_e2e_ai_last_request', array() ) );
+			$this->assert_same(
+				true,
+				str_contains( $request_json, 'Het is ' . wp_date( 'Y' ) . '.' ),
+				'The AI request must carry the current year in the site timezone.'
+			);
+
+			delete_option( 'knabbel_recent_errors' );
+			update_option( 'knabbel_e2e_ai_outputs', array( $too_long, $too_long, $paragraphs ), false );
+			update_option( 'knabbel_e2e_ai_call_count', 0, false );
+			$this->assert_same(
+				$paragraphs,
+				KnabbelWP\ai_generate_content( 'Een artikel zonder geldige uitvoer.', 0 ),
+				'When no attempt conforms, the last generated text must be used.'
+			);
+			$this->assert_same( 3, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Nonconforming output must not exceed the retry limit.' );
+			$this->assert_recent_errors(
+				array(
+					array( 'Speech text breaks the default prompt form rules', 'Text has 66 words; the limit is 65' ),
+					array( 'Speech text breaks the default prompt form rules', 'Text has 66 words; the limit is 65' ),
+					array( 'Speech text breaks the default prompt form rules', 'Text contains more than one paragraph' ),
+					array( 'No attempt met the default prompt form rules; using the last generated text', 'Text contains more than one paragraph' ),
+				),
+				'Every rejected attempt and the fallback must record their reasons.'
+			);
+
+			// Empty output and provider failures neither replace nor drop a nonconforming text.
+			delete_option( 'knabbel_recent_errors' );
+			update_option( 'knabbel_e2e_ai_outputs', array( $too_long, '', null ), false );
+			update_option( 'knabbel_e2e_ai_call_count', 0, false );
+			$this->assert_same(
+				$too_long,
+				KnabbelWP\ai_generate_content( 'Een artikel met lege en mislukte pogingen.', 0 ),
+				'A nonconforming text must survive later empty or failed attempts.'
+			);
+			$this->assert_same( 3, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Empty and failed attempts must be retried.' );
+
+			// Without any generated text, generation fails.
+			update_option( 'knabbel_e2e_ai_outputs', array( null, '', null ), false );
+			update_option( 'knabbel_e2e_ai_call_count', 0, false );
+			$this->assert_same( null, KnabbelWP\ai_generate_content( 'Een artikel zonder tekst.', 0 ), 'Without any text, generation must fail.' );
+			$this->assert_same( 3, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Every attempt must be used.' );
+
+			$custom_output                    = $too_long . "\n\nTweede alinea van het eigen bericht.";
+			$custom_settings                  = $settings;
+			$custom_settings['speech_prompt'] = 'Schrijf een uitgebreid radiobericht in meerdere alinea\'s.';
+			update_option( 'knabbel_settings', $custom_settings );
+			update_option( 'knabbel_e2e_ai_outputs', array( $custom_output ), false );
+			update_option( 'knabbel_e2e_ai_call_count', 0, false );
+			$this->assert_same(
+				$custom_output,
+				KnabbelWP\ai_generate_content( 'Een artikel voor een eigen prompt.', 0 ),
+				'A custom prompt must not get the default limits.'
+			);
+			$this->assert_same( 1, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'A custom prompt must accept the first output.' );
+		} finally {
+			$this->restore_options( $snapshot );
+		}
+	}
+
+	/**
+	 * Captures options, including whether they exist.
+	 *
+	 * @param array<int, string> $names Option names.
+	 * @return array<string, array{0: bool, 1: mixed}> Existence flag and value per option.
+	 */
+	private function snapshot_options( array $names ): array {
+		$missing  = new stdClass();
+		$snapshot = array();
+		foreach ( $names as $name ) {
+			$value             = get_option( $name, $missing );
+			$snapshot[ $name ] = array( $missing !== $value, $value );
+		}
+
+		return $snapshot;
+	}
+
+	/**
+	 * Restores options captured by snapshot_options().
+	 *
+	 * @param array<string, array{0: bool, 1: mixed}> $snapshot Captured options.
+	 */
+	private function restore_options( array $snapshot ): void {
+		foreach ( $snapshot as $name => list( $exists, $value ) ) {
+			if ( $exists ) {
+				update_option( $name, $value );
+			} else {
+				delete_option( $name );
+			}
+		}
+	}
+
+	/**
+	 * Asserts the recent errors by message and stored reason.
+	 *
+	 * @param array<int, array{0: string, 1: string}> $expected Expected message and reason pairs, oldest first.
+	 * @param string                                  $message  Failure message.
+	 */
+	private function assert_recent_errors( array $expected, string $message ): void {
+		$actual = array_map(
+			static fn ( array $error ): array => array( $error['message'] ?? null, $error['context']['error'] ?? null ),
+			(array) get_option( 'knabbel_recent_errors', array() )
+		);
+		$this->assert_same( $expected, $actual, $message );
 	}
 
 	/**
