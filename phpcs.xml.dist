@@ -17,7 +17,7 @@
     <ini name="error_reporting" value="E_ALL &amp; ~E_DEPRECATED"/>
 
     <!-- Versions -->
-    <config name="testVersion" value="8.3-8.4"/>
+    <config name="testVersion" value="8.4-"/>
     <config name="minimum_wp_version" value="7.0"/>
 
     <!-- Per-plugin -->

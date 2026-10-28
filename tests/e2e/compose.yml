@@ -33,7 +33,7 @@ services:
       retries: 30
 
   wordpress:
-    image: wordpress:7.1-php8.3-apache
+    image: wordpress:7.1-php8.4-apache
     environment:
       <<: *wordpress-env
     volumes: *wordpress-volumes
@@ -51,7 +51,7 @@ services:
       retries: 45
 
   wordpress-cli:
-    image: wordpress:cli-2.12.0-php8.3
+    image: wordpress:cli-2.12.0-php8.4
     user: "33:33"
     working_dir: /var/www/html
     environment:

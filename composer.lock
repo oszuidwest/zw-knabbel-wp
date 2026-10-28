@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "93f35bbe5eb783fb9b01af8e5593fc4f",
+    "content-hash": "b05ec8848d129b9b5bb4feeffc8f57ac",
     "packages": [
         {
             "name": "woocommerce/action-scheduler",
@@ -912,13 +912,20 @@
             "time": "2026-07-27T11:53:23+00:00"
         }
     ],
-    "aliases": [],
+    "aliases": [
+        {
+            "package": "php-stubs/wordpress-stubs",
+            "version": "7.1.2.0",
+            "alias": "6.9.99",
+            "alias_normalized": "6.9.99.0"
+        }
+    ],
     "minimum-stability": "stable",
     "stability-flags": {},
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
-        "php": ">=8.3"
+        "php": ">=8.4"
     },
     "platform-dev": {},
     "plugin-api-version": "2.9.0"

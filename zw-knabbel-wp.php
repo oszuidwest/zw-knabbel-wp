@@ -5,7 +5,7 @@
  * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Gebruikt de WordPress AI Client voor AI-gegenereerde content.
  * Version: 0.8.0
  * Requires at least: 7.0
- * Requires PHP: 8.3
+ * Requires PHP: 8.4
  * Requires Plugins: classic-editor
  * Author: Streekomroep ZuidWest
  * Author URI: https://www.zuidwesttv.nl
