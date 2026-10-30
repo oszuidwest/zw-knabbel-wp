@@ -155,7 +155,10 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 	}
 
 	// Also covers publish -> future: a new day gives the story the new window.
-	$update_data = build_story_update_from_changes( $post, $post_before );
+	// After a failed sync any field may lag behind, so send them all until one succeeds.
+	$update_data = isset( $state['last_sync_error'] )
+		? build_full_story_update( $post->post_title, story_base_date( $post ) )
+		: build_story_update_from_changes( $post, $post_before );
 	if ( $update_data ) {
 		push_story_update(
 			$post_id,
