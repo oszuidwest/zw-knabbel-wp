@@ -507,8 +507,8 @@ final class Knabbel_E2E_Suite {
 		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'update' );
 		$this->assert_story_window( $story_id, $second_date, 'A failed reschedule must leave the remote window unchanged.' );
 		$this->configure_plugin();
-		$this->update_post( $post_id, array() );
-		$this->assert_story_window( $story_id, $third_date, 'A plain save after a failed reschedule must send the new window.' );
+		$this->update_post( $post_id, array( 'post_title' => 'E2E titel na mislukte planning' ) );
+		$this->assert_story_window( $story_id, $third_date, 'A title edit after a failed reschedule must also send the new window.' );
 
 		$dates_before = KnabbelWP\calculate_story_dates( 'now' );
 		$this->update_post(
