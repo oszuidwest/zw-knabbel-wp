@@ -93,16 +93,14 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 	$status         = $state['status'] ?? '';
 	$story_id       = (string) ( $state['story_id'] ?? '' );
 	$active_status  = in_array( $post->post_status, array( 'publish', 'future' ), true );
-	$is_untrash     = null !== $post_before && 'trash' === $post_before->post_status && 'trash' !== $post->post_status;
-	$is_unscheduled = null !== $post_before
-		&& 'future' === $post_before->post_status
-		&& ! $active_status;
 	// Status changed into publish/future, except the publish→future demotion.
-	$is_activated  = null !== $post_before
+	$is_activated = null !== $post_before
 		&& $active_status
 		&& $post_before->post_status !== $post->post_status
 		&& ! ( 'publish' === $post_before->post_status && 'future' === $post->post_status );
-	$should_remove = ! $send_to_babbel || 'trash' === $post->post_status || $is_unscheduled;
+	// A story only exists while the post is published or scheduled. An untrashed post returns as a draft,
+	// and a delete that failed is retried on the next save.
+	$should_remove = ! $send_to_babbel || ! $active_status;
 
 	if ( $should_remove ) {
 		if ( $story_id && in_array( $status, array( StoryStatus::Sent->value, StoryStatus::Error->value ), true ) ) {
@@ -112,9 +110,12 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 			} elseif ( 'trash' === $post->post_status ) {
 				$message = __( 'Story deleted (post trashed)', 'zw-knabbel-wp' );
 				$context = 'post_trashed';
-			} else {
+			} elseif ( 'future' === $post_before?->post_status ) {
 				$message = __( 'Story deleted (post unscheduled)', 'zw-knabbel-wp' );
 				$context = 'post_unscheduled';
+			} else {
+				$message = __( 'Story deleted (post unpublished)', 'zw-knabbel-wp' );
+				$context = 'post_unpublished';
 			}
 
 			push_story_delete( $post_id, $story_id, $message, $context );
@@ -126,13 +127,8 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 		return;
 	}
 
-	$should_restore = $is_untrash || $is_activated || ( null === $post_before && $active_status );
-	if ( $story_id && StoryStatus::Deleted->value === $status && $should_restore ) {
+	if ( $story_id && StoryStatus::Deleted->value === $status && ( $is_activated || null === $post_before ) ) {
 		restore_and_sync_story( $post_id, $story_id, $post->post_title );
-		return;
-	}
-
-	if ( ! $active_status ) {
 		return;
 	}
 
@@ -162,17 +158,16 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 		return;
 	}
 
-	if ( $post->post_status === $post_before->post_status ) {
-		$update_data = build_story_update_from_changes( $post, $post_before );
-		if ( $update_data ) {
-			push_story_update(
-				$post_id,
-				$story_id,
-				$update_data,
-				__( 'Story updated in Babbel', 'zw-knabbel-wp' ),
-				'publish' === $post->post_status ? 'published_post_edit' : 'scheduled_post_edit'
-			);
-		}
+	// Also covers publish -> future: a new day gives the story the new window.
+	$update_data = build_story_update_from_changes( $post, $post_before );
+	if ( $update_data ) {
+		push_story_update(
+			$post_id,
+			$story_id,
+			$update_data,
+			__( 'Story updated in Babbel', 'zw-knabbel-wp' ),
+			'publish' === $post->post_status ? 'published_post_edit' : 'scheduled_post_edit'
+		);
 	}
 }
 

@@ -418,6 +418,10 @@ msgstr ""
 msgid "Story deleted (post unscheduled)"
 msgstr ""
 
+#: includes/post-hooks.php:119
+msgid "Story deleted (post unpublished)"
+msgstr ""
+
 #: includes/post-hooks.php:159
 msgid "Story updated (post published)"
 msgstr ""

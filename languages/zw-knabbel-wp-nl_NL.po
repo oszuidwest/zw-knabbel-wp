@@ -414,6 +414,10 @@ msgstr "Verhaal verwijderd (bericht in prullenbak)"
 msgid "Story deleted (post unscheduled)"
 msgstr "Verhaal verwijderd (bericht niet meer ingepland)"
 
+#: includes/post-hooks.php:119
+msgid "Story deleted (post unpublished)"
+msgstr "Verhaal verwijderd (bericht niet meer gepubliceerd)"
+
 #: includes/post-hooks.php:159
 msgid "Story updated (post published)"
 msgstr "Verhaal bijgewerkt (bericht gepubliceerd)"
