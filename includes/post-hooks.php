@@ -409,8 +409,8 @@ function schedule_story_processing( int $post_id ): void {
 		return;
 	}
 
-	// Unique, so two saves that both passed the check above still queue one action. The losing
-	// insert returns 0 while the winner's action exists.
+	// Unique, so of two saves that both passed the check above only one queues an action. The other
+	// gets 0 and leaves the state to the winner, whose worker may already have finished.
 	$scheduled = \as_schedule_single_action(
 		time(),
 		'knabbel_process_story',
@@ -418,22 +418,15 @@ function schedule_story_processing( int $post_id ): void {
 		'zw-knabbel-wp',
 		true
 	);
-
-	if ( $scheduled || \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' ) ) {
-		update_story_state(
-			$post_id,
-			array(
-				'status'  => StoryStatus::Scheduled->value,
-				'message' => __( 'Processing scheduled', 'zw-knabbel-wp' ),
-			)
-		);
-	} else {
-		update_story_state(
-			$post_id,
-			array(
-				'status'  => StoryStatus::Error->value,
-				'message' => __( 'Could not schedule action', 'zw-knabbel-wp' ),
-			)
-		);
+	if ( ! $scheduled ) {
+		return;
 	}
+
+	update_story_state(
+		$post_id,
+		array(
+			'status'  => StoryStatus::Scheduled->value,
+			'message' => __( 'Processing scheduled', 'zw-knabbel-wp' ),
+		)
+	);
 }

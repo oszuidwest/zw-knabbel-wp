@@ -842,6 +842,32 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 1, $this->story_action_count( $stale_id ), 'A scheduled state without an action must queue one.' );
 		as_unschedule_all_actions( self::STORY_HOOK, array( 'post_id' => $stale_id ), self::ACTION_GROUP );
 
+		$unique_id    = $this->create_enabled_draft( 'E2E guard unieke planning', 'Twee gelijktijdige opslagen mogen samen maar één actie inplannen.' );
+		$unique_flags = array();
+		// Records the $unique argument without short-circuiting the scheduler.
+		$capture = static function ( $pre, $timestamp, $hook, $args, $group, $priority, $unique ) use ( &$unique_flags ) {
+			$unique_flags[] = $unique;
+			return $pre;
+		};
+		add_filter( 'pre_as_schedule_single_action', $capture, 10, 7 );
+		try {
+			$this->update_post( $unique_id, array( 'post_status' => 'publish' ) );
+		} finally {
+			remove_filter( 'pre_as_schedule_single_action', $capture, 10 );
+		}
+		$this->assert_same( array( true ), $unique_flags, 'Processing must be scheduled as a unique action.' );
+		as_unschedule_all_actions( self::STORY_HOOK, array( 'post_id' => $unique_id ), self::ACTION_GROUP );
+
+		// A save that loses the unique insert gets 0, possibly after the winner's worker already wrote Sent.
+		KnabbelWP\update_story_state( $unique_id, array( 'status' => StoryStatus::Sent->value ) );
+		add_filter( 'pre_as_schedule_single_action', '__return_zero' );
+		try {
+			KnabbelWP\schedule_story_processing( $unique_id );
+		} finally {
+			remove_filter( 'pre_as_schedule_single_action', '__return_zero' );
+		}
+		$this->assert_story_status( $unique_id, StoryStatus::Sent, 'A save that loses the unique insert must leave the state alone.' );
+
 		// Another request changes the row; this request's post cache stays stale, as in a separate worker.
 		$date     = $this->future_post_date( 10 );
 		$post_id  = $this->process_with_edit_during_generation(

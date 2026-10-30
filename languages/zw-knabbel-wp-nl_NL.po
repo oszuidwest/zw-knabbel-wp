@@ -442,10 +442,6 @@ msgstr "Verwerking al ingepland"
 msgid "Processing scheduled"
 msgstr "Verwerking ingepland"
 
-#: includes/post-hooks.php:426
-msgid "Could not schedule action"
-msgstr "Kon actie niet inplannen"
-
 #: includes/story-status.php:41
 msgid "Scheduled"
 msgstr "Ingepland"
