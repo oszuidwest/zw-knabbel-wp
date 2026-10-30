@@ -537,6 +537,23 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Scheduling the untrashed post must restore the remote story.' );
 		$this->assert_same( $story_id, (string) ( $state['story_id'] ?? '' ), 'Restore must retain the story ID.' );
 		$this->assert_story_window( $story_id, $date, 'A restored story must get the window of the new date.' );
+
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$fail_put = static fn( false|array|WP_Error $preempt, array $args ): false|array|WP_Error => 'PUT' === ( $args['method'] ?? '' )
+			? new WP_Error( 'http_request_failed', 'Injected PUT failure' )
+			: $preempt;
+		add_filter( 'pre_http_request', $fail_put, 10, 2 );
+		try {
+			update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		} finally {
+			remove_filter( 'pre_http_request', $fail_put, 10 );
+		}
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'restore' );
+		$this->assert_same(
+			'Story restored in Babbel, but updating it failed',
+			KnabbelWP\get_story_state( $post_id )['message'] ?? null,
+			'A restore whose update failed must not read as a success.'
+		);
 	}
 
 	/**

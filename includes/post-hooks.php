@@ -220,7 +220,7 @@ function restore_and_sync_story( int $post_id, string $story_id, \WP_Post $post 
 			$post_id,
 			array(
 				'status'          => StoryStatus::Sent->value,
-				'message'         => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
+				'message'         => __( 'Story restored in Babbel, but updating it failed', 'zw-knabbel-wp' ),
 				'last_sync_error' => build_story_sync_error( $update_result['message'], 'restore' ),
 			)
 		);
