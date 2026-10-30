@@ -536,11 +536,7 @@ final class Knabbel_E2E_Suite {
 		$state = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Scheduling the untrashed post must restore the remote story.' );
 		$this->assert_same( $story_id, (string) ( $state['story_id'] ?? '' ), 'Restore must retain the story ID.' );
-		$this->assert_same(
-			KnabbelWP\calculate_story_dates( $date )['start_date'],
-			$this->date_only( $this->get_babbel_story( $story_id )['start_date'] ?? '' ),
-			'A restored story must get the window of the new date.'
-		);
+		$this->assert_story_window( $story_id, $date, 'A restored story must get the window of the new date.' );
 	}
 
 	/**
@@ -1258,6 +1254,23 @@ final class Knabbel_E2E_Suite {
 		if ( null !== $error_message ) {
 			$this->assert_same( $error_message, $state['last_sync_error']['message'] ?? null, $message_prefix . 'report the Babbel problem detail.' );
 		}
+	}
+
+	/**
+	 * Asserts that a story's start and end date match a base date.
+	 *
+	 * @param string $story_id  Story ID.
+	 * @param string $base_date Base date for calculate_story_dates().
+	 * @param string $message   Failure message.
+	 */
+	private function assert_story_window( string $story_id, string $base_date, string $message ): void {
+		$dates = KnabbelWP\calculate_story_dates( $base_date );
+		$story = $this->get_babbel_story( $story_id );
+		$this->assert_same(
+			array( $dates['start_date'], $dates['end_date'] ),
+			array( $this->date_only( $story['start_date'] ?? '' ), $this->date_only( $story['end_date'] ?? '' ) ),
+			$message
+		);
 	}
 
 	/**
