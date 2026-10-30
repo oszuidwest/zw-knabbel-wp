@@ -858,15 +858,38 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( array( true ), $unique_flags, 'Processing must be scheduled as a unique action.' );
 		as_unschedule_all_actions( self::STORY_HOOK, array( 'post_id' => $unique_id ), self::ACTION_GROUP );
 
-		// A save that loses the unique insert gets 0, possibly after the winner's worker already wrote Sent.
-		KnabbelWP\update_story_state( $unique_id, array( 'status' => StoryStatus::Sent->value ) );
-		add_filter( 'pre_as_schedule_single_action', '__return_zero' );
+		// A worker in another process writes Sent right after the insert; this request must not overwrite it.
+		KnabbelWP\update_story_state( $unique_id, array( 'status' => StoryStatus::Error->value ) );
+		$sent = static fn() => $GLOBALS['wpdb']->update(
+			$GLOBALS['wpdb']->postmeta,
+			array(
+				'meta_value' => maybe_serialize(
+					array(
+						'status'   => StoryStatus::Sent->value,
+						'story_id' => 'e2e-raced',
+					)
+				),
+			),
+			array(
+				'post_id'  => $unique_id,
+				'meta_key' => '_zw_knabbel_story_state',
+			)
+		);
+		add_action( 'action_scheduler_stored_action', $sent );
 		try {
-			KnabbelWP\schedule_story_processing( $unique_id );
+			$this->update_post( $unique_id, array( 'post_title' => 'E2E guard unieke planning opnieuw' ) );
 		} finally {
-			remove_filter( 'pre_as_schedule_single_action', '__return_zero' );
+			remove_action( 'action_scheduler_stored_action', $sent );
 		}
-		$this->assert_story_status( $unique_id, StoryStatus::Sent, 'A save that loses the unique insert must leave the state alone.' );
+		clean_post_cache( $unique_id );
+		$this->assert_story_status( $unique_id, StoryStatus::Sent, 'Scheduling must not overwrite Sent written by a worker that started at once.' );
+
+		$running_id = $this->create_draft( 'E2E guard lopende actie', 'Een lopende actie mag bij het inschakelen geen tweede actie krijgen.' );
+		$this->update_post( $running_id, array( 'post_status' => 'publish' ) );
+		$running = as_schedule_single_action( time(), self::STORY_HOOK, array( 'post_id' => $running_id ), self::ACTION_GROUP );
+		ActionScheduler_Store::instance()->log_execution( $running );
+		update_post_meta( $running_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_same( 0, $this->story_action_count( $running_id ), 'A running action must not get a second one.' );
 
 		// Another request changes the row; this request's post cache stays stale, as in a separate worker.
 		$date     = $this->future_post_date( 10 );

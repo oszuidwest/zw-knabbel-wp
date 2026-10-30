@@ -439,10 +439,6 @@ msgstr ""
 msgid "Story restored in Babbel, but updating it failed"
 msgstr ""
 
-#: includes/post-hooks.php:399
-msgid "Processing already scheduled"
-msgstr ""
-
 #: includes/post-hooks.php:418
 msgid "Processing scheduled"
 msgstr ""

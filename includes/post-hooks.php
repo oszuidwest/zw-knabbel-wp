@@ -397,31 +397,7 @@ function build_full_story_update( string $title, string $base_date ): array {
  * @param int $post_id The post ID to process.
  */
 function schedule_story_processing( int $post_id ): void {
-	// De-dupe scheduling: skip if an event is already queued for this post.
-	if ( \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' ) ) {
-		update_story_state(
-			$post_id,
-			array(
-				'status'  => StoryStatus::Scheduled->value,
-				'message' => __( 'Processing already scheduled', 'zw-knabbel-wp' ),
-			)
-		);
-		return;
-	}
-
-	// Unique, so of two saves that both passed the check above only one queues an action. The other
-	// gets 0 and leaves the state to the winner, whose worker may already have finished.
-	$scheduled = \as_schedule_single_action(
-		time(),
-		'knabbel_process_story',
-		array( 'post_id' => $post_id ),
-		'zw-knabbel-wp',
-		true
-	);
-	if ( ! $scheduled ) {
-		return;
-	}
-
+	// Written before queueing, so a worker that starts at once cannot have its Sent overwritten.
 	update_story_state(
 		$post_id,
 		array(
@@ -429,4 +405,13 @@ function schedule_story_processing( int $post_id ): void {
 			'message' => __( 'Processing scheduled', 'zw-knabbel-wp' ),
 		)
 	);
+
+	// Also counts a running action, which the unique check of Action Scheduler's hybrid store misses.
+	if ( \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' ) ) {
+		return;
+	}
+
+	// Unique: on the DB store two saves that both passed the check above queue one action. The hybrid
+	// store's fallback is not atomic.
+	\as_schedule_single_action( time(), 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp', true );
 }
