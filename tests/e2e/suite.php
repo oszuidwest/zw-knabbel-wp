@@ -548,11 +548,12 @@ final class Knabbel_E2E_Suite {
 		} finally {
 			remove_filter( 'pre_http_request', $fail_put, 10 );
 		}
-		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'restore' );
-		$this->assert_same(
-			'Story restored in Babbel, but updating it failed',
-			KnabbelWP\get_story_state( $post_id )['message'] ?? null,
-			'A restore whose update failed must not read as a success.'
+		$this->assert_sync_failure_preserved(
+			$post_id,
+			$story_id,
+			StoryStatus::Sent,
+			'restore',
+			'Story restored in Babbel, but updating it failed: API connection failed: Injected PUT failure'
 		);
 	}
 

@@ -430,7 +430,7 @@ msgstr "Verhaal bijgewerkt in Babbel"
 msgid "Story restored in Babbel"
 msgstr "Verhaal hersteld in Babbel"
 
-#: includes/post-hooks.php:223
+#: includes/post-hooks.php:209
 msgid "Story restored in Babbel, but updating it failed"
 msgstr "Verhaal hersteld in Babbel, maar bijwerken is mislukt"
 

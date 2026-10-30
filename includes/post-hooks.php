@@ -206,6 +206,7 @@ function restore_and_sync_story( int $post_id, string $story_id, \WP_Post $post 
 		);
 	} else {
 		// Keep 'sent' status - story is restored but its title and window may be stale.
+		$message = __( 'Story restored in Babbel, but updating it failed', 'zw-knabbel-wp' );
 		log(
 			'error',
 			'PostHooks',
@@ -220,8 +221,9 @@ function restore_and_sync_story( int $post_id, string $story_id, \WP_Post $post 
 			$post_id,
 			array(
 				'status'          => StoryStatus::Sent->value,
-				'message'         => __( 'Story restored in Babbel, but updating it failed', 'zw-knabbel-wp' ),
-				'last_sync_error' => build_story_sync_error( $update_result['message'], 'restore' ),
+				'message'         => $message,
+				// The editor sees the error, so it says what happened before what went wrong.
+				'last_sync_error' => build_story_sync_error( $message . ': ' . $update_result['message'], 'restore' ),
 			)
 		);
 	}
