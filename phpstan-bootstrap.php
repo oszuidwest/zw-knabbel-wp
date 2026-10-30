@@ -28,9 +28,11 @@ if ( ! function_exists( 'as_schedule_single_action' ) ) {
 	 * @param string $hook      The hook to trigger.
 	 * @param array  $args      Arguments to pass to the hook.
 	 * @param string $group     The group to assign this job to.
-	 * @return int|false The action ID or false on failure.
+	 * @param bool   $unique    Whether to skip scheduling while a pending or running action matches.
+	 * @param int    $priority  Lower values run first.
+	 * @return int|false The action ID, 0 when a unique action already exists, or false on failure.
 	 */
-	function as_schedule_single_action( int $timestamp, string $hook, array $args = array(), string $group = '' ): int|false {
+	function as_schedule_single_action( int $timestamp, string $hook, array $args = array(), string $group = '', bool $unique = false, int $priority = 10 ): int|false {
 		return 0;
 	}
 }
@@ -59,6 +61,8 @@ if ( ! function_exists( 'as_has_scheduled_action' ) ) {
 	 * @param array  $args  Arguments to check against.
 	 * @param string $group The group to check.
 	 * @return bool|int False if no action found, action ID if found.
+	 *
+	 * @phpstan-impure
 	 */
 	function as_has_scheduled_action( string $hook, array $args = array(), string $group = '' ): bool|int {
 		return false;

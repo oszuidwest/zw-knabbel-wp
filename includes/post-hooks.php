@@ -409,15 +409,17 @@ function schedule_story_processing( int $post_id ): void {
 		return;
 	}
 
-	// Schedule async processing via Action Scheduler.
+	// Unique, so two saves that both passed the check above still queue one action. The losing
+	// insert returns 0 while the winner's action exists.
 	$scheduled = \as_schedule_single_action(
 		time(),
 		'knabbel_process_story',
 		array( 'post_id' => $post_id ),
-		'zw-knabbel-wp'
+		'zw-knabbel-wp',
+		true
 	);
 
-	if ( $scheduled ) {
+	if ( $scheduled || \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' ) ) {
 		update_story_state(
 			$post_id,
 			array(
