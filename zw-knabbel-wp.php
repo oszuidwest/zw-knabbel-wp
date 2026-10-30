@@ -707,6 +707,10 @@ function process_story_async( int $post_id ): void {
 	clean_post_cache( $post_id );
 	$post = get_post( $post_id );
 	if ( ! $post || ! in_array( $post->post_status, array( 'publish', 'future' ), true ) || ! get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true ) ) {
+		// An edit before this run wrote Processing finds nothing to clean up, so clear it here.
+		if ( StoryStatus::Processing->value === ( get_story_state( $post_id )['status'] ?? null ) ) {
+			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
+		}
 		return;
 	}
 

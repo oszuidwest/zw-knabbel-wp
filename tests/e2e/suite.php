@@ -860,6 +860,14 @@ final class Knabbel_E2E_Suite {
 		$this->process_with_edit_during_generation( $title, fn( int $id ) => $this->update_post( $id, array( 'post_status' => 'draft' ) ) );
 		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'A post unpublished during generation must not get a story.' );
 
+		// A change the reconciler never sees, like one saved just before this run wrote Processing.
+		$title   = 'E2E stil offline tijdens generatie';
+		$post_id = $this->process_with_edit_during_generation(
+			$title,
+			static fn( int $id ) => $GLOBALS['wpdb']->update( $GLOBALS['wpdb']->posts, array( 'post_status' => 'draft' ), array( 'ID' => $id ) )
+		);
+		$this->assert_same( null, KnabbelWP\get_story_state( $post_id )['status'] ?? null, 'A worker that stops must not leave a processing state behind.' );
+
 		$title = 'E2E uitgeschakeld tijdens generatie';
 		$this->process_with_edit_during_generation( $title, fn( int $id ) => update_post_meta( $id, self::SEND_TO_BABBEL_META_KEY, 0 ) );
 		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'A post disabled during generation must not get a story.' );
