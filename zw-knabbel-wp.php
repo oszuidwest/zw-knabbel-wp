@@ -448,6 +448,17 @@ function calculate_story_dates( string $base_date = 'now' ): array {
 }
 
 /**
+ * Returns the base date calculate_story_dates() should use for a post.
+ *
+ * @since 0.8.1
+ * @param \WP_Post $post The post.
+ * @return string The scheduled publish time for a scheduled post, otherwise 'now'.
+ */
+function story_base_date( \WP_Post $post ): string {
+	return 'future' === $post->post_status ? $post->post_date : 'now';
+}
+
+/**
  * Loads translations and registers plugin hooks.
  *
  * @since 0.1.0
@@ -696,13 +707,7 @@ function process_story_async( int $post_id ): void {
 	// Prepare story data using configurable defaults.
 	$options        = get_plugin_settings();
 	$default_status = $options['default_status'];
-
-	// Calculate dates based on post status:
-	// - For scheduled posts (future): use the scheduled publish time (post_date).
-	// - For published posts: use current time.
-	$post_status = get_post_status( $post_id );
-	$base_date   = 'future' === $post_status ? $post->post_date : 'now';
-	$dates       = calculate_story_dates( $base_date );
+	$dates          = calculate_story_dates( story_base_date( $post ) );
 
 	$story_data = array(
 		'title'      => $title,

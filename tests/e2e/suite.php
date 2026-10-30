@@ -74,7 +74,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-004', 'checkbox disable soft-deletes and re-enable restores', $this->test_checkbox_delete_and_restore( ... ) );
 		$this->run_case( 'E2E-005', 'scheduled post dates update when scheduled and published', $this->test_scheduled_story_lifecycle( ... ) );
 		$this->run_case( 'E2E-006', 'unscheduling cancels pending processing without creating a story', $this->test_pending_schedule_cancellation( ... ) );
-		$this->run_case( 'E2E-007', 'untrash keeps the story deleted until the post is published again', $this->test_trash_and_restore( ... ) );
+		$this->run_case( 'E2E-007', 'untrash keeps the story deleted and scheduling restores it with the new window', $this->test_trash_and_restore( ... ) );
 		$this->run_case( 'E2E-008', 'AI provider failure retries without creating a Babbel story', $this->test_ai_failure( ... ) );
 		$this->run_case( 'E2E-009', 'Babbel create failure is visible and preserves diagnostics safely', $this->test_babbel_create_failure( ... ) );
 		$this->run_case( 'E2E-010', 'few-shot queue learns editor changes', $this->test_few_shot_sync( ... ) );
@@ -531,10 +531,16 @@ final class Knabbel_E2E_Suite {
 		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Untrash returns a draft, so the story must stay deleted.' );
 		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 
-		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
+		$date = $this->future_post_date( 10 );
+		$this->schedule_post( $post_id, $date );
 		$state = KnabbelWP\get_story_state( $post_id );
-		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Publishing the untrashed post must restore the remote story.' );
+		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Scheduling the untrashed post must restore the remote story.' );
 		$this->assert_same( $story_id, (string) ( $state['story_id'] ?? '' ), 'Restore must retain the story ID.' );
+		$this->assert_same(
+			KnabbelWP\calculate_story_dates( $date )['start_date'],
+			$this->date_only( $this->get_babbel_story( $story_id )['start_date'] ?? '' ),
+			'A restored story must get the window of the new date.'
+		);
 	}
 
 	/**
@@ -833,9 +839,6 @@ final class Knabbel_E2E_Suite {
 		$this->configure_plugin();
 		$retry_title = 'E2E verwijder- en herstelfout hersteld';
 		$this->update_post( $post_id, array( 'post_title' => $retry_title ) );
-		// Reset the checkbox edge so the next enable retries the failed restore.
-		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
-		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$state = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'A retried restore must reach sent state.' );
 		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Successful restore retry must clear its previous error.' );
