@@ -690,9 +690,6 @@ function process_story_async( int $post_id ): void {
 
 	$content = wp_strip_all_tags( $post->post_content );
 
-	// Use the raw post title directly (not get_the_title() which applies filters and prefixes).
-	$title = $post->post_title;
-
 	// Generate speech text.
 	$speech_text = ai_generate_content( $content, $post_id );
 	if ( null === $speech_text ) {
@@ -705,6 +702,16 @@ function process_story_async( int $post_id ): void {
 		);
 		return;
 	}
+
+	// Generating takes a while, and an editor may have rescheduled, unpublished or disabled the post meanwhile.
+	clean_post_cache( $post_id );
+	$post = get_post( $post_id );
+	if ( ! $post || ! in_array( $post->post_status, array( 'publish', 'future' ), true ) || ! get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true ) ) {
+		return;
+	}
+
+	// Use the raw post title directly (not get_the_title() which applies filters and prefixes).
+	$title = $post->post_title;
 
 	// Prepare story data using configurable defaults.
 	$options        = get_plugin_settings();
