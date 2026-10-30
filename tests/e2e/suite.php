@@ -298,6 +298,11 @@ final class Knabbel_E2E_Suite {
 		$ai_request = get_option( 'knabbel_e2e_ai_last_request', array() );
 		$this->assert_same( true, is_array( $ai_request ), 'The native AI provider request must be observable.' );
 		$this->assert_same( 1000, $ai_request['max_output_tokens'] ?? null, 'The native AI request must retain the output token limit.' );
+		$this->assert_same(
+			true,
+			str_contains( (string) ( $ai_request['instructions'] ?? '' ), 'Het is ' . wp_date( 'Y' ) . '.' ),
+			'The default prompt must state the current year.'
+		);
 		$this->assert_same( false, array_key_exists( 'temperature', $ai_request ), 'The native AI request must omit optional temperature.' );
 		$this->assert_same( 'gpt-4.1', $ai_request['model'] ?? null, 'The native AI request must use the configured model preference.' );
 		$request_messages = $ai_request['input'] ?? array();
@@ -340,6 +345,16 @@ final class Knabbel_E2E_Suite {
 			true,
 			! str_contains( $request_input, 'Deze uitvoer moet buiten de AI-aanvraag blijven.' ),
 			'The native AI request must exclude the current WordPress post output from few-shot examples.'
+		);
+
+		$settings = get_option( 'knabbel_settings' );
+		update_option( 'knabbel_settings', array_merge( $settings, array( 'speech_prompt' => 'Eigen prompt, het is {year}.' ) ) );
+		KnabbelWP\ai_generate_content( 'Een kort artikel.', 0 );
+		update_option( 'knabbel_settings', $settings );
+		$this->assert_same(
+			'Eigen prompt, het is ' . wp_date( 'Y' ) . '.',
+			get_option( 'knabbel_e2e_ai_last_request', array() )['instructions'] ?? null,
+			'A custom prompt must get the current year for {year}.'
 		);
 		delete_option( 'knabbel_few_shot_examples' );
 
