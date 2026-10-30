@@ -832,6 +832,16 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 0, $this->story_action_count( $processing_id ), 'Enabling processing state must not queue another action.' );
 		$this->assert_story_status( $processing_id, StoryStatus::Processing, 'Enabling processing state must preserve its lifecycle status.' );
 
+		$stale_id = $this->create_draft(
+			'E2E guard verlopen planning',
+			'Een scheduled-state zonder actie moet bij de volgende opslag weer een actie krijgen.'
+		);
+		$this->update_post( $stale_id, array( 'post_status' => 'publish' ) );
+		KnabbelWP\update_story_state( $stale_id, array( 'status' => StoryStatus::Scheduled->value ) );
+		update_post_meta( $stale_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_same( 1, $this->story_action_count( $stale_id ), 'A scheduled state without an action must queue one.' );
+		as_unschedule_all_actions( self::STORY_HOOK, array( 'post_id' => $stale_id ), self::ACTION_GROUP );
+
 		// Another request changes the row; this request's post cache stays stale, as in a separate worker.
 		$date     = $this->future_post_date( 10 );
 		$post_id  = $this->process_with_edit_during_generation(

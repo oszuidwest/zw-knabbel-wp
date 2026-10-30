@@ -134,7 +134,11 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 		StoryStatus::Processing->value,
 		StoryStatus::Deleted->value,
 	);
-	if ( ! in_array( $status, $stable_statuses, true ) ) {
+	// Scheduled without a pending or running action is stale, for example after a save that landed
+	// while the worker was stopping. Running actions count, so an action still marked running prevents requeueing.
+	$is_stale_schedule = StoryStatus::Scheduled->value === $status
+		&& ! \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
+	if ( $is_stale_schedule || ! in_array( $status, $stable_statuses, true ) ) {
 		schedule_story_processing( $post_id );
 		return;
 	}
