@@ -313,9 +313,11 @@ function update_story_state( int $post_id, array $updates = array() ): bool {
 		$new_state['status_changed_at'] = current_time( 'mysql' );
 	}
 
-	// Null is an update-only sentinel: remove the error instead of persisting it.
-	if ( array_key_exists( 'last_sync_error', $updates ) && null === $updates['last_sync_error'] ) {
-		unset( $new_state['last_sync_error'] );
+	// Null is an update-only sentinel: remove the key instead of persisting it.
+	foreach ( array( 'last_sync_error', 'pending_update' ) as $key ) {
+		if ( array_key_exists( $key, $updates ) && null === $updates[ $key ] ) {
+			unset( $new_state[ $key ] );
+		}
 	}
 
 	$success = update_post_meta( $post_id, '_zw_knabbel_story_state', $new_state );

@@ -156,6 +156,10 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 
 	// Also covers publish -> future: a new day gives the story the new window.
 	$update_data = build_story_update_from_changes( $post, $post_before );
+	// Resend what a failed update left behind, with any newer change and the current title.
+	if ( isset( $state['pending_update'] ) ) {
+		$update_data = array_merge( $state['pending_update'], $update_data ?? array(), array( 'title' => $post->post_title ) );
+	}
 	if ( $update_data ) {
 		push_story_update(
 			$post_id,
@@ -194,7 +198,8 @@ function restore_and_sync_story( int $post_id, string $story_id, \WP_Post $post 
 	}
 
 	// The old window may be long gone, so send the current title and window via PUT (PATCH only accepts status/deleted_at).
-	$update_result = babbel_update_story( $story_id, build_full_story_update( $post->post_title, story_base_date( $post ) ) );
+	$update_data   = build_full_story_update( $post->post_title, story_base_date( $post ) );
+	$update_result = babbel_update_story( $story_id, $update_data );
 	if ( $update_result['success'] ) {
 		update_story_state(
 			$post_id,
@@ -202,6 +207,7 @@ function restore_and_sync_story( int $post_id, string $story_id, \WP_Post $post 
 				'status'          => StoryStatus::Sent->value,
 				'message'         => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
 				'last_sync_error' => null,
+				'pending_update'  => null,
 			)
 		);
 	} else {
@@ -224,6 +230,7 @@ function restore_and_sync_story( int $post_id, string $story_id, \WP_Post $post 
 				'message'         => $message,
 				// The editor sees the error, so it says what happened before what went wrong.
 				'last_sync_error' => build_story_sync_error( $message . ': ' . $update_result['message'], 'restore' ),
+				'pending_update'  => $update_data,
 			)
 		);
 	}
@@ -255,6 +262,7 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 			array(
 				'message'         => $success_message,
 				'last_sync_error' => null,
+				'pending_update'  => null,
 			)
 		);
 	} else {
@@ -274,6 +282,7 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 			$post_id,
 			array(
 				'last_sync_error' => build_story_sync_error( $result['message'], 'update' ),
+				'pending_update'  => $update_data,
 			)
 		);
 	}

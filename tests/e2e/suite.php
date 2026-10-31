@@ -72,7 +72,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-002', 'published post creates exactly one complete Babbel story', $this->test_published_story_creation( ... ) );
 		$this->run_case( 'E2E-003', 'edits synchronize and recover from an authentication failure', $this->test_update_and_error_recovery( ... ) );
 		$this->run_case( 'E2E-004', 'checkbox disable soft-deletes and re-enable restores', $this->test_checkbox_delete_and_restore( ... ) );
-		$this->run_case( 'E2E-005', 'scheduled post dates update when scheduled and published', $this->test_scheduled_story_lifecycle( ... ) );
+		$this->run_case( 'E2E-005', 'scheduled post dates update when scheduled, retried and published', $this->test_scheduled_story_lifecycle( ... ) );
 		$this->run_case( 'E2E-006', 'unscheduling cancels pending processing without creating a story', $this->test_pending_schedule_cancellation( ... ) );
 		$this->run_case( 'E2E-007', 'untrash keeps the story deleted and scheduling restores it with the new window', $this->test_trash_and_restore( ... ) );
 		$this->run_case( 'E2E-008', 'AI provider failure retries without creating a Babbel story', $this->test_ai_failure( ... ) );
@@ -432,7 +432,21 @@ final class Knabbel_E2E_Suite {
 		);
 
 		$this->configure_plugin();
+		// Other offsets stand in for a retry on a later day: the retry resends the failed title, not a new window.
+		$settings = get_option( 'knabbel_settings' );
+		update_option(
+			'knabbel_settings',
+			array_merge(
+				$settings,
+				array(
+					'start_days_offset' => 5,
+					'end_days_offset'   => 6,
+				)
+			)
+		);
 		$this->update_post( $this->published_post_id, array( 'post_title' => 'E2E titel hersteld' ) );
+		update_option( 'knabbel_settings', $settings );
+		$this->assert_story_window( $this->published_story_id, 'now', 'Retrying a failed title edit must keep the window.' );
 		$state = KnabbelWP\get_story_state( $this->published_post_id );
 		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'A successful retry must clear the previous sync error.' );
 		$story = $this->get_babbel_story( $this->published_story_id );
@@ -487,6 +501,15 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 'E2E opnieuw gepland', $story['title'] ?? null, 'Rescheduling must synchronize the title.' );
 		$this->assert_same( $dates['start_date'], $this->date_only( $story['start_date'] ?? '' ), 'Rescheduling must recalculate story dates.' );
 
+		$this->configure_plugin( 'wrong-reschedule-password' );
+		$third_date = $this->future_post_date( 14 );
+		$this->schedule_post( $post_id, $third_date );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'update' );
+		$this->assert_story_window( $story_id, $second_date, 'A failed reschedule must leave the remote window unchanged.' );
+		$this->configure_plugin();
+		$this->update_post( $post_id, array( 'post_title' => 'E2E titel na mislukte planning' ) );
+		$this->assert_story_window( $story_id, $third_date, 'A title edit after a failed reschedule must also send the new window.' );
+
 		$dates_before = KnabbelWP\calculate_story_dates( 'now' );
 		$this->update_post(
 			$post_id,
@@ -539,6 +562,8 @@ final class Knabbel_E2E_Suite {
 		$this->assert_story_window( $story_id, $date, 'A restored story must get the window of the new date.' );
 
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$date = $this->future_post_date( 12 );
+		$this->schedule_post( $post_id, $date );
 		$fail_put = static fn( false|array|WP_Error $preempt, array $args ): false|array|WP_Error => 'PUT' === ( $args['method'] ?? '' )
 			? new WP_Error( 'http_request_failed', 'Injected PUT failure' )
 			: $preempt;
@@ -555,6 +580,8 @@ final class Knabbel_E2E_Suite {
 			'restore',
 			'Story restored in Babbel, but updating it failed: API connection failed: Injected PUT failure'
 		);
+		$this->update_post( $post_id, array() );
+		$this->assert_story_window( $story_id, $date, 'A save after a failed restore update must send the new window.' );
 	}
 
 	/**
