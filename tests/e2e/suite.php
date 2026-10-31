@@ -82,7 +82,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-012', 'checkbox and trash cancel pending work', $this->test_pending_work_cancellation( ... ) );
 		$this->run_case( 'E2E-013', 'a sent story follows a reschedule and is deleted when the post goes offline', $this->test_sent_story_unscheduling( ... ) );
 		$this->run_case( 'E2E-014', 'meta deletion and rapid toggles preserve lifecycle invariants', $this->test_meta_deletion_and_rapid_toggles( ... ) );
-		$this->run_case( 'E2E-015', 'processing state prevents duplicate scheduling', $this->test_in_flight_state_guards( ... ) );
+		$this->run_case( 'E2E-015', 'processing state blocks rescheduling and follows edits during generation', $this->test_in_flight_state_guards( ... ) );
 		$this->run_case( 'E2E-016', 'untrash honors a disabled checkbox', $this->test_untrash_with_checkbox_disabled( ... ) );
 		$this->run_case( 'E2E-017', 'delete and restore failures remain retryable', $this->test_delete_and_restore_failures( ... ) );
 		$this->run_case( 'E2E-018', 'stored Unix timestamps retain their meaning after serialization', $this->test_stored_datetime_formatting( ... ) );
@@ -831,6 +831,133 @@ final class Knabbel_E2E_Suite {
 		update_post_meta( $processing_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_same( 0, $this->story_action_count( $processing_id ), 'Enabling processing state must not queue another action.' );
 		$this->assert_story_status( $processing_id, StoryStatus::Processing, 'Enabling processing state must preserve its lifecycle status.' );
+
+		$stale_id = $this->create_draft(
+			'E2E guard verlopen planning',
+			'Een scheduled-state zonder actie moet bij de volgende opslag weer een actie krijgen.'
+		);
+		$this->update_post( $stale_id, array( 'post_status' => 'publish' ) );
+		KnabbelWP\update_story_state( $stale_id, array( 'status' => StoryStatus::Scheduled->value ) );
+		update_post_meta( $stale_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_same( 1, $this->story_action_count( $stale_id ), 'A scheduled state without an action must queue one.' );
+		as_unschedule_all_actions( self::STORY_HOOK, array( 'post_id' => $stale_id ), self::ACTION_GROUP );
+
+		$unique_id    = $this->create_enabled_draft( 'E2E guard unieke planning', 'Twee gelijktijdige opslagen mogen samen maar één actie inplannen.' );
+		$unique_flags = array();
+		// Records the $unique argument without short-circuiting the scheduler.
+		$capture = static function ( $pre, $timestamp, $hook, $args, $group, $priority, $unique ) use ( &$unique_flags ) {
+			$unique_flags[] = $unique;
+			return $pre;
+		};
+		add_filter( 'pre_as_schedule_single_action', $capture, 10, 7 );
+		try {
+			$this->update_post( $unique_id, array( 'post_status' => 'publish' ) );
+		} finally {
+			remove_filter( 'pre_as_schedule_single_action', $capture, 10 );
+		}
+		$this->assert_same( array( true ), $unique_flags, 'Processing must be scheduled as a unique action.' );
+		as_unschedule_all_actions( self::STORY_HOOK, array( 'post_id' => $unique_id ), self::ACTION_GROUP );
+
+		// A worker in another process writes Sent right after the insert; this request must not overwrite it.
+		KnabbelWP\update_story_state( $unique_id, array( 'status' => StoryStatus::Error->value ) );
+		$sent = static fn() => $GLOBALS['wpdb']->update(
+			$GLOBALS['wpdb']->postmeta,
+			array(
+				'meta_value' => maybe_serialize(
+					array(
+						'status'   => StoryStatus::Sent->value,
+						'story_id' => 'e2e-raced',
+					)
+				),
+			),
+			array(
+				'post_id'  => $unique_id,
+				'meta_key' => '_zw_knabbel_story_state',
+			)
+		);
+		add_action( 'action_scheduler_stored_action', $sent );
+		try {
+			$this->update_post( $unique_id, array( 'post_title' => 'E2E guard unieke planning opnieuw' ) );
+		} finally {
+			remove_action( 'action_scheduler_stored_action', $sent );
+		}
+		clean_post_cache( $unique_id );
+		$this->assert_story_status( $unique_id, StoryStatus::Sent, 'Scheduling must not overwrite Sent written by a worker that started at once.' );
+
+		$running_id = $this->create_draft( 'E2E guard lopende actie', 'Een lopende actie mag bij het inschakelen geen tweede actie krijgen.' );
+		$this->update_post( $running_id, array( 'post_status' => 'publish' ) );
+		$running = as_schedule_single_action( time(), self::STORY_HOOK, array( 'post_id' => $running_id ), self::ACTION_GROUP );
+		ActionScheduler_Store::instance()->log_execution( $running );
+		update_post_meta( $running_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_same( 0, $this->story_action_count( $running_id ), 'A running action must not get a second one.' );
+
+		// Another request changes the row; this request's post cache stays stale, as in a separate worker.
+		$date     = $this->future_post_date( 10 );
+		$post_id  = $this->process_with_edit_during_generation(
+			'E2E herpland tijdens generatie',
+			static fn( int $id ) => $GLOBALS['wpdb']->update(
+				$GLOBALS['wpdb']->posts,
+				array(
+					'post_status'   => 'future',
+					'post_date'     => $date,
+					'post_date_gmt' => get_gmt_from_date( $date ),
+					'post_title'    => 'E2E herpland met nieuwe titel',
+				),
+				array( 'ID' => $id )
+			)
+		);
+		$story_id = (string) ( KnabbelWP\get_story_state( $post_id )['story_id'] ?? '' );
+		$story    = $this->get_babbel_story( $story_id );
+		$this->assert_same(
+			KnabbelWP\calculate_story_dates( $date )['start_date'],
+			$this->date_only( $story['start_date'] ?? '' ),
+			'A post rescheduled during generation must get the window of its new date.'
+		);
+		$this->assert_same( 'E2E herpland met nieuwe titel', $story['title'] ?? null, 'A story must get the title the post has after generation.' );
+
+		$title = 'E2E offline gehaald tijdens generatie';
+		$this->process_with_edit_during_generation( $title, fn( int $id ) => $this->update_post( $id, array( 'post_status' => 'draft' ) ) );
+		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'A post unpublished during generation must not get a story.' );
+
+		// A change the reconciler never sees, like one saved just before this run wrote Processing.
+		$title   = 'E2E stil offline tijdens generatie';
+		$post_id = $this->process_with_edit_during_generation(
+			$title,
+			static fn( int $id ) => $GLOBALS['wpdb']->update( $GLOBALS['wpdb']->posts, array( 'post_status' => 'draft' ), array( 'ID' => $id ) )
+		);
+		$this->assert_same( null, KnabbelWP\get_story_state( $post_id )['status'] ?? null, 'A worker that stops must not leave a processing state behind.' );
+
+		$title = 'E2E uitgeschakeld tijdens generatie';
+		$this->process_with_edit_during_generation( $title, fn( int $id ) => update_post_meta( $id, self::SEND_TO_BABBEL_META_KEY, 0 ) );
+		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'A post disabled during generation must not get a story.' );
+	}
+
+	/**
+	 * Publishes and processes a post while an editor changes it during speech text generation.
+	 *
+	 * @param string   $title Post title.
+	 * @param callable $edit  Receives the post ID while the AI request is in flight.
+	 * @return int Post ID.
+	 */
+	private function process_with_edit_during_generation( string $title, callable $edit ): int {
+		$post_id = $this->create_enabled_draft( $title, 'Een redacteur past dit artikel aan terwijl de spreektekst wordt gemaakt.' );
+		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
+
+		$filter = static function ( false|array|WP_Error $preempt, array $args, string $url ) use ( &$filter, $edit, $post_id ): false|array|WP_Error {
+			if ( 'https://api.openai.com/v1/responses' === $url ) {
+				remove_filter( 'pre_http_request', $filter, 5 );
+				$edit( $post_id );
+			}
+			return $preempt;
+		};
+		add_filter( 'pre_http_request', $filter, 5, 3 );
+		try {
+			$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		} finally {
+			remove_filter( 'pre_http_request', $filter, 5 );
+		}
+
+		return $post_id;
 	}
 
 	/**

@@ -134,7 +134,11 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 		StoryStatus::Processing->value,
 		StoryStatus::Deleted->value,
 	);
-	if ( ! in_array( $status, $stable_statuses, true ) ) {
+	// Scheduled without a pending or running action is stale, for example after a save that landed
+	// while the worker was stopping. Running actions count, so an action still marked running prevents requeueing.
+	$is_stale_schedule = StoryStatus::Scheduled->value === $status
+		&& ! \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
+	if ( $is_stale_schedule || ! in_array( $status, $stable_statuses, true ) ) {
 		schedule_story_processing( $post_id );
 		return;
 	}
@@ -393,41 +397,21 @@ function build_full_story_update( string $title, string $base_date ): array {
  * @param int $post_id The post ID to process.
  */
 function schedule_story_processing( int $post_id ): void {
-	// De-dupe scheduling: skip if an event is already queued for this post.
+	// Written before queueing, so a worker that starts at once cannot have its Sent overwritten.
+	update_story_state(
+		$post_id,
+		array(
+			'status'  => StoryStatus::Scheduled->value,
+			'message' => __( 'Processing scheduled', 'zw-knabbel-wp' ),
+		)
+	);
+
+	// Also counts a running action, which the unique check of Action Scheduler's hybrid store misses.
 	if ( \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' ) ) {
-		update_story_state(
-			$post_id,
-			array(
-				'status'  => StoryStatus::Scheduled->value,
-				'message' => __( 'Processing already scheduled', 'zw-knabbel-wp' ),
-			)
-		);
 		return;
 	}
 
-	// Schedule async processing via Action Scheduler.
-	$scheduled = \as_schedule_single_action(
-		time(),
-		'knabbel_process_story',
-		array( 'post_id' => $post_id ),
-		'zw-knabbel-wp'
-	);
-
-	if ( $scheduled ) {
-		update_story_state(
-			$post_id,
-			array(
-				'status'  => StoryStatus::Scheduled->value,
-				'message' => __( 'Processing scheduled', 'zw-knabbel-wp' ),
-			)
-		);
-	} else {
-		update_story_state(
-			$post_id,
-			array(
-				'status'  => StoryStatus::Error->value,
-				'message' => __( 'Could not schedule action', 'zw-knabbel-wp' ),
-			)
-		);
-	}
+	// Unique: on the DB store two saves that both passed the check above queue one action. The hybrid
+	// store's fallback is not atomic.
+	\as_schedule_single_action( time(), 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp', true );
 }

@@ -434,17 +434,9 @@ msgstr "Verhaal hersteld in Babbel"
 msgid "Story restored in Babbel, but updating it failed"
 msgstr "Verhaal hersteld in Babbel, maar bijwerken is mislukt"
 
-#: includes/post-hooks.php:399
-msgid "Processing already scheduled"
-msgstr "Verwerking al ingepland"
-
 #: includes/post-hooks.php:418
 msgid "Processing scheduled"
 msgstr "Verwerking ingepland"
-
-#: includes/post-hooks.php:426
-msgid "Could not schedule action"
-msgstr "Kon actie niet inplannen"
 
 #: includes/story-status.php:41
 msgid "Scheduled"
