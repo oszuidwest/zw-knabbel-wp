@@ -74,13 +74,13 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-004', 'checkbox disable soft-deletes and re-enable restores', $this->test_checkbox_delete_and_restore( ... ) );
 		$this->run_case( 'E2E-005', 'scheduled post dates update when scheduled and published', $this->test_scheduled_story_lifecycle( ... ) );
 		$this->run_case( 'E2E-006', 'unscheduling cancels pending processing without creating a story', $this->test_pending_schedule_cancellation( ... ) );
-		$this->run_case( 'E2E-007', 'trash and untrash delete and restore the same story', $this->test_trash_and_restore( ... ) );
+		$this->run_case( 'E2E-007', 'untrash keeps the story deleted until the post is published again', $this->test_trash_and_restore( ... ) );
 		$this->run_case( 'E2E-008', 'AI provider failure retries without creating a Babbel story', $this->test_ai_failure( ... ) );
 		$this->run_case( 'E2E-009', 'Babbel create failure is visible and preserves diagnostics safely', $this->test_babbel_create_failure( ... ) );
 		$this->run_case( 'E2E-010', 'few-shot queue learns editor changes', $this->test_few_shot_sync( ... ) );
 		$this->run_case( 'E2E-011', 'enabling existing published and future posts schedules one story', $this->test_enable_existing_posts( ... ) );
 		$this->run_case( 'E2E-012', 'checkbox and trash cancel pending work', $this->test_pending_work_cancellation( ... ) );
-		$this->run_case( 'E2E-013', 'leaving future deletes a sent story', $this->test_sent_story_unscheduling( ... ) );
+		$this->run_case( 'E2E-013', 'a sent story follows a reschedule and is deleted when the post goes offline', $this->test_sent_story_unscheduling( ... ) );
 		$this->run_case( 'E2E-014', 'meta deletion and rapid toggles preserve lifecycle invariants', $this->test_meta_deletion_and_rapid_toggles( ... ) );
 		$this->run_case( 'E2E-015', 'processing state prevents duplicate scheduling', $this->test_in_flight_state_guards( ... ) );
 		$this->run_case( 'E2E-016', 'untrash honors a disabled checkbox', $this->test_untrash_with_checkbox_disabled( ... ) );
@@ -528,10 +528,13 @@ final class Knabbel_E2E_Suite {
 		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 
 		wp_untrash_post( $post_id );
+		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Untrash returns a draft, so the story must stay deleted.' );
+		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
+
+		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
 		$state = KnabbelWP\get_story_state( $post_id );
-		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Untrash must restore the remote story.' );
-		$this->assert_same( $story_id, (string) ( $state['story_id'] ?? '' ), 'Untrash must retain the story ID.' );
-		$this->assert_same( 'E2E prullenbak', $this->get_babbel_story( $story_id )['title'] ?? null, 'Restored trash story must remain readable.' );
+		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Publishing the untrashed post must restore the remote story.' );
+		$this->assert_same( $story_id, (string) ( $state['story_id'] ?? '' ), 'Restore must retain the story ID.' );
 	}
 
 	/**
@@ -692,20 +695,33 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verifies deletion after leaving future status.
+	 * Verifies rescheduling a sent story, and deletion after leaving publish or future status.
 	 */
 	private function test_sent_story_unscheduling(): void {
-		$title   = 'E2E verzonden planning geannuleerd';
-		$post_id = $this->create_enabled_draft(
-			$title,
-			'Een reeds verzonden geplande story wordt verwijderd wanneer de planning vervalt.'
+		list( $post_id, $story_id ) = $this->create_sent_story(
+			'E2E verzonden en offline gehaald',
+			'Een gepubliceerd artikel met een verzonden story gaat terug naar concept.'
 		);
-		$this->schedule_post( $post_id, $this->future_post_date( 20 ) );
-		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		$this->configure_plugin( 'wrong-unpublish-password' );
+		$this->update_post( $post_id, array( 'post_status' => 'draft' ) );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
+		$this->configure_plugin();
+		$this->update_post( $post_id, array() );
+		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Saving an unpublished post must retry the failed delete.' );
+		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 
-		$state    = KnabbelWP\get_story_state( $post_id );
-		$story_id = (string) ( $state['story_id'] ?? '' );
-		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Precondition: scheduled story must be sent.' );
+		list( $post_id, $story_id ) = $this->create_sent_story(
+			'E2E verzonden planning geannuleerd',
+			'Een reeds verzonden story wordt opnieuw ingepland en daarna verwijderd.'
+		);
+
+		$date = $this->future_post_date( 20 );
+		$this->schedule_post( $post_id, $date );
+		$this->assert_same(
+			KnabbelWP\calculate_story_dates( $date )['start_date'],
+			$this->date_only( $this->get_babbel_story( $story_id )['start_date'] ?? '' ),
+			'Rescheduling a published post must recalculate story dates.'
+		);
 
 		$this->update_post( $post_id, array( 'post_status' => 'draft' ) );
 		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Returning a sent future post to draft must mark the story deleted.' );
