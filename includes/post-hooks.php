@@ -93,11 +93,6 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 	$status         = $state['status'] ?? '';
 	$story_id       = (string) ( $state['story_id'] ?? '' );
 	$active_status  = in_array( $post->post_status, array( 'publish', 'future' ), true );
-	// Status changed into publish/future, except the publish→future demotion.
-	$is_activated = null !== $post_before
-		&& $active_status
-		&& $post_before->post_status !== $post->post_status
-		&& ! ( 'publish' === $post_before->post_status && 'future' === $post->post_status );
 	// A story only exists while the post is published or scheduled. An untrashed post returns as a draft,
 	// and a delete that failed is retried on the next save.
 	$should_remove = ! $send_to_babbel || ! $active_status;
@@ -127,8 +122,9 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 		return;
 	}
 
-	if ( $story_id && StoryStatus::Deleted->value === $status && ( $is_activated || null === $post_before ) ) {
-		restore_and_sync_story( $post_id, $story_id, $post->post_title );
+	// The post is published or scheduled and enabled, so a deleted story comes back, also after a failed restore.
+	if ( $story_id && StoryStatus::Deleted->value === $status ) {
+		restore_and_sync_story( $post_id, $story_id, $post );
 		return;
 	}
 
@@ -172,19 +168,20 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 }
 
 /**
- * Restores a story and synchronizes its title.
+ * Restores a story and gives it the post's current title and window.
  *
- * Uses PATCH to restore (deleted_at) then PUT to update the title,
+ * Uses PATCH to restore (deleted_at) then PUT for the other fields,
  * matching the Babbel API contract where PATCH only accepts status/deleted_at.
  *
  * @since 0.3.0
+ * @since 0.8.1 Takes the post and also sends the dates and weekdays.
  *
- * @param int    $post_id  The post ID.
- * @param string $story_id The Babbel story ID.
- * @param string $title    The current post title to sync.
+ * @param int      $post_id  The post ID.
+ * @param string   $story_id The Babbel story ID.
+ * @param \WP_Post $post     The post to sync from.
  * @return array{success: bool, message: string} Response with success status and message.
  */
-function restore_and_sync_story( int $post_id, string $story_id, string $title ): array {
+function restore_and_sync_story( int $post_id, string $story_id, \WP_Post $post ): array {
 	$result = babbel_restore_story( $story_id );
 	if ( ! $result['success'] ) {
 		update_story_state(
@@ -196,9 +193,9 @@ function restore_and_sync_story( int $post_id, string $story_id, string $title )
 		return $result;
 	}
 
-	// Sync the current post title via PUT (PATCH only accepts status/deleted_at).
-	$title_result = babbel_update_story( $story_id, array( 'title' => $title ) );
-	if ( $title_result['success'] ) {
+	// The old window may be long gone, so send the current title and window via PUT (PATCH only accepts status/deleted_at).
+	$update_result = babbel_update_story( $story_id, build_full_story_update( $post->post_title, story_base_date( $post ) ) );
+	if ( $update_result['success'] ) {
 		update_story_state(
 			$post_id,
 			array(
@@ -208,23 +205,25 @@ function restore_and_sync_story( int $post_id, string $story_id, string $title )
 			)
 		);
 	} else {
-		// Keep 'sent' status - story is restored but title may be stale.
+		// Keep 'sent' status - story is restored but its title and window may be stale.
+		$message = __( 'Story restored in Babbel, but updating it failed', 'zw-knabbel-wp' );
 		log(
 			'error',
 			'PostHooks',
-			'Story restored but title sync failed',
+			'Story restored but update failed',
 			array(
 				'post_id'  => $post_id,
 				'story_id' => $story_id,
-				'error'    => $title_result['message'],
+				'error'    => $update_result['message'],
 			)
 		);
 		update_story_state(
 			$post_id,
 			array(
 				'status'          => StoryStatus::Sent->value,
-				'message'         => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
-				'last_sync_error' => build_story_sync_error( $title_result['message'], 'restore' ),
+				'message'         => $message,
+				// The editor sees the error, so it says what happened before what went wrong.
+				'last_sync_error' => build_story_sync_error( $message . ': ' . $update_result['message'], 'restore' ),
 			)
 		);
 	}
