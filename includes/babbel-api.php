@@ -130,12 +130,16 @@ function babbel_clear_session_cache(): void {
  * body as plain text or the HTTP status description.
  *
  * @since 0.8.0
+ * @since 0.8.1 Tells the editor how to bring back a story deleted in Babbel.
  * @param int    $code HTTP status code.
  * @param string $body Raw response body.
  * @return string Translated error message.
  */
 function babbel_error_message( int $code, string $body ): string {
 	$problem = json_decode( $body, true );
+	if ( 'story.deleted' === ( $problem['code'] ?? null ) ) {
+		return __( 'This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again.', 'zw-knabbel-wp' );
+	}
 	if ( is_array( $problem ) && is_string( $problem['detail'] ?? null ) ) {
 		$detail       = $problem['detail'];
 		$field_errors = array();

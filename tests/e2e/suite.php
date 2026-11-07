@@ -86,7 +86,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-016', 'untrash honors a disabled checkbox', $this->test_untrash_with_checkbox_disabled( ... ) );
 		$this->run_case( 'E2E-017', 'delete and restore failures remain retryable', $this->test_delete_and_restore_failures( ... ) );
 		$this->run_case( 'E2E-018', 'stored Unix timestamps retain their meaning after serialization', $this->test_stored_datetime_formatting( ... ) );
-		$this->run_case( 'E2E-019', 'a story deleted in Babbel reports a readable 410 on update', $this->test_story_deleted_in_babbel( ... ) );
+		$this->run_case( 'E2E-019', 'a story deleted in Babbel tells the editor what to do on update', $this->test_story_deleted_in_babbel( ... ) );
 		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
@@ -1117,8 +1117,16 @@ final class Knabbel_E2E_Suite {
 			$story_id,
 			StoryStatus::Sent,
 			'update',
-			'API error: HTTP 410 - Story with id ' . $story_id . ' has been deleted'
+			'This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again.'
 		);
+
+		$this->assert_same( 'API error: HTTP 410 - Gone', KnabbelWP\babbel_error_message( 410, '{"detail":"Gone"}' ), 'Only story.deleted counts.' );
+
+		// The way back the message describes, which also deletes the already deleted story again.
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_same( 'E2E bewerking na verwijdering', $this->get_babbel_story( $story_id )['title'] ?? null, 'The toggle must restore the story.' );
+		$this->assert_story_window( $story_id, 'now', 'The toggle must give the story the current window.' );
 	}
 
 	/**
