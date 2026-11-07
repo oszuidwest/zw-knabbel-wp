@@ -938,12 +938,16 @@ final class Knabbel_E2E_Suite {
 
 		$create_url = self::BABBEL_BASE_URL . '/stories';
 		// A separate process, so this request's caches stay stale as in a real worker.
-		$wp_cli  = static function ( string $command ): void {
-			shell_exec( 'wp ' . $command ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_shell_exec -- Test-only editor.
+		$wp_cli  = static function ( string ...$args ): void {
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec -- Test-only editor.
+			exec( 'wp ' . implode( ' ', array_map( 'escapeshellarg', $args ) ), $output, $code );
+			if ( 0 !== $code ) {
+				throw new RuntimeException( 'WP-CLI edit failed: ' . implode( ' ', $args ) );
+			}
 		};
 		$post_id = $this->process_with_edit_during_request(
 			'E2E offline gehaald tijdens aanmaken',
-			static fn( int $id ) => $wp_cli( "post update $id --post_status=draft" ),
+			static fn( int $id ) => $wp_cli( 'post', 'update', (string) $id, '--post_status=draft' ),
 			$create_url
 		);
 		$state   = KnabbelWP\get_story_state( $post_id );
@@ -954,13 +958,13 @@ final class Knabbel_E2E_Suite {
 		$post_id  = $this->process_with_edit_during_request(
 			'E2E herpland tijdens aanmaken',
 			static fn( int $id ) => $wp_cli(
-				sprintf(
-					"post update %d --post_status=future --post_title='%s' --post_date='%s' --post_date_gmt='%s'",
-					$id,
-					$title,
-					$date,
-					get_gmt_from_date( $date )
-				)
+				'post',
+				'update',
+				(string) $id,
+				'--post_status=future',
+				"--post_title=$title",
+				"--post_date=$date",
+				'--post_date_gmt=' . get_gmt_from_date( $date )
 			),
 			$create_url
 		);
