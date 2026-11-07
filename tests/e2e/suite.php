@@ -893,7 +893,9 @@ final class Knabbel_E2E_Suite {
 		update_post_meta( $running_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_same( 0, $this->story_action_count( $running_id ), 'A running action must not get a second one.' );
 		KnabbelWP\update_story_state( $running_id, array( 'status' => StoryStatus::Processing->value ) );
+		as_schedule_single_action( time(), self::STORY_HOOK, array( 'post_id' => $running_id ), self::ACTION_GROUP );
 		update_post_meta( $running_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$this->assert_same( 0, $this->story_action_count( $running_id ), 'Disabling must cancel a pending action next to a running one.' );
 		$this->assert_story_status( $running_id, StoryStatus::Processing, 'Disabling must leave the state of a running worker alone.' );
 
 		// Another request changes the row; this request's post cache stays stale, as in a separate worker.
