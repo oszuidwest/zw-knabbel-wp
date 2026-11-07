@@ -332,6 +332,10 @@ msgstr ""
 msgid "No session cookies received"
 msgstr ""
 
+#: includes/babbel-api.php:141
+msgid "This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again."
+msgstr ""
+
 #. translators: %1$d is the HTTP status code, %2$s is the error message.
 #: includes/babbel-api.php:154
 #, php-format
