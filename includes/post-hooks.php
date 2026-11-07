@@ -115,6 +115,13 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 
 			push_story_delete( $post_id, $story_id, $message, $context );
 		} elseif ( in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
+			// The worker catches up on this change after its create call. Deleting the state here could drop the story ID it just wrote.
+			if (
+				StoryStatus::Processing->value === $status
+				&& \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' )
+			) {
+				return;
+			}
 			// Only these states can have a pending processing action.
 			\as_unschedule_all_actions( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
 			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
