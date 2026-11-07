@@ -898,6 +898,35 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 0, $this->story_action_count( $running_id ), 'Disabling must cancel a pending action next to a running one.' );
 		$this->assert_story_status( $running_id, StoryStatus::Processing, 'Disabling must leave the state of a running worker alone.' );
 
+		// A worker in another process finishes while the save is checking the queue.
+		$finished_id = $this->create_draft( 'E2E guard net klaar', 'Een worker die net klaar is, mag zijn story-ID niet kwijtraken.' );
+		$this->update_post( $finished_id, array( 'post_status' => 'publish' ) );
+		update_post_meta( $finished_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_same( 1, $this->story_action_count( $finished_id ), 'Enabling must queue one action.' );
+		$finish = static fn() => $GLOBALS['wpdb']->update(
+			$GLOBALS['wpdb']->postmeta,
+			array(
+				'meta_value' => maybe_serialize(
+					array(
+						'status'   => StoryStatus::Sent->value,
+						'story_id' => 'e2e-finished',
+					)
+				),
+			),
+			array(
+				'post_id'  => $finished_id,
+				'meta_key' => '_zw_knabbel_story_state',
+			)
+		);
+		add_action( 'action_scheduler_canceled_action', $finish );
+		try {
+			update_post_meta( $finished_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		} finally {
+			remove_action( 'action_scheduler_canceled_action', $finish );
+		}
+		$story_id = KnabbelWP\get_story_state( $finished_id )['story_id'] ?? null;
+		$this->assert_same( 'e2e-finished', $story_id, 'A save must not delete the state of a worker that just finished.' );
+
 		// Another request changes the row; this request's post cache stays stale, as in a separate worker.
 		$date     = $this->future_post_date( 10 );
 		$post_id  = $this->process_with_edit_during_request(

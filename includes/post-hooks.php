@@ -117,14 +117,15 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 		} elseif ( in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
 			// Only these states can have a pending processing action.
 			\as_unschedule_all_actions( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
-			// Only a running action is left. Its worker catches up after its create call, and deleting the state could drop the story ID it just wrote.
-			if (
-				StoryStatus::Processing->value === $status
-				&& \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' )
-			) {
+			// A running worker catches up after its create call, and deleting the state could drop the story ID it just wrote.
+			if ( \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' ) ) {
 				return;
 			}
-			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
+			// A worker may have finished since the state was read.
+			wp_cache_delete( $post_id, 'post_meta' );
+			if ( ( get_story_state( $post_id )['status'] ?? '' ) === $status ) {
+				delete_post_meta( $post_id, '_zw_knabbel_story_state' );
+			}
 		}
 		return;
 	}
