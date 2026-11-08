@@ -3,7 +3,7 @@
  * Plugin Name: ZuidWest Knabbel
  * Plugin URI: https://github.com/oszuidwest/zw-knabbel-wp
  * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Gebruikt de WordPress AI Client voor AI-gegenereerde content.
- * Version: 0.8.1
+ * Version: 1.0.0
  * Requires at least: 7.0
  * Requires PHP: 8.4
  * Requires Plugins: classic-editor
@@ -289,7 +289,7 @@ function log( string $level, string $component, string $message, array $context 
  * Triggers WordPress action hook for extensibility.
  *
  * @since 0.1.0
- * @since 0.9.0 Can write only when the stored state is still the expected one.
+ * @since 1.0.0 Can write only when the stored state is still the expected one.
  * @param int                       $post_id  The post ID.
  * @param array<string, mixed>      $updates  Partial state updates to apply.
  * @param array<string, mixed>|null $expected State the stored one must still be, or null to write anyway.
@@ -673,7 +673,7 @@ function ajax_test_api(): void {
  * @since 0.7.0 Excludes the current post from the AI few-shot examples.
  * @since 0.8.0 Accepts only a post ID and leaves already sent stories untouched.
  * @since 0.8.1 Reconciles the post with the new story after creating it.
- * @since 0.9.0 Sends the post ID as external ID and takes over the story of a create whose answer was lost.
+ * @since 1.0.0 Sends the post ID as external ID and takes over the story of a create whose answer was lost.
  * @param int $post_id The WordPress post ID.
  */
 function process_story_async( int $post_id ): void {

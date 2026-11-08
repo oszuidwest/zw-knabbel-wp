@@ -193,7 +193,7 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
  *
  * @since 0.3.0
  * @since 0.8.1 Takes the post and also sends the dates and weekdays.
- * @since 0.9.0 Restores and updates the story in one request.
+ * @since 1.0.0 Restores and updates the story in one request.
  *
  * @param int      $post_id  The post ID.
  * @param string   $story_id The Babbel story ID.
@@ -376,7 +376,7 @@ function build_full_story_update( string $title, string $base_date ): array {
  * Queues deduplicated story processing.
  *
  * @since 0.2.0
- * @since 0.9.0 Takes the state a stale requeue expects.
+ * @since 1.0.0 Takes the state a stale requeue expects.
  *
  * @param int                       $post_id  The post ID to process.
  * @param array<string, mixed>|null $expected State the stored one must still be, or null to queue anyway.
