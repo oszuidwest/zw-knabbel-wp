@@ -17,7 +17,7 @@ Publishes selected WordPress posts as radio stories in the [Babbel API](https://
 - PHP 8.4 or 8.5
 - The [Classic Editor](https://wordpress.org/plugins/classic-editor/) plugin, installed and activated; the block editor is not supported
 - A compatible AI provider configured under **Settings > Connectors**
-- A running instance of the [Babbel API](https://github.com/oszuidwest/zwfm-babbel) v0.17.0 or later
+- A running instance of the [Babbel API](https://github.com/oszuidwest/zwfm-babbel) v1.0.0 or later
 
 ## Setup
 

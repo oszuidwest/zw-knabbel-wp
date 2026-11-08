@@ -564,24 +564,15 @@ final class Knabbel_E2E_Suite {
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
 		$date = $this->future_post_date( 12 );
 		$this->schedule_post( $post_id, $date );
-		$fail_put = static fn( false|array|WP_Error $preempt, array $args ): false|array|WP_Error => 'PUT' === ( $args['method'] ?? '' )
-			? new WP_Error( 'http_request_failed', 'Injected PUT failure' )
-			: $preempt;
-		add_filter( 'pre_http_request', $fail_put, 10, 2 );
-		try {
-			update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
-		} finally {
-			remove_filter( 'pre_http_request', $fail_put, 10 );
-		}
-		$this->assert_sync_failure_preserved(
-			$post_id,
-			$story_id,
-			StoryStatus::Sent,
-			'restore',
-			'Story restored in Babbel, but updating it failed: API connection failed: Injected PUT failure'
-		);
+		// An end date before the start date, which Babbel rejects.
+		$settings = get_option( 'knabbel_settings' );
+		update_option( 'knabbel_settings', array_merge( $settings, array( 'end_days_offset' => 0 ) ) );
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		update_option( 'knabbel_settings', $settings );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Deleted, 'restore' );
+		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 		$this->update_post( $post_id, array() );
-		$this->assert_story_window( $story_id, $date, 'A save after a failed restore update must send the new window.' );
+		$this->assert_story_window( $story_id, $date, 'A save after a rejected restore must restore the story with the new window.' );
 	}
 
 	/**
