@@ -3,7 +3,7 @@
  * Plugin Name: ZuidWest Knabbel
  * Plugin URI: https://github.com/oszuidwest/zw-knabbel-wp
  * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Gebruikt de WordPress AI Client voor AI-gegenereerde content.
- * Version: 0.8.0
+ * Version: 0.8.1
  * Requires at least: 7.0
  * Requires PHP: 8.4
  * Requires Plugins: classic-editor
@@ -637,6 +637,7 @@ function ajax_test_api(): void {
  * @since 0.1.0
  * @since 0.7.0 Excludes the current post from the AI few-shot examples.
  * @since 0.8.0 Accepts only a post ID and leaves already sent stories untouched.
+ * @since 0.8.1 Reconciles the post with the new story after creating it.
  * @param int $post_id The WordPress post ID.
  */
 function process_story_async( int $post_id ): void {
@@ -707,7 +708,7 @@ function process_story_async( int $post_id ): void {
 	clean_post_cache( $post_id );
 	$post = get_post( $post_id );
 	if ( ! $post || ! in_array( $post->post_status, array( 'publish', 'future' ), true ) || ! get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true ) ) {
-		// An edit before this run wrote Processing finds nothing to clean up, so clear it here.
+		// A save leaves Processing to the running worker, and one before this run wrote it found nothing to clean up.
 		if ( StoryStatus::Processing->value === ( get_story_state( $post_id )['status'] ?? null ) ) {
 			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
 		}
@@ -749,6 +750,9 @@ function process_story_async( int $post_id ): void {
 				'last_sync_error'       => null,
 			)
 		);
+		// A save during the create call had no story to act on, so catch up on it with what was just sent.
+		clean_post_cache( $post_id );
+		sync_story_state( $post_id, $post );
 	} else {
 		update_story_state(
 			$post_id,

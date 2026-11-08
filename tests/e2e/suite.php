@@ -82,11 +82,11 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-012', 'checkbox and trash cancel pending work', $this->test_pending_work_cancellation( ... ) );
 		$this->run_case( 'E2E-013', 'a sent story follows a reschedule and is deleted when the post goes offline', $this->test_sent_story_unscheduling( ... ) );
 		$this->run_case( 'E2E-014', 'meta deletion and rapid toggles preserve lifecycle invariants', $this->test_meta_deletion_and_rapid_toggles( ... ) );
-		$this->run_case( 'E2E-015', 'processing state blocks rescheduling and follows edits during generation', $this->test_in_flight_state_guards( ... ) );
+		$this->run_case( 'E2E-015', 'processing state blocks rescheduling and follows edits during in-flight work', $this->test_in_flight_state_guards( ... ) );
 		$this->run_case( 'E2E-016', 'untrash honors a disabled checkbox', $this->test_untrash_with_checkbox_disabled( ... ) );
 		$this->run_case( 'E2E-017', 'delete and restore failures remain retryable', $this->test_delete_and_restore_failures( ... ) );
 		$this->run_case( 'E2E-018', 'stored Unix timestamps retain their meaning after serialization', $this->test_stored_datetime_formatting( ... ) );
-		$this->run_case( 'E2E-019', 'a story deleted in Babbel reports a readable 410 on update', $this->test_story_deleted_in_babbel( ... ) );
+		$this->run_case( 'E2E-019', 'a story deleted in Babbel tells the editor what to do on update', $this->test_story_deleted_in_babbel( ... ) );
 		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
@@ -831,6 +831,8 @@ final class Knabbel_E2E_Suite {
 		update_post_meta( $processing_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_same( 0, $this->story_action_count( $processing_id ), 'Enabling processing state must not queue another action.' );
 		$this->assert_story_status( $processing_id, StoryStatus::Processing, 'Enabling processing state must preserve its lifecycle status.' );
+		update_post_meta( $processing_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$this->assert_same( array(), KnabbelWP\get_story_state( $processing_id ), 'Disabling must clear a processing state without a running action.' );
 
 		$stale_id = $this->create_draft(
 			'E2E guard verlopen planning',
@@ -890,10 +892,44 @@ final class Knabbel_E2E_Suite {
 		ActionScheduler_Store::instance()->log_execution( $running );
 		update_post_meta( $running_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_same( 0, $this->story_action_count( $running_id ), 'A running action must not get a second one.' );
+		KnabbelWP\update_story_state( $running_id, array( 'status' => StoryStatus::Processing->value ) );
+		as_schedule_single_action( time(), self::STORY_HOOK, array( 'post_id' => $running_id ), self::ACTION_GROUP );
+		update_post_meta( $running_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$this->assert_same( 0, $this->story_action_count( $running_id ), 'Disabling must cancel a pending action next to a running one.' );
+		$this->assert_story_status( $running_id, StoryStatus::Processing, 'Disabling must leave the state of a running worker alone.' );
+
+		// A worker in another process finishes while the save is checking the queue.
+		$finished_id = $this->create_draft( 'E2E guard net klaar', 'Een worker die net klaar is, mag zijn story-ID niet kwijtraken.' );
+		$this->update_post( $finished_id, array( 'post_status' => 'publish' ) );
+		update_post_meta( $finished_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_same( 1, $this->story_action_count( $finished_id ), 'Enabling must queue one action.' );
+		$finish = static fn() => $GLOBALS['wpdb']->update(
+			$GLOBALS['wpdb']->postmeta,
+			array(
+				'meta_value' => maybe_serialize(
+					array(
+						'status'   => StoryStatus::Sent->value,
+						'story_id' => 'e2e-finished',
+					)
+				),
+			),
+			array(
+				'post_id'  => $finished_id,
+				'meta_key' => '_zw_knabbel_story_state',
+			)
+		);
+		add_action( 'action_scheduler_canceled_action', $finish );
+		try {
+			update_post_meta( $finished_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		} finally {
+			remove_action( 'action_scheduler_canceled_action', $finish );
+		}
+		$story_id = KnabbelWP\get_story_state( $finished_id )['story_id'] ?? null;
+		$this->assert_same( 'e2e-finished', $story_id, 'A save must not delete the state of a worker that just finished.' );
 
 		// Another request changes the row; this request's post cache stays stale, as in a separate worker.
 		$date     = $this->future_post_date( 10 );
-		$post_id  = $this->process_with_edit_during_generation(
+		$post_id  = $this->process_with_edit_during_request(
 			'E2E herpland tijdens generatie',
 			static fn( int $id ) => $GLOBALS['wpdb']->update(
 				$GLOBALS['wpdb']->posts,
@@ -916,39 +952,76 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 'E2E herpland met nieuwe titel', $story['title'] ?? null, 'A story must get the title the post has after generation.' );
 
 		$title = 'E2E offline gehaald tijdens generatie';
-		$this->process_with_edit_during_generation( $title, fn( int $id ) => $this->update_post( $id, array( 'post_status' => 'draft' ) ) );
+		$this->process_with_edit_during_request( $title, fn( int $id ) => $this->update_post( $id, array( 'post_status' => 'draft' ) ) );
 		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'A post unpublished during generation must not get a story.' );
 
 		// A change the reconciler never sees, like one saved just before this run wrote Processing.
 		$title   = 'E2E stil offline tijdens generatie';
-		$post_id = $this->process_with_edit_during_generation(
+		$post_id = $this->process_with_edit_during_request(
 			$title,
 			static fn( int $id ) => $GLOBALS['wpdb']->update( $GLOBALS['wpdb']->posts, array( 'post_status' => 'draft' ), array( 'ID' => $id ) )
 		);
 		$this->assert_same( null, KnabbelWP\get_story_state( $post_id )['status'] ?? null, 'A worker that stops must not leave a processing state behind.' );
 
 		$title = 'E2E uitgeschakeld tijdens generatie';
-		$this->process_with_edit_during_generation( $title, fn( int $id ) => update_post_meta( $id, self::SEND_TO_BABBEL_META_KEY, 0 ) );
+		$this->process_with_edit_during_request( $title, fn( int $id ) => update_post_meta( $id, self::SEND_TO_BABBEL_META_KEY, 0 ) );
 		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'A post disabled during generation must not get a story.' );
+
+		$create_url = self::BABBEL_BASE_URL . '/stories';
+		// A separate process, so this request's caches stay stale as in a real worker.
+		$wp_cli  = static function ( string ...$args ): void {
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec -- Test-only editor.
+			exec( 'wp ' . implode( ' ', array_map( 'escapeshellarg', $args ) ), $output, $code );
+			if ( 0 !== $code ) {
+				throw new RuntimeException( 'WP-CLI edit failed: ' . implode( ' ', $args ) );
+			}
+		};
+		$post_id = $this->process_with_edit_during_request(
+			'E2E offline gehaald tijdens aanmaken',
+			static fn( int $id ) => $wp_cli( 'post', 'update', (string) $id, '--post_status=draft' ),
+			$create_url
+		);
+		$state   = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( StoryStatus::Deleted->value, $state['status'] ?? null, 'A post unpublished during the create call must end deleted.' );
+		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $state['story_id'] );
+
+		$title    = 'E2E herpland na aanmaken';
+		$post_id  = $this->process_with_edit_during_request(
+			'E2E herpland tijdens aanmaken',
+			static fn( int $id ) => $wp_cli(
+				'post',
+				'update',
+				(string) $id,
+				'--post_status=future',
+				"--post_title=$title",
+				"--post_date=$date",
+				'--post_date_gmt=' . get_gmt_from_date( $date )
+			),
+			$create_url
+		);
+		$story_id = (string) ( KnabbelWP\get_story_state( $post_id )['story_id'] ?? '' );
+		$this->assert_same( $title, $this->get_babbel_story( $story_id )['title'] ?? null, 'A title changed during the create call must reach the story.' );
+		$this->assert_story_window( $story_id, $date, 'A post rescheduled during the create call must get the window of its new date.' );
 	}
 
 	/**
-	 * Publishes and processes a post while an editor changes it during speech text generation.
+	 * Publishes and processes a post while an editor changes it during one of the worker's requests.
 	 *
-	 * @param string   $title Post title.
-	 * @param callable $edit  Receives the post ID while the AI request is in flight.
+	 * @param string   $title  Post title.
+	 * @param callable $edit   Receives the post ID while that request is in flight.
+	 * @param string   $during URL of the request during which the editor changes the post.
 	 * @return int Post ID.
 	 */
-	private function process_with_edit_during_generation( string $title, callable $edit ): int {
+	private function process_with_edit_during_request( string $title, callable $edit, string $during = 'https://api.openai.com/v1/responses' ): int {
 		$post_id = $this->create_enabled_draft( $title, 'Een redacteur past dit artikel aan terwijl de spreektekst wordt gemaakt.' );
 		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
 
-		$filter = static function ( false|array|WP_Error $preempt, array $args, string $url ) use ( &$filter, $edit, $post_id ): false|array|WP_Error {
-			if ( 'https://api.openai.com/v1/responses' === $url ) {
+		$filter = static function ( false|array|WP_Error $pre, array $args, string $url ) use ( &$filter, $edit, $post_id, $during ): false|array|WP_Error {
+			if ( $during === $url ) {
 				remove_filter( 'pre_http_request', $filter, 5 );
 				$edit( $post_id );
 			}
-			return $preempt;
+			return $pre;
 		};
 		add_filter( 'pre_http_request', $filter, 5, 3 );
 		try {
@@ -1044,8 +1117,16 @@ final class Knabbel_E2E_Suite {
 			$story_id,
 			StoryStatus::Sent,
 			'update',
-			'API error: HTTP 410 - Story with id ' . $story_id . ' has been deleted'
+			'This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again.'
 		);
+
+		$this->assert_same( 'API error: HTTP 410 - Gone', KnabbelWP\babbel_error_message( 410, '{"detail":"Gone"}' ), 'Only story.deleted counts.' );
+
+		// The way back the message describes, which also deletes the already deleted story again.
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_same( 'E2E bewerking na verwijdering', $this->get_babbel_story( $story_id )['title'] ?? null, 'The toggle must restore the story.' );
+		$this->assert_story_window( $story_id, 'now', 'The toggle must give the story the current window.' );
 	}
 
 	/**

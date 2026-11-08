@@ -2,7 +2,7 @@
 # This file is distributed under the MIT.
 msgid ""
 msgstr ""
-"Project-Id-Version: ZuidWest Knabbel 0.8.0\n"
+"Project-Id-Version: ZuidWest Knabbel 0.8.1\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/zw-knabbel-wp\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -330,6 +330,10 @@ msgstr ""
 
 #: includes/babbel-api.php:95
 msgid "No session cookies received"
+msgstr ""
+
+#: includes/babbel-api.php:141
+msgid "This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again."
 msgstr ""
 
 #. translators: %1$d is the HTTP status code, %2$s is the error message.
