@@ -71,6 +71,7 @@ services:
       - /var/lib/mysql
     volumes:
       - ${BABBEL_PATH:?Set BABBEL_PATH to a zwfm-babbel checkout}/migrations/001_complete_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ${BABBEL_PATH:?Set BABBEL_PATH to a zwfm-babbel checkout}/tests/fixtures/dev-admin.sql:/docker-entrypoint-initdb.d/02-dev-admin.sql:ro
     healthcheck:
       test:
         - CMD-SHELL
@@ -87,12 +88,8 @@ services:
       BABBEL_DB_USER: babbel
       BABBEL_DB_PASSWORD: babbel
       BABBEL_DB_NAME: babbel
-      BABBEL_SERVER_ADDRESS: :8080
       BABBEL_AUTH_METHOD: local
-      BABBEL_SESSION_SECRET: e2e-only-session-secret-at-least-32-characters
       BABBEL_ENV: development
-      BABBEL_FFMPEG_PATH: ffmpeg
-      BABBEL_FFPROBE_PATH: ffprobe
       TZ: Europe/Amsterdam
     depends_on:
       babbel-db:
