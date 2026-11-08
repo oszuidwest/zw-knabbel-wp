@@ -87,6 +87,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-017', 'delete and restore failures remain retryable', $this->test_delete_and_restore_failures( ... ) );
 		$this->run_case( 'E2E-018', 'stored Unix timestamps retain their meaning after serialization', $this->test_stored_datetime_formatting( ... ) );
 		$this->run_case( 'E2E-019', 'a story deleted in Babbel tells the editor what to do on update', $this->test_story_deleted_in_babbel( ... ) );
+		$this->run_case( 'E2E-021', 'a create whose answer was lost is taken over, unless it was deleted in Babbel', $this->test_lost_create_answer( ... ) );
 		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
@@ -427,6 +428,12 @@ final class Knabbel_E2E_Suite {
 			self::GENERATED_TEXT,
 			$story['metadata']['original_speech_text'] ?? null,
 			'Babbel metadata must retain the original generated text.'
+		);
+		$this->assert_same( (string) $post_id, $story['external_id'] ?? null, 'Babbel must receive the post ID as external ID.' );
+		$this->assert_same(
+			get_option( 'siteurl' ) . '/wp-admin/post.php?post=' . $post_id . '&action=edit',
+			$story['external_url'] ?? null,
+			'Babbel must receive the edit link, also from a worker without a user.'
 		);
 
 		KnabbelWP\process_story_async( $post_id );
@@ -1176,6 +1183,119 @@ final class Knabbel_E2E_Suite {
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_same( 'E2E bewerking na verwijdering', $this->get_babbel_story( $story_id )['title'] ?? null, 'The toggle must restore the story.' );
 		$this->assert_story_window( $story_id, 'now', 'The toggle must give the story the current window.' );
+	}
+
+	/**
+	 * Verifies that a story created by a create whose answer was lost is taken over, or left deleted.
+	 */
+	private function test_lost_create_answer(): void {
+		$post_id = $this->create_enabled_draft( 'E2E antwoord kwijt', 'Babbel maakt het verhaal aan, maar het antwoord komt nooit aan.' );
+		$this->schedule_post( $post_id, $this->future_post_date( 3 ) );
+		$story_id = $this->process_with_lost_create_answer( $post_id );
+
+		$date = $this->future_post_date( 6 );
+		$this->schedule_post( $post_id, $date );
+		// The same post ID from another WordPress site.
+		$other_site = static fn( false|array|WP_Error $pre, array $args, string $url ): false|array|WP_Error => str_contains( $url, 'filter[external_id]' )
+			? array(
+				'headers'  => array(),
+				'body'     => wp_json_encode(
+					array(
+						'data' => array(
+							array(
+								'id'           => (int) $story_id,
+								'external_id'  => (string) $post_id,
+								'external_url' => 'https://other.example/wp-admin/post.php?post=' . $post_id . '&action=edit',
+								'deleted_at'   => null,
+							),
+						),
+					)
+				),
+				'response' => array(
+					'code'    => 200,
+					'message' => 'OK',
+				),
+				'cookies'  => array(),
+				'filename' => null,
+			)
+			: $pre;
+		add_filter( 'pre_http_request', $other_site, 10, 3 );
+		try {
+			$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		} finally {
+			remove_filter( 'pre_http_request', $other_site, 10 );
+		}
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( StoryStatus::Error->value, $state['status'] ?? null, 'A story of another site must leave the post in error.' );
+		$this->assert_same( null, $state['story_id'] ?? null, 'A story of another site must not be taken over.' );
+
+		$this->update_post( $post_id, array() );
+		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'The next save must take over the existing story.' );
+		$this->assert_same( $story_id, $state['story_id'] ?? null, 'The existing story must be taken over.' );
+		$this->assert_story_window( $story_id, $date, 'A story taken over must get the current window.' );
+
+		$post_id  = $this->create_enabled_draft( 'E2E antwoord kwijt en verwijderd', 'Babbel maakt het verhaal aan en een redacteur verwijdert het daar.' );
+		$story_id = $this->process_with_lost_create_answer( $post_id, 'publish' );
+		$this->assert_babbel_response_code( 204, 'DELETE', '/stories/' . $story_id );
+		$this->update_post( $post_id, array() );
+		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( StoryStatus::Error->value, $state['status'] ?? null, 'A story deleted in Babbel must leave the post in error.' );
+		$this->assert_same( null, $state['story_id'] ?? null, 'A story deleted in Babbel must not be stored, or the next save restores it.' );
+		$this->assert_same(
+			'The story for this post was deleted in Babbel. To send it again, restore it in Babbel first and then save the post.',
+			$state['last_sync_error']['message'] ?? null,
+			'The editor must learn how to get the deleted story back.'
+		);
+		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
+	}
+
+	/**
+	 * Runs the worker while the answer to its create call is lost after Babbel created the story.
+	 *
+	 * @param int         $post_id     Post ID.
+	 * @param string|null $post_status Status to save the post with first, if any.
+	 * @return string ID of the one story Babbel has for the post.
+	 */
+	private function process_with_lost_create_answer( int $post_id, ?string $post_status = null ): string {
+		if ( null !== $post_status ) {
+			$this->update_post( $post_id, array( 'post_status' => $post_status ) );
+		}
+
+		$lose = static fn( array|WP_Error $response, array $args, string $url ): array|WP_Error => self::BABBEL_BASE_URL . '/stories' === $url
+			&& 201 === wp_remote_retrieve_response_code( $response )
+			? array(
+				'headers'  => array(),
+				'body'     => 'Bad Gateway',
+				'response' => array(
+					'code'    => 502,
+					'message' => 'Bad Gateway',
+				),
+				'cookies'  => array(),
+				'filename' => null,
+			)
+			: $response;
+		add_filter( 'http_response', $lose, 10, 3 );
+		try {
+			$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		} finally {
+			remove_filter( 'http_response', $lose, 10 );
+		}
+
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( StoryStatus::Error->value, $state['status'] ?? null, 'Precondition: a lost create answer must leave the post in error.' );
+		$path    = '/stories?' . http_build_query(
+			array(
+				'filter'  => array( 'external_id' => (string) $post_id ),
+				'trashed' => 'with',
+			)
+		);
+		$stories = $this->babbel_get_json( $path, 'Babbel stories must be searchable by external ID.' )['data'] ?? null;
+		$this->assert_same( 1, is_array( $stories ) ? count( $stories ) : null, 'Precondition: Babbel must have created the story.' );
+
+		return (string) $stories[0]['id'];
 	}
 
 	/**
