@@ -590,24 +590,24 @@ function babbel_delete_story( string $story_id ): array {
 }
 
 /**
- * Restores a soft-deleted Babbel story.
- *
- * The PATCH endpoint only accepts 'status' and 'deleted_at' fields.
- * To update the title after restore, use babbel_update_story() separately.
+ * Restores a soft-deleted Babbel story and updates it in one request.
  *
  * @since 0.2.0
  * @since 0.8.0 Reports Problem Details errors.
- * @param string $story_id The Babbel story ID.
+ * @since 0.9.0 Sends the story fields with the restore.
+ * @param string                                                                        $story_id   The Babbel story ID.
+ * @param array{title?: string, start_date?: string, end_date?: string, weekdays?: int} $story_data The story data to apply.
  * @return array{success: bool, message: string} Response with success status and message.
  *
+ * @phpstan-param StoryUpdateData $story_data
  * @phpstan-return BabbelApiResponse
  */
-function babbel_restore_story( string $story_id ): array {
+function babbel_restore_story( string $story_id, array $story_data ): array {
 	$credentials = babbel_get_credentials();
 	$endpoint    = $credentials['base_url'] . '/stories/' . $story_id;
 
-	// PATCH with deleted_at: "" (empty string) to restore.
-	$payload = array( 'deleted_at' => '' );
+	// An empty deleted_at restores the story.
+	$payload = array( 'deleted_at' => '' ) + $story_data;
 
 	try {
 		$json_body = wp_json_encode( $payload );

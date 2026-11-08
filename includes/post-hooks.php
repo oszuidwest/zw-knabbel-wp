@@ -186,11 +186,12 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 /**
  * Restores a story and gives it the post's current title and window.
  *
- * Uses PATCH to restore (deleted_at) then PUT for the other fields,
- * matching the Babbel API contract where PATCH only accepts status/deleted_at.
+ * Babbel applies the restore and the fields in one transaction, so a rejected
+ * restore leaves the story deleted.
  *
  * @since 0.3.0
  * @since 0.8.1 Takes the post and also sends the dates and weekdays.
+ * @since 0.9.0 Restores and updates the story in one request.
  *
  * @param int      $post_id  The post ID.
  * @param string   $story_id The Babbel story ID.
@@ -198,7 +199,7 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
  * @return array{success: bool, message: string} Response with success status and message.
  */
 function restore_and_sync_story( int $post_id, string $story_id, \WP_Post $post ): array {
-	$result = babbel_restore_story( $story_id );
+	$result = babbel_restore_story( $story_id, build_full_story_update( $post->post_title, story_base_date( $post ) ) );
 	if ( ! $result['success'] ) {
 		update_story_state(
 			$post_id,
@@ -209,43 +210,15 @@ function restore_and_sync_story( int $post_id, string $story_id, \WP_Post $post 
 		return $result;
 	}
 
-	// The old window may be long gone, so send the current title and window via PUT (PATCH only accepts status/deleted_at).
-	$update_data   = build_full_story_update( $post->post_title, story_base_date( $post ) );
-	$update_result = babbel_update_story( $story_id, $update_data );
-	if ( $update_result['success'] ) {
-		update_story_state(
-			$post_id,
-			array(
-				'status'          => StoryStatus::Sent->value,
-				'message'         => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
-				'last_sync_error' => null,
-				'pending_update'  => null,
-			)
-		);
-	} else {
-		// Keep 'sent' status - story is restored but its title and window may be stale.
-		$message = __( 'Story restored in Babbel, but updating it failed', 'zw-knabbel-wp' );
-		log(
-			'error',
-			'PostHooks',
-			'Story restored but update failed',
-			array(
-				'post_id'  => $post_id,
-				'story_id' => $story_id,
-				'error'    => $update_result['message'],
-			)
-		);
-		update_story_state(
-			$post_id,
-			array(
-				'status'          => StoryStatus::Sent->value,
-				'message'         => $message,
-				// The editor sees the error, so it says what happened before what went wrong.
-				'last_sync_error' => build_story_sync_error( $message . ': ' . $update_result['message'], 'restore' ),
-				'pending_update'  => $update_data,
-			)
-		);
-	}
+	update_story_state(
+		$post_id,
+		array(
+			'status'          => StoryStatus::Sent->value,
+			'message'         => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
+			'last_sync_error' => null,
+			'pending_update'  => null,
+		)
+	);
 
 	return $result;
 }
