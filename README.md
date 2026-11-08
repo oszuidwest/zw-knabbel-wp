@@ -14,7 +14,7 @@ Publishes selected WordPress posts as radio stories in the [Babbel API](https://
 ## Requirements
 
 - WordPress 7.0+
-- PHP 8.3 or 8.4
+- PHP 8.4 or 8.5
 - The [Classic Editor](https://wordpress.org/plugins/classic-editor/) plugin, installed and activated; the block editor is not supported
 - A compatible AI provider configured under **Settings > Connectors**
 - A running instance of the [Babbel API](https://github.com/oszuidwest/zwfm-babbel) v0.17.0 or later
@@ -38,7 +38,7 @@ npm run lint
 shellcheck tests/e2e/run.sh
 ```
 
-Run the isolated WordPress 7.0.2 and Babbel regression suite with:
+Run the isolated WordPress 7.1 and Babbel regression suite with:
 
 ```bash
 BABBEL_PATH=../zwfm-babbel tests/e2e/run.sh

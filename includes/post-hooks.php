@@ -93,16 +93,9 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 	$status         = $state['status'] ?? '';
 	$story_id       = (string) ( $state['story_id'] ?? '' );
 	$active_status  = in_array( $post->post_status, array( 'publish', 'future' ), true );
-	$is_untrash     = null !== $post_before && 'trash' === $post_before->post_status && 'trash' !== $post->post_status;
-	$is_unscheduled = null !== $post_before
-		&& 'future' === $post_before->post_status
-		&& ! $active_status;
-	// Status changed into publish/future, except the publish→future demotion.
-	$is_activated  = null !== $post_before
-		&& $active_status
-		&& $post_before->post_status !== $post->post_status
-		&& ! ( 'publish' === $post_before->post_status && 'future' === $post->post_status );
-	$should_remove = ! $send_to_babbel || 'trash' === $post->post_status || $is_unscheduled;
+	// A story only exists while the post is published or scheduled. An untrashed post returns as a draft,
+	// and a delete that failed is retried on the next save.
+	$should_remove = ! $send_to_babbel || ! $active_status;
 
 	if ( $should_remove ) {
 		if ( $story_id && in_array( $status, array( StoryStatus::Sent->value, StoryStatus::Error->value ), true ) ) {
@@ -112,27 +105,34 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 			} elseif ( 'trash' === $post->post_status ) {
 				$message = __( 'Story deleted (post trashed)', 'zw-knabbel-wp' );
 				$context = 'post_trashed';
-			} else {
+			} elseif ( 'future' === $post_before?->post_status ) {
 				$message = __( 'Story deleted (post unscheduled)', 'zw-knabbel-wp' );
 				$context = 'post_unscheduled';
+			} else {
+				$message = __( 'Story deleted (post unpublished)', 'zw-knabbel-wp' );
+				$context = 'post_unpublished';
 			}
 
 			push_story_delete( $post_id, $story_id, $message, $context );
 		} elseif ( in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
 			// Only these states can have a pending processing action.
 			\as_unschedule_all_actions( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
-			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
+			// A running worker catches up after its create call, and deleting the state could drop the story ID it just wrote.
+			if ( \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' ) ) {
+				return;
+			}
+			// A worker may have finished since the state was read.
+			wp_cache_delete( $post_id, 'post_meta' );
+			if ( ( get_story_state( $post_id )['status'] ?? '' ) === $status ) {
+				delete_post_meta( $post_id, '_zw_knabbel_story_state' );
+			}
 		}
 		return;
 	}
 
-	$should_restore = $is_untrash || $is_activated || ( null === $post_before && $active_status );
-	if ( $story_id && StoryStatus::Deleted->value === $status && $should_restore ) {
-		restore_and_sync_story( $post_id, $story_id, $post->post_title );
-		return;
-	}
-
-	if ( ! $active_status ) {
+	// The post is published or scheduled and enabled, so a deleted story comes back, also after a failed restore.
+	if ( $story_id && StoryStatus::Deleted->value === $status ) {
+		restore_and_sync_story( $post_id, $story_id, $post );
 		return;
 	}
 
@@ -142,7 +142,11 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 		StoryStatus::Processing->value,
 		StoryStatus::Deleted->value,
 	);
-	if ( ! in_array( $status, $stable_statuses, true ) ) {
+	// Scheduled without a pending or running action is stale, for example after a save that landed
+	// while the worker was stopping. Running actions count, so an action still marked running prevents requeueing.
+	$is_stale_schedule = StoryStatus::Scheduled->value === $status
+		&& ! \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
+	if ( $is_stale_schedule || ! in_array( $status, $stable_statuses, true ) ) {
 		schedule_story_processing( $post_id );
 		return;
 	}
@@ -162,34 +166,38 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 		return;
 	}
 
-	if ( $post->post_status === $post_before->post_status ) {
-		$update_data = build_story_update_from_changes( $post, $post_before );
-		if ( $update_data ) {
-			push_story_update(
-				$post_id,
-				$story_id,
-				$update_data,
-				__( 'Story updated in Babbel', 'zw-knabbel-wp' ),
-				'publish' === $post->post_status ? 'published_post_edit' : 'scheduled_post_edit'
-			);
-		}
+	// Also covers publish -> future: a new day gives the story the new window.
+	$update_data = build_story_update_from_changes( $post, $post_before );
+	// Resend what a failed update left behind, with any newer change and the current title.
+	if ( isset( $state['pending_update'] ) ) {
+		$update_data = array_merge( $state['pending_update'], $update_data ?? array(), array( 'title' => $post->post_title ) );
+	}
+	if ( $update_data ) {
+		push_story_update(
+			$post_id,
+			$story_id,
+			$update_data,
+			__( 'Story updated in Babbel', 'zw-knabbel-wp' ),
+			'publish' === $post->post_status ? 'published_post_edit' : 'scheduled_post_edit'
+		);
 	}
 }
 
 /**
- * Restores a story and synchronizes its title.
+ * Restores a story and gives it the post's current title and window.
  *
- * Uses PATCH to restore (deleted_at) then PUT to update the title,
+ * Uses PATCH to restore (deleted_at) then PUT for the other fields,
  * matching the Babbel API contract where PATCH only accepts status/deleted_at.
  *
  * @since 0.3.0
+ * @since 0.8.1 Takes the post and also sends the dates and weekdays.
  *
- * @param int    $post_id  The post ID.
- * @param string $story_id The Babbel story ID.
- * @param string $title    The current post title to sync.
+ * @param int      $post_id  The post ID.
+ * @param string   $story_id The Babbel story ID.
+ * @param \WP_Post $post     The post to sync from.
  * @return array{success: bool, message: string} Response with success status and message.
  */
-function restore_and_sync_story( int $post_id, string $story_id, string $title ): array {
+function restore_and_sync_story( int $post_id, string $story_id, \WP_Post $post ): array {
 	$result = babbel_restore_story( $story_id );
 	if ( ! $result['success'] ) {
 		update_story_state(
@@ -201,35 +209,40 @@ function restore_and_sync_story( int $post_id, string $story_id, string $title )
 		return $result;
 	}
 
-	// Sync the current post title via PUT (PATCH only accepts status/deleted_at).
-	$title_result = babbel_update_story( $story_id, array( 'title' => $title ) );
-	if ( $title_result['success'] ) {
+	// The old window may be long gone, so send the current title and window via PUT (PATCH only accepts status/deleted_at).
+	$update_data   = build_full_story_update( $post->post_title, story_base_date( $post ) );
+	$update_result = babbel_update_story( $story_id, $update_data );
+	if ( $update_result['success'] ) {
 		update_story_state(
 			$post_id,
 			array(
 				'status'          => StoryStatus::Sent->value,
 				'message'         => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
 				'last_sync_error' => null,
+				'pending_update'  => null,
 			)
 		);
 	} else {
-		// Keep 'sent' status - story is restored but title may be stale.
+		// Keep 'sent' status - story is restored but its title and window may be stale.
+		$message = __( 'Story restored in Babbel, but updating it failed', 'zw-knabbel-wp' );
 		log(
 			'error',
 			'PostHooks',
-			'Story restored but title sync failed',
+			'Story restored but update failed',
 			array(
 				'post_id'  => $post_id,
 				'story_id' => $story_id,
-				'error'    => $title_result['message'],
+				'error'    => $update_result['message'],
 			)
 		);
 		update_story_state(
 			$post_id,
 			array(
 				'status'          => StoryStatus::Sent->value,
-				'message'         => __( 'Story restored in Babbel', 'zw-knabbel-wp' ),
-				'last_sync_error' => build_story_sync_error( $title_result['message'], 'restore' ),
+				'message'         => $message,
+				// The editor sees the error, so it says what happened before what went wrong.
+				'last_sync_error' => build_story_sync_error( $message . ': ' . $update_result['message'], 'restore' ),
+				'pending_update'  => $update_data,
 			)
 		);
 	}
@@ -261,6 +274,7 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 			array(
 				'message'         => $success_message,
 				'last_sync_error' => null,
+				'pending_update'  => null,
 			)
 		);
 	} else {
@@ -280,6 +294,7 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 			$post_id,
 			array(
 				'last_sync_error' => build_story_sync_error( $result['message'], 'update' ),
+				'pending_update'  => $update_data,
 			)
 		);
 	}
@@ -390,41 +405,21 @@ function build_full_story_update( string $title, string $base_date ): array {
  * @param int $post_id The post ID to process.
  */
 function schedule_story_processing( int $post_id ): void {
-	// De-dupe scheduling: skip if an event is already queued for this post.
+	// Written before queueing, so a worker that starts at once cannot have its Sent overwritten.
+	update_story_state(
+		$post_id,
+		array(
+			'status'  => StoryStatus::Scheduled->value,
+			'message' => __( 'Processing scheduled', 'zw-knabbel-wp' ),
+		)
+	);
+
+	// Also counts a running action, which the unique check of Action Scheduler's hybrid store misses.
 	if ( \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' ) ) {
-		update_story_state(
-			$post_id,
-			array(
-				'status'  => StoryStatus::Scheduled->value,
-				'message' => __( 'Processing already scheduled', 'zw-knabbel-wp' ),
-			)
-		);
 		return;
 	}
 
-	// Schedule async processing via Action Scheduler.
-	$scheduled = \as_schedule_single_action(
-		time(),
-		'knabbel_process_story',
-		array( 'post_id' => $post_id ),
-		'zw-knabbel-wp'
-	);
-
-	if ( $scheduled ) {
-		update_story_state(
-			$post_id,
-			array(
-				'status'  => StoryStatus::Scheduled->value,
-				'message' => __( 'Processing scheduled', 'zw-knabbel-wp' ),
-			)
-		);
-	} else {
-		update_story_state(
-			$post_id,
-			array(
-				'status'  => StoryStatus::Error->value,
-				'message' => __( 'Could not schedule action', 'zw-knabbel-wp' ),
-			)
-		);
-	}
+	// Unique: on the DB store two saves that both passed the check above queue one action. The hybrid
+	// store's fallback is not atomic.
+	\as_schedule_single_action( time(), 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp', true );
 }

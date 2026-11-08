@@ -72,21 +72,21 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-002', 'published post creates exactly one complete Babbel story', $this->test_published_story_creation( ... ) );
 		$this->run_case( 'E2E-003', 'edits synchronize and recover from an authentication failure', $this->test_update_and_error_recovery( ... ) );
 		$this->run_case( 'E2E-004', 'checkbox disable soft-deletes and re-enable restores', $this->test_checkbox_delete_and_restore( ... ) );
-		$this->run_case( 'E2E-005', 'scheduled post dates update when scheduled and published', $this->test_scheduled_story_lifecycle( ... ) );
+		$this->run_case( 'E2E-005', 'scheduled post dates update when scheduled, retried and published', $this->test_scheduled_story_lifecycle( ... ) );
 		$this->run_case( 'E2E-006', 'unscheduling cancels pending processing without creating a story', $this->test_pending_schedule_cancellation( ... ) );
-		$this->run_case( 'E2E-007', 'trash and untrash delete and restore the same story', $this->test_trash_and_restore( ... ) );
+		$this->run_case( 'E2E-007', 'untrash keeps the story deleted and scheduling restores it with the new window', $this->test_trash_and_restore( ... ) );
 		$this->run_case( 'E2E-008', 'AI provider failure retries without creating a Babbel story', $this->test_ai_failure( ... ) );
 		$this->run_case( 'E2E-009', 'Babbel create failure is visible and preserves diagnostics safely', $this->test_babbel_create_failure( ... ) );
 		$this->run_case( 'E2E-010', 'few-shot queue learns editor changes', $this->test_few_shot_sync( ... ) );
 		$this->run_case( 'E2E-011', 'enabling existing published and future posts schedules one story', $this->test_enable_existing_posts( ... ) );
 		$this->run_case( 'E2E-012', 'checkbox and trash cancel pending work', $this->test_pending_work_cancellation( ... ) );
-		$this->run_case( 'E2E-013', 'leaving future deletes a sent story', $this->test_sent_story_unscheduling( ... ) );
+		$this->run_case( 'E2E-013', 'a sent story follows a reschedule and is deleted when the post goes offline', $this->test_sent_story_unscheduling( ... ) );
 		$this->run_case( 'E2E-014', 'meta deletion and rapid toggles preserve lifecycle invariants', $this->test_meta_deletion_and_rapid_toggles( ... ) );
-		$this->run_case( 'E2E-015', 'processing state prevents duplicate scheduling', $this->test_in_flight_state_guards( ... ) );
+		$this->run_case( 'E2E-015', 'processing state blocks rescheduling and follows edits during in-flight work', $this->test_in_flight_state_guards( ... ) );
 		$this->run_case( 'E2E-016', 'untrash honors a disabled checkbox', $this->test_untrash_with_checkbox_disabled( ... ) );
 		$this->run_case( 'E2E-017', 'delete and restore failures remain retryable', $this->test_delete_and_restore_failures( ... ) );
 		$this->run_case( 'E2E-018', 'stored Unix timestamps retain their meaning after serialization', $this->test_stored_datetime_formatting( ... ) );
-		$this->run_case( 'E2E-019', 'a story deleted in Babbel reports a readable 410 on update', $this->test_story_deleted_in_babbel( ... ) );
+		$this->run_case( 'E2E-019', 'a story deleted in Babbel tells the editor what to do on update', $this->test_story_deleted_in_babbel( ... ) );
 		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
@@ -298,6 +298,11 @@ final class Knabbel_E2E_Suite {
 		$ai_request = get_option( 'knabbel_e2e_ai_last_request', array() );
 		$this->assert_same( true, is_array( $ai_request ), 'The native AI provider request must be observable.' );
 		$this->assert_same( 1000, $ai_request['max_output_tokens'] ?? null, 'The native AI request must retain the output token limit.' );
+		$this->assert_same(
+			true,
+			str_contains( (string) ( $ai_request['instructions'] ?? '' ), 'Het is ' . wp_date( 'Y' ) . '.' ),
+			'The default prompt must state the current year.'
+		);
 		$this->assert_same( false, array_key_exists( 'temperature', $ai_request ), 'The native AI request must omit optional temperature.' );
 		$this->assert_same( 'gpt-4.1', $ai_request['model'] ?? null, 'The native AI request must use the configured model preference.' );
 		$request_messages = $ai_request['input'] ?? array();
@@ -340,6 +345,16 @@ final class Knabbel_E2E_Suite {
 			true,
 			! str_contains( $request_input, 'Deze uitvoer moet buiten de AI-aanvraag blijven.' ),
 			'The native AI request must exclude the current WordPress post output from few-shot examples.'
+		);
+
+		$settings = get_option( 'knabbel_settings' );
+		update_option( 'knabbel_settings', array_merge( $settings, array( 'speech_prompt' => 'Eigen prompt, het is {year}.' ) ) );
+		KnabbelWP\ai_generate_content( 'Een kort artikel.', 0 );
+		update_option( 'knabbel_settings', $settings );
+		$this->assert_same(
+			'Eigen prompt, het is ' . wp_date( 'Y' ) . '.',
+			get_option( 'knabbel_e2e_ai_last_request', array() )['instructions'] ?? null,
+			'A custom prompt must get the current year for {year}.'
 		);
 		delete_option( 'knabbel_few_shot_examples' );
 
@@ -417,7 +432,21 @@ final class Knabbel_E2E_Suite {
 		);
 
 		$this->configure_plugin();
+		// Other offsets stand in for a retry on a later day: the retry resends the failed title, not a new window.
+		$settings = get_option( 'knabbel_settings' );
+		update_option(
+			'knabbel_settings',
+			array_merge(
+				$settings,
+				array(
+					'start_days_offset' => 5,
+					'end_days_offset'   => 6,
+				)
+			)
+		);
 		$this->update_post( $this->published_post_id, array( 'post_title' => 'E2E titel hersteld' ) );
+		update_option( 'knabbel_settings', $settings );
+		$this->assert_story_window( $this->published_story_id, 'now', 'Retrying a failed title edit must keep the window.' );
 		$state = KnabbelWP\get_story_state( $this->published_post_id );
 		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'A successful retry must clear the previous sync error.' );
 		$story = $this->get_babbel_story( $this->published_story_id );
@@ -472,6 +501,15 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 'E2E opnieuw gepland', $story['title'] ?? null, 'Rescheduling must synchronize the title.' );
 		$this->assert_same( $dates['start_date'], $this->date_only( $story['start_date'] ?? '' ), 'Rescheduling must recalculate story dates.' );
 
+		$this->configure_plugin( 'wrong-reschedule-password' );
+		$third_date = $this->future_post_date( 14 );
+		$this->schedule_post( $post_id, $third_date );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'update' );
+		$this->assert_story_window( $story_id, $second_date, 'A failed reschedule must leave the remote window unchanged.' );
+		$this->configure_plugin();
+		$this->update_post( $post_id, array( 'post_title' => 'E2E titel na mislukte planning' ) );
+		$this->assert_story_window( $story_id, $third_date, 'A title edit after a failed reschedule must also send the new window.' );
+
 		$dates_before = KnabbelWP\calculate_story_dates( 'now' );
 		$this->update_post(
 			$post_id,
@@ -513,10 +551,37 @@ final class Knabbel_E2E_Suite {
 		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 
 		wp_untrash_post( $post_id );
+		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Untrash returns a draft, so the story must stay deleted.' );
+		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
+
+		$date = $this->future_post_date( 10 );
+		$this->schedule_post( $post_id, $date );
 		$state = KnabbelWP\get_story_state( $post_id );
-		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Untrash must restore the remote story.' );
-		$this->assert_same( $story_id, (string) ( $state['story_id'] ?? '' ), 'Untrash must retain the story ID.' );
-		$this->assert_same( 'E2E prullenbak', $this->get_babbel_story( $story_id )['title'] ?? null, 'Restored trash story must remain readable.' );
+		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Scheduling the untrashed post must restore the remote story.' );
+		$this->assert_same( $story_id, (string) ( $state['story_id'] ?? '' ), 'Restore must retain the story ID.' );
+		$this->assert_story_window( $story_id, $date, 'A restored story must get the window of the new date.' );
+
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$date = $this->future_post_date( 12 );
+		$this->schedule_post( $post_id, $date );
+		$fail_put = static fn( false|array|WP_Error $preempt, array $args ): false|array|WP_Error => 'PUT' === ( $args['method'] ?? '' )
+			? new WP_Error( 'http_request_failed', 'Injected PUT failure' )
+			: $preempt;
+		add_filter( 'pre_http_request', $fail_put, 10, 2 );
+		try {
+			update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		} finally {
+			remove_filter( 'pre_http_request', $fail_put, 10 );
+		}
+		$this->assert_sync_failure_preserved(
+			$post_id,
+			$story_id,
+			StoryStatus::Sent,
+			'restore',
+			'Story restored in Babbel, but updating it failed: API connection failed: Injected PUT failure'
+		);
+		$this->update_post( $post_id, array() );
+		$this->assert_story_window( $story_id, $date, 'A save after a failed restore update must send the new window.' );
 	}
 
 	/**
@@ -698,20 +763,33 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verifies deletion after leaving future status.
+	 * Verifies rescheduling a sent story, and deletion after leaving publish or future status.
 	 */
 	private function test_sent_story_unscheduling(): void {
-		$title   = 'E2E verzonden planning geannuleerd';
-		$post_id = $this->create_enabled_draft(
-			$title,
-			'Een reeds verzonden geplande story wordt verwijderd wanneer de planning vervalt.'
+		list( $post_id, $story_id ) = $this->create_sent_story(
+			'E2E verzonden en offline gehaald',
+			'Een gepubliceerd artikel met een verzonden story gaat terug naar concept.'
 		);
-		$this->schedule_post( $post_id, $this->future_post_date( 20 ) );
-		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		$this->configure_plugin( 'wrong-unpublish-password' );
+		$this->update_post( $post_id, array( 'post_status' => 'draft' ) );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
+		$this->configure_plugin();
+		$this->update_post( $post_id, array() );
+		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Saving an unpublished post must retry the failed delete.' );
+		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 
-		$state    = KnabbelWP\get_story_state( $post_id );
-		$story_id = (string) ( $state['story_id'] ?? '' );
-		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Precondition: scheduled story must be sent.' );
+		list( $post_id, $story_id ) = $this->create_sent_story(
+			'E2E verzonden planning geannuleerd',
+			'Een reeds verzonden story wordt opnieuw ingepland en daarna verwijderd.'
+		);
+
+		$date = $this->future_post_date( 20 );
+		$this->schedule_post( $post_id, $date );
+		$this->assert_same(
+			KnabbelWP\calculate_story_dates( $date )['start_date'],
+			$this->date_only( $this->get_babbel_story( $story_id )['start_date'] ?? '' ),
+			'Rescheduling a published post must recalculate story dates.'
+		);
 
 		$this->update_post( $post_id, array( 'post_status' => 'draft' ) );
 		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Returning a sent future post to draft must mark the story deleted.' );
@@ -774,6 +852,206 @@ final class Knabbel_E2E_Suite {
 		update_post_meta( $processing_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_same( 0, $this->story_action_count( $processing_id ), 'Enabling processing state must not queue another action.' );
 		$this->assert_story_status( $processing_id, StoryStatus::Processing, 'Enabling processing state must preserve its lifecycle status.' );
+		update_post_meta( $processing_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$this->assert_same( array(), KnabbelWP\get_story_state( $processing_id ), 'Disabling must clear a processing state without a running action.' );
+
+		$stale_id = $this->create_draft(
+			'E2E guard verlopen planning',
+			'Een scheduled-state zonder actie moet bij de volgende opslag weer een actie krijgen.'
+		);
+		$this->update_post( $stale_id, array( 'post_status' => 'publish' ) );
+		KnabbelWP\update_story_state( $stale_id, array( 'status' => StoryStatus::Scheduled->value ) );
+		update_post_meta( $stale_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_same( 1, $this->story_action_count( $stale_id ), 'A scheduled state without an action must queue one.' );
+		as_unschedule_all_actions( self::STORY_HOOK, array( 'post_id' => $stale_id ), self::ACTION_GROUP );
+
+		$unique_id    = $this->create_enabled_draft( 'E2E guard unieke planning', 'Twee gelijktijdige opslagen mogen samen maar één actie inplannen.' );
+		$unique_flags = array();
+		// Records the $unique argument without short-circuiting the scheduler.
+		$capture = static function ( $pre, $timestamp, $hook, $args, $group, $priority, $unique ) use ( &$unique_flags ) {
+			$unique_flags[] = $unique;
+			return $pre;
+		};
+		add_filter( 'pre_as_schedule_single_action', $capture, 10, 7 );
+		try {
+			$this->update_post( $unique_id, array( 'post_status' => 'publish' ) );
+		} finally {
+			remove_filter( 'pre_as_schedule_single_action', $capture, 10 );
+		}
+		$this->assert_same( array( true ), $unique_flags, 'Processing must be scheduled as a unique action.' );
+		as_unschedule_all_actions( self::STORY_HOOK, array( 'post_id' => $unique_id ), self::ACTION_GROUP );
+
+		// A worker in another process writes Sent right after the insert; this request must not overwrite it.
+		KnabbelWP\update_story_state( $unique_id, array( 'status' => StoryStatus::Error->value ) );
+		$sent = static fn() => $GLOBALS['wpdb']->update(
+			$GLOBALS['wpdb']->postmeta,
+			array(
+				'meta_value' => maybe_serialize(
+					array(
+						'status'   => StoryStatus::Sent->value,
+						'story_id' => 'e2e-raced',
+					)
+				),
+			),
+			array(
+				'post_id'  => $unique_id,
+				'meta_key' => '_zw_knabbel_story_state',
+			)
+		);
+		add_action( 'action_scheduler_stored_action', $sent );
+		try {
+			$this->update_post( $unique_id, array( 'post_title' => 'E2E guard unieke planning opnieuw' ) );
+		} finally {
+			remove_action( 'action_scheduler_stored_action', $sent );
+		}
+		clean_post_cache( $unique_id );
+		$this->assert_story_status( $unique_id, StoryStatus::Sent, 'Scheduling must not overwrite Sent written by a worker that started at once.' );
+
+		$running_id = $this->create_draft( 'E2E guard lopende actie', 'Een lopende actie mag bij het inschakelen geen tweede actie krijgen.' );
+		$this->update_post( $running_id, array( 'post_status' => 'publish' ) );
+		$running = as_schedule_single_action( time(), self::STORY_HOOK, array( 'post_id' => $running_id ), self::ACTION_GROUP );
+		ActionScheduler_Store::instance()->log_execution( $running );
+		update_post_meta( $running_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_same( 0, $this->story_action_count( $running_id ), 'A running action must not get a second one.' );
+		KnabbelWP\update_story_state( $running_id, array( 'status' => StoryStatus::Processing->value ) );
+		as_schedule_single_action( time(), self::STORY_HOOK, array( 'post_id' => $running_id ), self::ACTION_GROUP );
+		update_post_meta( $running_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$this->assert_same( 0, $this->story_action_count( $running_id ), 'Disabling must cancel a pending action next to a running one.' );
+		$this->assert_story_status( $running_id, StoryStatus::Processing, 'Disabling must leave the state of a running worker alone.' );
+
+		// A worker in another process finishes while the save is checking the queue.
+		$finished_id = $this->create_draft( 'E2E guard net klaar', 'Een worker die net klaar is, mag zijn story-ID niet kwijtraken.' );
+		$this->update_post( $finished_id, array( 'post_status' => 'publish' ) );
+		update_post_meta( $finished_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_same( 1, $this->story_action_count( $finished_id ), 'Enabling must queue one action.' );
+		$finish = static fn() => $GLOBALS['wpdb']->update(
+			$GLOBALS['wpdb']->postmeta,
+			array(
+				'meta_value' => maybe_serialize(
+					array(
+						'status'   => StoryStatus::Sent->value,
+						'story_id' => 'e2e-finished',
+					)
+				),
+			),
+			array(
+				'post_id'  => $finished_id,
+				'meta_key' => '_zw_knabbel_story_state',
+			)
+		);
+		add_action( 'action_scheduler_canceled_action', $finish );
+		try {
+			update_post_meta( $finished_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		} finally {
+			remove_action( 'action_scheduler_canceled_action', $finish );
+		}
+		$story_id = KnabbelWP\get_story_state( $finished_id )['story_id'] ?? null;
+		$this->assert_same( 'e2e-finished', $story_id, 'A save must not delete the state of a worker that just finished.' );
+
+		// Another request changes the row; this request's post cache stays stale, as in a separate worker.
+		$date     = $this->future_post_date( 10 );
+		$post_id  = $this->process_with_edit_during_request(
+			'E2E herpland tijdens generatie',
+			static fn( int $id ) => $GLOBALS['wpdb']->update(
+				$GLOBALS['wpdb']->posts,
+				array(
+					'post_status'   => 'future',
+					'post_date'     => $date,
+					'post_date_gmt' => get_gmt_from_date( $date ),
+					'post_title'    => 'E2E herpland met nieuwe titel',
+				),
+				array( 'ID' => $id )
+			)
+		);
+		$story_id = (string) ( KnabbelWP\get_story_state( $post_id )['story_id'] ?? '' );
+		$story    = $this->get_babbel_story( $story_id );
+		$this->assert_same(
+			KnabbelWP\calculate_story_dates( $date )['start_date'],
+			$this->date_only( $story['start_date'] ?? '' ),
+			'A post rescheduled during generation must get the window of its new date.'
+		);
+		$this->assert_same( 'E2E herpland met nieuwe titel', $story['title'] ?? null, 'A story must get the title the post has after generation.' );
+
+		$title = 'E2E offline gehaald tijdens generatie';
+		$this->process_with_edit_during_request( $title, fn( int $id ) => $this->update_post( $id, array( 'post_status' => 'draft' ) ) );
+		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'A post unpublished during generation must not get a story.' );
+
+		// A change the reconciler never sees, like one saved just before this run wrote Processing.
+		$title   = 'E2E stil offline tijdens generatie';
+		$post_id = $this->process_with_edit_during_request(
+			$title,
+			static fn( int $id ) => $GLOBALS['wpdb']->update( $GLOBALS['wpdb']->posts, array( 'post_status' => 'draft' ), array( 'ID' => $id ) )
+		);
+		$this->assert_same( null, KnabbelWP\get_story_state( $post_id )['status'] ?? null, 'A worker that stops must not leave a processing state behind.' );
+
+		$title = 'E2E uitgeschakeld tijdens generatie';
+		$this->process_with_edit_during_request( $title, fn( int $id ) => update_post_meta( $id, self::SEND_TO_BABBEL_META_KEY, 0 ) );
+		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'A post disabled during generation must not get a story.' );
+
+		$create_url = self::BABBEL_BASE_URL . '/stories';
+		// A separate process, so this request's caches stay stale as in a real worker.
+		$wp_cli  = static function ( string ...$args ): void {
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec -- Test-only editor.
+			exec( 'wp ' . implode( ' ', array_map( 'escapeshellarg', $args ) ), $output, $code );
+			if ( 0 !== $code ) {
+				throw new RuntimeException( 'WP-CLI edit failed: ' . implode( ' ', $args ) );
+			}
+		};
+		$post_id = $this->process_with_edit_during_request(
+			'E2E offline gehaald tijdens aanmaken',
+			static fn( int $id ) => $wp_cli( 'post', 'update', (string) $id, '--post_status=draft' ),
+			$create_url
+		);
+		$state   = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( StoryStatus::Deleted->value, $state['status'] ?? null, 'A post unpublished during the create call must end deleted.' );
+		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $state['story_id'] );
+
+		$title    = 'E2E herpland na aanmaken';
+		$post_id  = $this->process_with_edit_during_request(
+			'E2E herpland tijdens aanmaken',
+			static fn( int $id ) => $wp_cli(
+				'post',
+				'update',
+				(string) $id,
+				'--post_status=future',
+				"--post_title=$title",
+				"--post_date=$date",
+				'--post_date_gmt=' . get_gmt_from_date( $date )
+			),
+			$create_url
+		);
+		$story_id = (string) ( KnabbelWP\get_story_state( $post_id )['story_id'] ?? '' );
+		$this->assert_same( $title, $this->get_babbel_story( $story_id )['title'] ?? null, 'A title changed during the create call must reach the story.' );
+		$this->assert_story_window( $story_id, $date, 'A post rescheduled during the create call must get the window of its new date.' );
+	}
+
+	/**
+	 * Publishes and processes a post while an editor changes it during one of the worker's requests.
+	 *
+	 * @param string   $title  Post title.
+	 * @param callable $edit   Receives the post ID while that request is in flight.
+	 * @param string   $during URL of the request during which the editor changes the post.
+	 * @return int Post ID.
+	 */
+	private function process_with_edit_during_request( string $title, callable $edit, string $during = 'https://api.openai.com/v1/responses' ): int {
+		$post_id = $this->create_enabled_draft( $title, 'Een redacteur past dit artikel aan terwijl de spreektekst wordt gemaakt.' );
+		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
+
+		$filter = static function ( false|array|WP_Error $pre, array $args, string $url ) use ( &$filter, $edit, $post_id, $during ): false|array|WP_Error {
+			if ( $during === $url ) {
+				remove_filter( 'pre_http_request', $filter, 5 );
+				$edit( $post_id );
+			}
+			return $pre;
+		};
+		add_filter( 'pre_http_request', $filter, 5, 3 );
+		try {
+			$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		} finally {
+			remove_filter( 'pre_http_request', $filter, 5 );
+		}
+
+		return $post_id;
 	}
 
 	/**
@@ -823,9 +1101,6 @@ final class Knabbel_E2E_Suite {
 		$this->configure_plugin();
 		$retry_title = 'E2E verwijder- en herstelfout hersteld';
 		$this->update_post( $post_id, array( 'post_title' => $retry_title ) );
-		// Reset the checkbox edge so the next enable retries the failed restore.
-		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
-		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$state = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'A retried restore must reach sent state.' );
 		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Successful restore retry must clear its previous error.' );
@@ -863,8 +1138,16 @@ final class Knabbel_E2E_Suite {
 			$story_id,
 			StoryStatus::Sent,
 			'update',
-			'API error: HTTP 410 - Story with id ' . $story_id . ' has been deleted'
+			'This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again.'
 		);
+
+		$this->assert_same( 'API error: HTTP 410 - Gone', KnabbelWP\babbel_error_message( 410, '{"detail":"Gone"}' ), 'Only story.deleted counts.' );
+
+		// The way back the message describes, which also deletes the already deleted story again.
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_same( 'E2E bewerking na verwijdering', $this->get_babbel_story( $story_id )['title'] ?? null, 'The toggle must restore the story.' );
+		$this->assert_story_window( $story_id, 'now', 'The toggle must give the story the current window.' );
 	}
 
 	/**
@@ -1245,6 +1528,23 @@ final class Knabbel_E2E_Suite {
 		if ( null !== $error_message ) {
 			$this->assert_same( $error_message, $state['last_sync_error']['message'] ?? null, $message_prefix . 'report the Babbel problem detail.' );
 		}
+	}
+
+	/**
+	 * Asserts that a story's start and end date match a base date.
+	 *
+	 * @param string $story_id  Story ID.
+	 * @param string $base_date Base date for calculate_story_dates().
+	 * @param string $message   Failure message.
+	 */
+	private function assert_story_window( string $story_id, string $base_date, string $message ): void {
+		$dates = KnabbelWP\calculate_story_dates( $base_date );
+		$story = $this->get_babbel_story( $story_id );
+		$this->assert_same(
+			array( $dates['start_date'], $dates['end_date'] ),
+			array( $this->date_only( $story['start_date'] ?? '' ), $this->date_only( $story['end_date'] ?? '' ) ),
+			$message
+		);
 	}
 
 	/**

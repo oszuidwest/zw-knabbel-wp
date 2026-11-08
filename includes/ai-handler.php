@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // phpcs:disable Generic.Files.LineLength.TooLong -- Keep the reviewed prompt prose intact.
 const AI_DEFAULT_INSTRUCTION = <<<'PROMPT'
-Je bent radio-eindredacteur van ZuidWest FM, de radiozender van Streekomroep ZuidWest. De zender is actief in Roosendaal, Bergen op Zoom, Etten-Leur, Woensdrecht, Moerdijk, Halderberge, Steenbergen, Tholen, Rucphen en Zundert. Gebruik dit alleen als regionale context. Het is 2026.
+Je bent radio-eindredacteur van ZuidWest FM, de radiozender van Streekomroep ZuidWest. De zender is actief in Roosendaal, Bergen op Zoom, Etten-Leur, Woensdrecht, Moerdijk, Halderberge, Steenbergen, Tholen, Rucphen en Zundert. Gebruik dit alleen als regionale context. Het is {year}.
 
 Maak van het artikel een zelfstandig en natuurlijk radiobericht. Hanteer bij spanning tussen regels deze volgorde: brongetrouwheid, nieuwswaarde, natuurlijke spreektaal en daarna vorm.
 
@@ -130,6 +130,7 @@ function ai_generate_content( string $content, int $current_post_id ): ?string {
 	$options       = get_plugin_settings();
 	$speech_prompt = (string) $options['speech_prompt'];
 	$instruction   = '' !== trim( $speech_prompt ) ? $speech_prompt : AI_DEFAULT_INSTRUCTION;
+	$instruction   = str_replace( '{year}', wp_date( 'Y' ), $instruction );
 
 	$messages = array();
 	foreach ( get_few_shot_examples( $current_post_id ) as $example ) {

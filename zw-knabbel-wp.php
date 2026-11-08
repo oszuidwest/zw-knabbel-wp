@@ -3,9 +3,9 @@
  * Plugin Name: ZuidWest Knabbel
  * Plugin URI: https://github.com/oszuidwest/zw-knabbel-wp
  * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Gebruikt de WordPress AI Client voor AI-gegenereerde content.
- * Version: 0.8.0
+ * Version: 0.8.1
  * Requires at least: 7.0
- * Requires PHP: 8.3
+ * Requires PHP: 8.4
  * Requires Plugins: classic-editor
  * Author: Streekomroep ZuidWest
  * Author URI: https://www.zuidwesttv.nl
@@ -313,9 +313,11 @@ function update_story_state( int $post_id, array $updates = array() ): bool {
 		$new_state['status_changed_at'] = current_time( 'mysql' );
 	}
 
-	// Null is an update-only sentinel: remove the error instead of persisting it.
-	if ( array_key_exists( 'last_sync_error', $updates ) && null === $updates['last_sync_error'] ) {
-		unset( $new_state['last_sync_error'] );
+	// Null is an update-only sentinel: remove the key instead of persisting it.
+	foreach ( array( 'last_sync_error', 'pending_update' ) as $key ) {
+		if ( array_key_exists( $key, $updates ) && null === $updates[ $key ] ) {
+			unset( $new_state[ $key ] );
+		}
 	}
 
 	$success = update_post_meta( $post_id, '_zw_knabbel_story_state', $new_state );
@@ -445,6 +447,17 @@ function calculate_story_dates( string $base_date = 'now' ): array {
 		'end_date'   => $base->modify( "+{$end_offset} day" )->format( 'Y-m-d' ),
 		'weekdays'   => settings_to_weekdays_bitmask( $options ),
 	);
+}
+
+/**
+ * Returns the base date calculate_story_dates() should use for a post.
+ *
+ * @since 0.8.1
+ * @param \WP_Post $post The post.
+ * @return string The scheduled publish time for a scheduled post, otherwise 'now'.
+ */
+function story_base_date( \WP_Post $post ): string {
+	return 'future' === $post->post_status ? $post->post_date : 'now';
 }
 
 /**
@@ -624,6 +637,7 @@ function ajax_test_api(): void {
  * @since 0.1.0
  * @since 0.7.0 Excludes the current post from the AI few-shot examples.
  * @since 0.8.0 Accepts only a post ID and leaves already sent stories untouched.
+ * @since 0.8.1 Reconciles the post with the new story after creating it.
  * @param int $post_id The WordPress post ID.
  */
 function process_story_async( int $post_id ): void {
@@ -677,9 +691,6 @@ function process_story_async( int $post_id ): void {
 
 	$content = wp_strip_all_tags( $post->post_content );
 
-	// Use the raw post title directly (not get_the_title() which applies filters and prefixes).
-	$title = $post->post_title;
-
 	// Generate speech text.
 	$speech_text = ai_generate_content( $content, $post_id );
 	if ( null === $speech_text ) {
@@ -693,16 +704,24 @@ function process_story_async( int $post_id ): void {
 		return;
 	}
 
+	// Generating takes a while, and an editor may have rescheduled, unpublished or disabled the post meanwhile.
+	clean_post_cache( $post_id );
+	$post = get_post( $post_id );
+	if ( ! $post || ! in_array( $post->post_status, array( 'publish', 'future' ), true ) || ! get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true ) ) {
+		// A save leaves Processing to the running worker, and one before this run wrote it found nothing to clean up.
+		if ( StoryStatus::Processing->value === ( get_story_state( $post_id )['status'] ?? null ) ) {
+			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
+		}
+		return;
+	}
+
+	// Use the raw post title directly (not get_the_title() which applies filters and prefixes).
+	$title = $post->post_title;
+
 	// Prepare story data using configurable defaults.
 	$options        = get_plugin_settings();
 	$default_status = $options['default_status'];
-
-	// Calculate dates based on post status:
-	// - For scheduled posts (future): use the scheduled publish time (post_date).
-	// - For published posts: use current time.
-	$post_status = get_post_status( $post_id );
-	$base_date   = 'future' === $post_status ? $post->post_date : 'now';
-	$dates       = calculate_story_dates( $base_date );
+	$dates          = calculate_story_dates( story_base_date( $post ) );
 
 	$story_data = array(
 		'title'      => $title,
@@ -731,6 +750,9 @@ function process_story_async( int $post_id ): void {
 				'last_sync_error'       => null,
 			)
 		);
+		// A save during the create call had no story to act on, so catch up on it with what was just sent.
+		clean_post_cache( $post_id );
+		sync_story_state( $post_id, $post );
 	} else {
 		update_story_state(
 			$post_id,
