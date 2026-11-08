@@ -24,8 +24,9 @@ npx playwright install --with-deps chromium
 BABBEL_PATH=../zwfm-babbel tests/e2e/run.sh
 ```
 
-`BABBEL_PATH` must contain Babbel's `Dockerfile` and
-`migrations/001_complete_schema.sql`. The runner creates a unique Compose
+`BABBEL_PATH` must contain Babbel's `Dockerfile`,
+`migrations/001_complete_schema.sql` and `tests/fixtures/dev-admin.sql`, which
+adds the `admin`/`admin` login the suite uses. The runner creates a unique Compose
 project, removes it after the run, and writes combined container logs to
 `tests/e2e/artifacts/docker.log` on failure.
 

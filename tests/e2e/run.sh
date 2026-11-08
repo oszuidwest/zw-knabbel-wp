@@ -12,7 +12,7 @@ if [[ -z "$babbel_path" ]]; then
 fi
 
 babbel_path=$(cd "$babbel_path" && pwd)
-if [[ ! -f "$babbel_path/Dockerfile" || ! -f "$babbel_path/migrations/001_complete_schema.sql" ]]; then
+if [[ ! -f "$babbel_path/Dockerfile" || ! -f "$babbel_path/migrations/001_complete_schema.sql" || ! -f "$babbel_path/tests/fixtures/dev-admin.sql" ]]; then
 	echo "BABBEL_PATH is not a usable zwfm-babbel checkout: $babbel_path" >&2
 	exit 2
 fi
