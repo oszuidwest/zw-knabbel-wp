@@ -181,6 +181,7 @@ final class Knabbel_E2E_Suite {
 			'invalid-e2e-session' !== ( get_transient( KnabbelWP\KNABBEL_SESSION_TRANSIENT )['cookies'][0]->value ?? null ),
 			'The invalid session cookie must be replaced.'
 		);
+		$this->assert_rate_limited_login_retry();
 	}
 
 	/**
@@ -230,6 +231,63 @@ final class Knabbel_E2E_Suite {
 			KnabbelWP\babbel_get_session_cookies()[0]->value ?? null,
 			'A rejected login must keep the valid session.'
 		);
+	}
+
+	/**
+	 * Asserts that only a rate-limited login is retried, once, after the wait Babbel asks for.
+	 */
+	private function assert_rate_limited_login_retry(): void {
+		$response = static fn( int $code, string $detail, string $retry_after = '' ): array => array(
+			'headers'  => array( 'retry-after' => $retry_after ),
+			'body'     => wp_json_encode( array( 'detail' => $detail ) ),
+			'response' => array(
+				'code'    => $code,
+				'message' => get_status_header_desc( $code ),
+			),
+			'cookies'  => array(),
+			'filename' => null,
+		);
+
+		list( $result, $logins, $seconds ) = $this->connect_with_login_responses( array( $response( 429, 'Too many login attempts', '2' ) ) );
+		$this->assert_same( array( true, 2 ), array( $result['success'], $logins ), 'A rate-limited login must succeed on its retry.' );
+		$this->assert_same( true, $seconds >= 2 && $seconds < 5, 'A rate-limited login must wait as long as Babbel asks.' );
+
+		// A third login would reach Babbel and succeed.
+		list( $result, $logins, $seconds ) = $this->connect_with_login_responses(
+			array( $response( 429, 'Too many login attempts', '30' ), $response( 429, 'Too many login attempts', '30' ) )
+		);
+		$this->assert_same(
+			array( 'Login failed: API error: HTTP 429 - Too many login attempts', 2 ),
+			array( $result['message'], $logins ),
+			'A login that stays rate limited must fail after one retry.'
+		);
+		$this->assert_same( true, $seconds < 6, 'A rate-limited login must wait at most 5 seconds.' );
+
+		list( $result, $logins ) = $this->connect_with_login_responses( array( $response( 401, 'Invalid username or password' ) ) );
+		$this->assert_same( array( false, 1 ), array( $result['success'], $logins ), 'A rejected login must not be retried.' );
+	}
+
+	/**
+	 * Tests the Babbel connection with a fresh login whose first responses are replaced.
+	 *
+	 * @param array<int, array<string, mixed>> $responses Responses for the first login attempts; later attempts reach Babbel.
+	 * @return array{0: array{success: bool, message: string}, 1: int, 2: float} Connection result, login attempts and seconds taken.
+	 */
+	private function connect_with_login_responses( array $responses ): array {
+		KnabbelWP\babbel_clear_session_cache();
+		$logins  = 0;
+		$filter  = static function ( false|array|WP_Error $pre, array $args, string $url ) use ( &$logins, $responses ): false|array|WP_Error {
+			return self::BABBEL_BASE_URL . '/sessions' === $url ? $responses[ $logins++ ] ?? $pre : $pre;
+		};
+		$started = microtime( true );
+		add_filter( 'pre_http_request', $filter, 5, 3 );
+		try {
+			$result = KnabbelWP\babbel_test_connection();
+		} finally {
+			remove_filter( 'pre_http_request', $filter, 5 );
+		}
+
+		return array( $result, $logins, microtime( true ) - $started );
 	}
 
 	/**

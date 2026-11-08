@@ -41,6 +41,7 @@ function babbel_get_credentials(): array {
  *
  * @since 0.1.0
  * @since 0.8.0 Caches a single fingerprinted session for 23 hours.
+ * @since 0.9.0 Retries a rate-limited login once.
  * @return array<int, \WP_Http_Cookie>|\WP_Error Session cookies array or WP_Error on failure.
  */
 function babbel_get_session_cookies(): array|\WP_Error {
@@ -80,6 +81,12 @@ function babbel_get_session_cookies(): array|\WP_Error {
 		);
 
 		$response = wp_remote_post( $login_endpoint, $login_args );
+
+		// Babbel limits logins from all clients together. Wait as long as it asks, at most 5 seconds, and try once more.
+		if ( 429 === wp_remote_retrieve_response_code( $response ) ) {
+			sleep( min( absint( wp_remote_retrieve_header( $response, 'retry-after' ) ), 5 ) );
+			$response = wp_remote_post( $login_endpoint, $login_args );
+		}
 
 		if ( is_wp_error( $response ) ) {
 			return $response;
