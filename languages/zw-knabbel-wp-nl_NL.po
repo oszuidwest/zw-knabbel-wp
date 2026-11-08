@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: ZuidWest Knabbel 0.8.0\n"
+"Project-Id-Version: ZuidWest Knabbel 0.8.1\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/zw-knabbel-wp\n"
 "POT-Creation-Date: 2026-10-11T22:46:41+00:00\n"
 "PO-Revision-Date: 2026-08-11T14:51:44+00:00\n"
@@ -335,6 +335,10 @@ msgstr "Inloggen mislukt: "
 #: includes/babbel-api.php:95
 msgid "No session cookies received"
 msgstr "Geen sessiecookies ontvangen"
+
+#: includes/babbel-api.php:141
+msgid "This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again."
+msgstr "Dit verhaal is verwijderd in Babbel. Wil je het terug? Zet Radionieuws uit, sla op, zet het weer aan en sla opnieuw op."
 
 #. translators: %1$d is the HTTP status code, %2$s is the error message.
 #: includes/babbel-api.php:154
