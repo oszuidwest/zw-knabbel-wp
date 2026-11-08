@@ -289,14 +289,19 @@ function log( string $level, string $component, string $message, array $context 
  * Triggers WordPress action hook for extensibility.
  *
  * @since 0.1.0
- * @param int                  $post_id The post ID.
- * @param array<string, mixed> $updates Partial state updates to apply.
+ * @since 0.9.0 Can write only when the stored state is still the expected one.
+ * @param int                       $post_id  The post ID.
+ * @param array<string, mixed>      $updates  Partial state updates to apply.
+ * @param array<string, mixed>|null $expected State the stored one must still be, or null to write anyway.
  * @return bool True on successful update, false on failure.
  *
  * @phpstan-param StoryStateUpdate $updates
+ * @phpstan-param StoryState|null $expected
  */
-function update_story_state( int $post_id, array $updates = array() ): bool {
-	$meta_value    = get_post_meta( $post_id, '_zw_knabbel_story_state', true );
+function update_story_state( int $post_id, array $updates = array(), ?array $expected = null ): bool {
+	global $wpdb;
+
+	$meta_value    = $expected ?? get_post_meta( $post_id, '_zw_knabbel_story_state', true );
 	$current_state = is_array( $meta_value ) ? $meta_value : array();
 
 	// Merge updates with current state. A sync-health-only update must not
@@ -320,7 +325,37 @@ function update_story_state( int $post_id, array $updates = array() ): bool {
 		}
 	}
 
-	$success = update_post_meta( $post_id, '_zw_knabbel_story_state', $new_state );
+	if ( null === $expected ) {
+		$success = update_post_meta( $post_id, '_zw_knabbel_story_state', $new_state );
+	} else {
+		// Compares bytes with the stored row, not the cache. update_post_meta() with a previous value would add a deleted row back.
+		$key      = '_zw_knabbel_story_state';
+		$previous = maybe_serialize( $expected );
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		if ( $new_state === $expected ) {
+			// MySQL counts an update to the same value as no changed row, so only check that the row still matches.
+			$success = '1' === $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT 1 FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s AND meta_value = CAST(%s AS BINARY)",
+					$post_id,
+					$key,
+					$previous
+				)
+			);
+		} else {
+			$success = 1 === $wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$wpdb->postmeta} SET meta_value = %s WHERE post_id = %d AND meta_key = %s AND meta_value = CAST(%s AS BINARY)",
+					maybe_serialize( $new_state ),
+					$post_id,
+					$key,
+					$previous
+				)
+			);
+		}
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		wp_cache_delete( $post_id, 'post_meta' );
+	}
 
 	if ( $success ) {
 		/**

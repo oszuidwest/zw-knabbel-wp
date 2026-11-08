@@ -142,12 +142,14 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 		StoryStatus::Processing->value,
 		StoryStatus::Deleted->value,
 	);
-	// Scheduled without a pending or running action is stale, for example after a save that landed
-	// while the worker was stopping. Running actions count, so an action still marked running prevents requeueing.
-	$is_stale_schedule = StoryStatus::Scheduled->value === $status
+	// Scheduled or Processing without a pending or running action is stale, for example after a save that landed
+	// while the worker was stopping, or after a worker died. Running actions count, so an action still marked running
+	// prevents requeueing.
+	$is_stale = in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true )
 		&& ! \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
-	if ( $is_stale_schedule || ! in_array( $status, $stable_statuses, true ) ) {
-		schedule_story_processing( $post_id );
+	if ( $is_stale || ! in_array( $status, $stable_statuses, true ) ) {
+		// A worker that finished after the state was read wrote its own state, which a stale requeue must not overwrite.
+		schedule_story_processing( $post_id, $is_stale ? $state : null );
 		return;
 	}
 
@@ -374,18 +376,26 @@ function build_full_story_update( string $title, string $base_date ): array {
  * Queues deduplicated story processing.
  *
  * @since 0.2.0
+ * @since 0.9.0 Takes the state a stale requeue expects.
  *
- * @param int $post_id The post ID to process.
+ * @param int                       $post_id  The post ID to process.
+ * @param array<string, mixed>|null $expected State the stored one must still be, or null to queue anyway.
+ *
+ * @phpstan-param StoryState|null $expected
  */
-function schedule_story_processing( int $post_id ): void {
+function schedule_story_processing( int $post_id, ?array $expected = null ): void {
 	// Written before queueing, so a worker that starts at once cannot have its Sent overwritten.
-	update_story_state(
+	$written = update_story_state(
 		$post_id,
 		array(
 			'status'  => StoryStatus::Scheduled->value,
 			'message' => __( 'Processing scheduled', 'zw-knabbel-wp' ),
-		)
+		),
+		$expected
 	);
+	if ( null !== $expected && ! $written ) {
+		return;
+	}
 
 	// Also counts a running action, which the unique check of Action Scheduler's hybrid store misses.
 	if ( \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' ) ) {

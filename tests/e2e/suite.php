@@ -879,26 +879,69 @@ final class Knabbel_E2E_Suite {
 	private function test_in_flight_state_guards(): void {
 		$processing_id = $this->create_draft(
 			'E2E guard processing',
-			'Een bestaande processing-state mag bij het inschakelen geen nieuwe actie krijgen.'
+			'Een processing-state met een lopende actie mag bij het inschakelen geen nieuwe actie krijgen.'
 		);
 		$this->update_post( $processing_id, array( 'post_status' => 'publish' ) );
+		$worker = as_schedule_single_action( time(), self::STORY_HOOK, array( 'post_id' => $processing_id ), self::ACTION_GROUP );
+		ActionScheduler_Store::instance()->log_execution( $worker );
 		KnabbelWP\update_story_state( $processing_id, array( 'status' => StoryStatus::Processing->value ) );
 
 		update_post_meta( $processing_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_same( 0, $this->story_action_count( $processing_id ), 'Enabling processing state must not queue another action.' );
 		$this->assert_story_status( $processing_id, StoryStatus::Processing, 'Enabling processing state must preserve its lifecycle status.' );
+		ActionScheduler_Store::instance()->mark_failure( $worker );
 		update_post_meta( $processing_id, self::SEND_TO_BABBEL_META_KEY, 0 );
 		$this->assert_same( array(), KnabbelWP\get_story_state( $processing_id ), 'Disabling must clear a processing state without a running action.' );
 
-		$stale_id = $this->create_draft(
-			'E2E guard verlopen planning',
-			'Een scheduled-state zonder actie moet bij de volgende opslag weer een actie krijgen.'
+		// A worker that stopped, or one that died after writing Processing.
+		foreach ( array( StoryStatus::Scheduled, StoryStatus::Processing ) as $stale_status ) {
+			$stale_id = $this->create_draft(
+				'E2E guard verlopen ' . $stale_status->value,
+				'Een state zonder actie moet bij de volgende opslag weer een actie krijgen.'
+			);
+			$this->update_post( $stale_id, array( 'post_status' => 'publish' ) );
+			KnabbelWP\update_story_state( $stale_id, array( 'status' => $stale_status->value ) );
+			update_post_meta( $stale_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+			$this->assert_same( 1, $this->story_action_count( $stale_id ), 'A ' . $stale_status->value . ' state without an action must queue one.' );
+			as_unschedule_all_actions( self::STORY_HOOK, array( 'post_id' => $stale_id ), self::ACTION_GROUP );
+			// An ordinary save, usually within the second the state above was written, so the state does not change.
+			$this->update_post( $stale_id, array() );
+			$this->assert_same( 1, $this->story_action_count( $stale_id ), 'A save must requeue an unchanged stale state: ' . $stale_status->value );
+			as_unschedule_all_actions( self::STORY_HOOK, array( 'post_id' => $stale_id ), self::ACTION_GROUP );
+
+			// A worker in another process writes Sent after this request cached the stale state.
+			KnabbelWP\update_story_state( $stale_id, array( 'status' => $stale_status->value ) );
+			KnabbelWP\get_story_state( $stale_id );
+			$sent = array(
+				'status'   => StoryStatus::Sent->value,
+				'story_id' => 'e2e-finished-' . $stale_status->value,
+			);
+			$GLOBALS['wpdb']->update(
+				$GLOBALS['wpdb']->postmeta,
+				array( 'meta_value' => maybe_serialize( $sent ) ),
+				array(
+					'post_id'  => $stale_id,
+					'meta_key' => '_zw_knabbel_story_state',
+				)
+			);
+			KnabbelWP\sync_story_state( $stale_id );
+			$this->assert_same( $sent, KnabbelWP\get_story_state( $stale_id ), 'A stale requeue must keep a finished state: ' . $stale_status->value );
+			$this->assert_same( 0, $this->story_action_count( $stale_id ), 'A stale ' . $stale_status->value . ' requeue must not queue finished work.' );
+		}
+
+		// A disable in another process removes the state after this request cached it.
+		KnabbelWP\update_story_state( $stale_id, array( 'status' => StoryStatus::Processing->value ) );
+		KnabbelWP\get_story_state( $stale_id );
+		$GLOBALS['wpdb']->delete(
+			$GLOBALS['wpdb']->postmeta,
+			array(
+				'post_id'  => $stale_id,
+				'meta_key' => '_zw_knabbel_story_state',
+			)
 		);
-		$this->update_post( $stale_id, array( 'post_status' => 'publish' ) );
-		KnabbelWP\update_story_state( $stale_id, array( 'status' => StoryStatus::Scheduled->value ) );
-		update_post_meta( $stale_id, self::SEND_TO_BABBEL_META_KEY, 1 );
-		$this->assert_same( 1, $this->story_action_count( $stale_id ), 'A scheduled state without an action must queue one.' );
-		as_unschedule_all_actions( self::STORY_HOOK, array( 'post_id' => $stale_id ), self::ACTION_GROUP );
+		KnabbelWP\sync_story_state( $stale_id );
+		$this->assert_same( array(), KnabbelWP\get_story_state( $stale_id ), 'A stale requeue must not bring back a removed state.' );
+		$this->assert_same( 0, $this->story_action_count( $stale_id ), 'A stale requeue must not queue work for a removed state.' );
 
 		$unique_id    = $this->create_enabled_draft( 'E2E guard unieke planning', 'Twee gelijktijdige opslagen mogen samen maar één actie inplannen.' );
 		$unique_flags = array();
