@@ -1,0 +1,4 @@
+/tests/
+/playwright.config.ts
+/tsconfig.json
+/.editorconfig
