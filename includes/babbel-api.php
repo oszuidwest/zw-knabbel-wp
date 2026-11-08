@@ -41,7 +41,7 @@ function babbel_get_credentials(): array {
  *
  * @since 0.1.0
  * @since 0.8.0 Caches a single fingerprinted session for 23 hours.
- * @since 0.9.0 Retries a rate-limited login once.
+ * @since 1.0.0 Retries a rate-limited login once.
  * @return array<int, \WP_Http_Cookie>|\WP_Error Session cookies array or WP_Error on failure.
  */
 function babbel_get_session_cookies(): array|\WP_Error {
@@ -220,7 +220,7 @@ function babbel_make_authenticated_request( string $url, array $args = array() )
  *
  * @since 0.1.0
  * @since 0.8.0 Reports Problem Details errors and requires an integer story ID.
- * @since 0.9.0 Sends the external ID and link, and reports a duplicate external ID.
+ * @since 1.0.0 Sends the external ID and link, and reports a duplicate external ID.
  * @param array<string, mixed> $story_data The story data to send.
  * @return array{success: bool, message: string, story_id?: string, duplicate?: bool} Response with success status and message.
  *
@@ -606,7 +606,7 @@ function babbel_delete_story( string $story_id ): array {
  *
  * @since 0.2.0
  * @since 0.8.0 Reports Problem Details errors.
- * @since 0.9.0 Sends the story fields with the restore.
+ * @since 1.0.0 Sends the story fields with the restore.
  * @param string                                                                        $story_id   The Babbel story ID.
  * @param array{title?: string, start_date?: string, end_date?: string, weekdays?: int} $story_data The story data to apply.
  * @return array{success: bool, message: string} Response with success status and message.
@@ -702,7 +702,7 @@ function babbel_restore_story( string $story_id, array $story_data ): array {
 /**
  * Returns the stories that match a list query.
  *
- * @since 0.9.0
+ * @since 1.0.0
  * @param array<string, int|string> $query Query parameters, such as filters, sort and limit.
  * @return array<int, array<string, mixed>>|\WP_Error Array of story objects or WP_Error on failure.
  */
@@ -810,7 +810,7 @@ function babbel_fetch_recent_stories( string $created_after ): array|\WP_Error {
 /**
  * Finds the story with an external ID and link, also when it was deleted.
  *
- * @since 0.9.0
+ * @since 1.0.0
  * @param string $external_id  The external ID the story was created with.
  * @param string $external_url The link the story was created with.
  * @return array{story_id: string, deleted: bool}|\WP_Error The story ID and whether it is deleted, or WP_Error on failure.
