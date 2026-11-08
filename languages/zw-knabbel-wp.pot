@@ -478,3 +478,15 @@ msgstr ""
 #: zw-knabbel-wp.php:685
 msgid "Could not generate speech text"
 msgstr ""
+
+#: zw-knabbel-wp.php:757
+msgid "Babbel already has a story with this post ID, but it could not be linked: "
+msgstr ""
+
+#: zw-knabbel-wp.php:761
+msgid "The story for this post was deleted in Babbel. To send it again, restore it in Babbel first and then save the post."
+msgstr ""
+
+#: includes/babbel-api.php:830
+msgid "Its link does not point to this post on this site"
+msgstr ""

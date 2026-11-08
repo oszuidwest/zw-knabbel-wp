@@ -474,6 +474,18 @@ msgstr "Verzenden naar Babbel is uitgeschakeld voor dit bericht"
 msgid "Could not generate speech text"
 msgstr "Kon spreektekst niet genereren"
 
+#: zw-knabbel-wp.php:757
+msgid "Babbel already has a story with this post ID, but it could not be linked: "
+msgstr "Babbel heeft al een verhaal met dit bericht-ID, maar het kon niet worden gekoppeld: "
+
+#: zw-knabbel-wp.php:761
+msgid "The story for this post was deleted in Babbel. To send it again, restore it in Babbel first and then save the post."
+msgstr "Het verhaal voor dit bericht is verwijderd in Babbel. Wil je het opnieuw versturen? Zet het eerst terug in Babbel en sla daarna het bericht op."
+
+#: includes/babbel-api.php:830
+msgid "Its link does not point to this post on this site"
+msgstr "De link wijst niet naar dit bericht op deze site"
+
 #~ msgid "Connection successful"
 #~ msgstr "Verbinding succesvol"
 

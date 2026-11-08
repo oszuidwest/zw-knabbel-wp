@@ -638,6 +638,7 @@ function ajax_test_api(): void {
  * @since 0.7.0 Excludes the current post from the AI few-shot examples.
  * @since 0.8.0 Accepts only a post ID and leaves already sent stories untouched.
  * @since 0.8.1 Reconciles the post with the new story after creating it.
+ * @since 0.9.0 Sends the post ID as external ID and takes over the story of a create whose answer was lost.
  * @param int $post_id The WordPress post ID.
  */
 function process_story_async( int $post_id ): void {
@@ -724,43 +725,76 @@ function process_story_async( int $post_id ): void {
 	$dates          = calculate_story_dates( story_base_date( $post ) );
 
 	$story_data = array(
-		'title'      => $title,
-		'text'       => $speech_text,
-		'start_date' => $dates['start_date'],
-		'end_date'   => $dates['end_date'],
-		'status'     => $default_status,
-		'weekdays'   => $dates['weekdays'],
-		'metadata'   => array(
+		'title'        => $title,
+		'text'         => $speech_text,
+		'start_date'   => $dates['start_date'],
+		'end_date'     => $dates['end_date'],
+		'status'       => $default_status,
+		'weekdays'     => $dates['weekdays'],
+		'metadata'     => array(
 			'wordpress_id'         => $post_id,
 			'original_speech_text' => $speech_text,
 		),
+		// The worker runs without a user, and get_edit_post_link() needs one who may edit the post.
+		'external_id'  => (string) $post_id,
+		'external_url' => admin_url( 'post.php?post=' . $post_id . '&action=edit' ),
 	);
 
 	// Send to Babbel API.
 	$result = babbel_create_story( $story_data );
+	$state  = null;
+	$error  = $result['message'];
 
 	if ( $result['success'] ) {
-		update_story_state(
-			$post_id,
-			array(
-				'status'                => \KnabbelWP\StoryStatus::Sent->value,
-				'story_id'              => $result['story_id'],
-				'message'               => __( 'Story created successfully', 'zw-knabbel-wp' ),
-				'generated_speech_text' => $speech_text,
-				'last_sync_error'       => null,
-			)
+		$state = array(
+			'story_id'              => $result['story_id'],
+			'generated_speech_text' => $speech_text,
 		);
-		// A save during the create call had no story to act on, so catch up on it with what was just sent.
-		clean_post_cache( $post_id );
-		sync_story_state( $post_id, $post );
-	} else {
+	} elseif ( $result['duplicate'] ?? false ) {
+		// An earlier create went through but its answer was lost. Take over that story instead of making another.
+		$found = babbel_find_story_by_external_id( $story_data['external_id'], $story_data['external_url'] );
+		if ( is_wp_error( $found ) ) {
+			$error = __( 'Babbel already has a story with this post ID, but it could not be linked: ', 'zw-knabbel-wp' ) . $found->get_error_message();
+		} elseif ( $found['deleted'] ) {
+			// Restoring it here could undo a delete someone made on purpose in Babbel.
+			$error = __(
+				'The story for this post was deleted in Babbel. To send it again, restore it in Babbel first and then save the post.',
+				'zw-knabbel-wp'
+			);
+		} else {
+			$state = array(
+				'story_id'       => $found['story_id'],
+				// Keep its text, but its title and window may be from before the answer was lost.
+				'pending_update' => build_full_story_update( $title, story_base_date( $post ) ),
+			);
+		}
+	}
+
+	if ( null === $state ) {
 		update_story_state(
 			$post_id,
 			array(
 				'status'          => \KnabbelWP\StoryStatus::Error->value,
-				'message'         => $result['message'],
-				'last_sync_error' => build_story_sync_error( $result['message'], 'create' ),
+				'message'         => $error,
+				'last_sync_error' => build_story_sync_error( $error, 'create' ),
 			)
 		);
+		return;
 	}
+
+	update_story_state(
+		$post_id,
+		array_merge(
+			$state,
+			array(
+				'status'          => \KnabbelWP\StoryStatus::Sent->value,
+				'message'         => __( 'Story created successfully', 'zw-knabbel-wp' ),
+				'last_sync_error' => null,
+			)
+		)
+	);
+	// A save during the create call had no story to act on, so catch up on it with what was just sent.
+	// This also sends the pending update of a story taken over, or deletes it if the post went offline.
+	clean_post_cache( $post_id );
+	sync_story_state( $post_id, $post );
 }

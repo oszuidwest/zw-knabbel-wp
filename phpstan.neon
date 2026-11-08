@@ -13,8 +13,8 @@ parameters:
   typeAliases:
     # Babbel API types
     BabbelCredentials: 'array{base_url: string, username: string, password: string}'
-    BabbelApiResponse: 'array{success: bool, message: string, story_id?: string}'
-    StoryData: 'array{title: string, text: string, start_date: string, end_date: string, status?: string, weekdays?: int, metadata?: array<string, mixed>}'
+    BabbelApiResponse: 'array{success: bool, message: string, story_id?: string, duplicate?: bool}'
+    StoryData: 'array{title: string, text: string, start_date: string, end_date: string, status?: string, weekdays?: int, metadata?: array<string, mixed>, external_id: string, external_url: string}'
     StoryUpdateData: 'array{title?: string, start_date?: string, end_date?: string, weekdays?: int}'
     LastSyncError: 'array{message: string, occurred_at: string, operation: string}'
     StoryState: 'array{status?: string, story_id?: string, status_changed_at?: string, message?: string, generated_speech_text?: string, post_id?: int, last_sync_error?: LastSyncError, pending_update?: StoryUpdateData}'

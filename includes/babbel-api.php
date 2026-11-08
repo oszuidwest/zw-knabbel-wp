@@ -220,8 +220,9 @@ function babbel_make_authenticated_request( string $url, array $args = array() )
  *
  * @since 0.1.0
  * @since 0.8.0 Reports Problem Details errors and requires an integer story ID.
+ * @since 0.9.0 Sends the external ID and link, and reports a duplicate external ID.
  * @param array<string, mixed> $story_data The story data to send.
- * @return array{success: bool, message: string, story_id?: string} Response with success status and message.
+ * @return array{success: bool, message: string, story_id?: string, duplicate?: bool} Response with success status and message.
  *
  * @phpstan-param StoryData $story_data
  * @phpstan-return BabbelApiResponse
@@ -231,12 +232,14 @@ function babbel_create_story( array $story_data ): array {
 	$endpoint    = $credentials['base_url'] . '/stories';
 
 	$payload = array(
-		'title'      => $story_data['title'],
-		'text'       => $story_data['text'],
-		'start_date' => $story_data['start_date'],
-		'end_date'   => $story_data['end_date'],
-		'status'     => $story_data['status'] ?? 'draft',
-		'weekdays'   => $story_data['weekdays'] ?? WEEKDAY_ALL,
+		'title'        => $story_data['title'],
+		'text'         => $story_data['text'],
+		'start_date'   => $story_data['start_date'],
+		'end_date'     => $story_data['end_date'],
+		'status'       => $story_data['status'] ?? 'draft',
+		'weekdays'     => $story_data['weekdays'] ?? WEEKDAY_ALL,
+		'external_id'  => $story_data['external_id'],
+		'external_url' => $story_data['external_url'],
 	);
 
 	// Add metadata if provided.
@@ -299,8 +302,10 @@ function babbel_create_story( array $story_data ): array {
 			)
 		);
 		return array(
-			'success' => false,
-			'message' => babbel_error_message( $response_code, $body ),
+			'success'   => false,
+			'message'   => babbel_error_message( $response_code, $body ),
+			// Babbel already has a story with this external ID.
+			'duplicate' => 409 === $response_code && 'story.duplicate' === ( json_decode( $body, true )['code'] ?? null ),
 		);
 	}
 
@@ -695,18 +700,13 @@ function babbel_restore_story( string $story_id, array $story_data ): array {
 }
 
 /**
- * Returns recent stories for few-shot examples.
+ * Returns the stories that match a list query.
  *
- * Retrieves active and expired stories sorted by last update (most recently
- * edited first), which are most likely to have been reviewed by editors.
- *
- * @since 0.3.0
- * @since 0.7.0 Replaced the `$limit` parameter with `$created_after` and added response validation.
- * @since 0.8.0 Encodes query values and reports Problem Details errors.
- * @param string $created_after Inclusive RFC 3339 creation cutoff.
+ * @since 0.9.0
+ * @param array<string, int|string> $query Query parameters, such as filters, sort and limit.
  * @return array<int, array<string, mixed>>|\WP_Error Array of story objects or WP_Error on failure.
  */
-function babbel_fetch_recent_stories( string $created_after ): array|\WP_Error {
+function babbel_list_stories( array $query ): array|\WP_Error {
 	$credentials = babbel_get_credentials();
 
 	if ( empty( $credentials['base_url'] ) ) {
@@ -714,17 +714,7 @@ function babbel_fetch_recent_stories( string $created_after ): array|\WP_Error {
 	}
 
 	// add_query_arg() does not encode values; an unencoded "+" in an offset decodes as a space.
-	$endpoint = add_query_arg(
-		rawurlencode_deep(
-			array(
-				'sort'                    => '-updated_at',
-				'limit'                   => 100,
-				'filter[status][ne]'      => 'draft',
-				'filter[created_at][gte]' => $created_after,
-			)
-		),
-		$credentials['base_url'] . '/stories'
-	);
+	$endpoint = add_query_arg( rawurlencode_deep( $query ), $credentials['base_url'] . '/stories' );
 
 	$response = babbel_make_authenticated_request(
 		$endpoint,
@@ -738,7 +728,7 @@ function babbel_fetch_recent_stories( string $created_after ): array|\WP_Error {
 		log(
 			'error',
 			'BabbelApi',
-			'Failed to fetch recent stories',
+			'Failed to fetch stories',
 			array( 'error' => $response->get_error_message() )
 		);
 		return $response;
@@ -780,14 +770,75 @@ function babbel_fetch_recent_stories( string $created_after ): array|\WP_Error {
 		return new \WP_Error( 'invalid_response', __( 'Invalid API response', 'zw-knabbel-wp' ) );
 	}
 
-	$stories = array_values( array_filter( $decoded['data'], 'is_array' ) );
+	return array_values( array_filter( $decoded['data'], 'is_array' ) );
+}
 
-	log(
-		'info',
-		'BabbelApi',
-		'Fetched recent stories for few-shot examples',
-		array( 'count' => count( $stories ) )
+/**
+ * Returns recent stories for few-shot examples.
+ *
+ * Retrieves active and expired stories sorted by last update (most recently
+ * edited first), which are most likely to have been reviewed by editors.
+ *
+ * @since 0.3.0
+ * @since 0.7.0 Replaced the `$limit` parameter with `$created_after` and added response validation.
+ * @since 0.8.0 Encodes query values and reports Problem Details errors.
+ * @param string $created_after Inclusive RFC 3339 creation cutoff.
+ * @return array<int, array<string, mixed>>|\WP_Error Array of story objects or WP_Error on failure.
+ */
+function babbel_fetch_recent_stories( string $created_after ): array|\WP_Error {
+	$stories = babbel_list_stories(
+		array(
+			'sort'                    => '-updated_at',
+			'limit'                   => 100,
+			'filter[status][ne]'      => 'draft',
+			'filter[created_at][gte]' => $created_after,
+		)
 	);
 
+	if ( ! is_wp_error( $stories ) ) {
+		log(
+			'info',
+			'BabbelApi',
+			'Fetched recent stories for few-shot examples',
+			array( 'count' => count( $stories ) )
+		);
+	}
+
 	return $stories;
+}
+
+/**
+ * Finds the story with an external ID and link, also when it was deleted.
+ *
+ * @since 0.9.0
+ * @param string $external_id  The external ID the story was created with.
+ * @param string $external_url The link the story was created with.
+ * @return array{story_id: string, deleted: bool}|\WP_Error The story ID and whether it is deleted, or WP_Error on failure.
+ */
+function babbel_find_story_by_external_id( string $external_id, string $external_url ): array|\WP_Error {
+	$stories = babbel_list_stories(
+		array(
+			'filter[external_id]' => $external_id,
+			'trashed'             => 'with',
+		)
+	);
+	if ( is_wp_error( $stories ) ) {
+		return $stories;
+	}
+
+	// The external ID is unique in Babbel, so there is at most one story.
+	$story = $stories[0] ?? array();
+	if ( ! is_int( $story['id'] ?? null ) || ! array_key_exists( 'deleted_at', $story ) ) {
+		log( 'error', 'BabbelApi', 'No valid story found for an external ID', array( 'post_id' => $external_id ) );
+		return new \WP_Error( 'invalid_response', __( 'Invalid API response', 'zw-knabbel-wp' ) );
+	}
+	// A bare post ID is not unique across sites, but the link includes this site's address.
+	if ( ( $story['external_url'] ?? null ) !== $external_url ) {
+		return new \WP_Error( 'other_link', __( 'Its link does not point to this post on this site', 'zw-knabbel-wp' ) );
+	}
+
+	return array(
+		'story_id' => (string) $story['id'],
+		'deleted'  => null !== $story['deleted_at'],
+	);
 }
