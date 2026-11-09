@@ -4,7 +4,7 @@ const allowedBrowserErrors = [
     // WordPress admin navigation can skip Chrome View Transitions without affecting the page update.
     /^pageerror: Transition was skipped$/,
     // TinyMCE 4 in WordPress core adds an unload listener to its editor iframe (core Trac #62924), which Chromium blocks.
-    /^console\.error: Permissions policy violation: unload is not allowed in this document\. \(\S+\/wp-includes\/js\/tinymce\/tinymce\.min\.js\?/,
+    /^console\.error: Permissions policy violation: unload is not allowed in this document\. \(\S+\/wp-includes\/js\/tinymce\/(?:wp-tinymce|tinymce\.min)\.js\?/,
 ];
 
 export { expect };
