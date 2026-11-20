@@ -88,6 +88,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-018', 'stored Unix timestamps retain their meaning after serialization', $this->test_stored_datetime_formatting( ... ) );
 		$this->run_case( 'E2E-019', 'a story deleted in Babbel tells the editor what to do on update', $this->test_story_deleted_in_babbel( ... ) );
 		$this->run_case( 'E2E-021', 'a create whose answer was lost is taken over, unless it was deleted in Babbel', $this->test_lost_create_answer( ... ) );
+		$this->run_case( 'E2E-022', 'the speech prompt REST route reads and replaces only an unchanged prompt', $this->test_speech_prompt_rest( ... ) );
 		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
@@ -1339,6 +1340,321 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 1, is_array( $stories ) ? count( $stories ) : null, 'Precondition: Babbel must have created the story.' );
 
 		return (string) $stories[0]['id'];
+	}
+
+	/**
+	 * Verifies the speech prompt REST route over HTTP with application passwords.
+	 */
+	private function test_speech_prompt_rest(): void {
+		$original_settings = get_option( 'knabbel_settings' );
+		$route             = '/knabbel/v1/speech-prompt';
+
+		remove_role( KnabbelWP\SPEECH_PROMPT_BOT_ROLE );
+		$this->assert_same( 401, $this->wordpress_rest_request( 'GET', $route )[0], 'A request without credentials must be refused.' );
+		wp_roles()->for_site();
+		$this->assert_same(
+			array(
+				'name'         => 'Knabbel prompt bot',
+				'capabilities' => array(
+					'read'                         => true,
+					'knabbel_manage_speech_prompt' => true,
+				),
+			),
+			wp_roles()->roles[ KnabbelWP\SPEECH_PROMPT_BOT_ROLE ] ?? null,
+			'A request must add the missing prompt bot role with only its two capabilities.'
+		);
+
+		$bot        = $this->create_application_user( 'e2e-prompt-bot', KnabbelWP\SPEECH_PROMPT_BOT_ROLE );
+		$subscriber = $this->create_application_user( 'e2e-subscriber', 'subscriber' );
+		$admin      = $this->application_password( (int) get_user_by( 'login', 'admin' )->ID );
+
+		$hand_prompt = 'Handmatige prompt, het is {year}.';
+		update_option( 'knabbel_settings', array_merge( $original_settings, array( 'speech_prompt' => $hand_prompt ) ) );
+		$this->assert_same(
+			array(
+				200,
+				array(
+					'prompt'         => $hand_prompt,
+					'sha256'         => hash( 'sha256', $hand_prompt ),
+					'default_prompt' => KnabbelWP\AI_DEFAULT_INSTRUCTION,
+				),
+			),
+			$this->wordpress_rest_request( 'GET', $route, $bot ),
+			'The prompt bot must read the stored prompt, its hash and the default prompt.'
+		);
+
+		$new_prompt = "  Nieuwe prompt, het is {year}.\n\n<b>Vet</b> 100%20 & \"meer\"\t\n";
+		$put_body   = array(
+			'prompt'          => $new_prompt,
+			'expected_sha256' => hash( 'sha256', $hand_prompt ),
+		);
+
+		list( $code, $response ) = $this->wordpress_rest_request( 'GET', $route, $subscriber );
+		$this->assert_same( array( 403, 'rest_forbidden' ), array( $code, $response['code'] ?? null ), 'A subscriber must not read the prompt.' );
+		list( $code, $response ) = $this->wordpress_rest_request( 'PUT', $route, $subscriber, $put_body );
+		$this->assert_same( array( 403, 'rest_forbidden' ), array( $code, $response['code'] ?? null ), 'A subscriber must not replace the prompt.' );
+		$this->assert_same( $hand_prompt, $this->stored_speech_prompt(), 'A refused request must leave the prompt alone.' );
+
+		$this->assert_same(
+			array(
+				200,
+				array(
+					'prompt' => $new_prompt,
+					'sha256' => hash( 'sha256', $new_prompt ),
+				),
+			),
+			$this->wordpress_rest_request( 'PUT', $route, $bot, $put_body ),
+			'The prompt bot must replace an unchanged prompt.'
+		);
+		$stored_settings = get_option( 'knabbel_settings' );
+		$this->assert_same( $new_prompt, $stored_settings['speech_prompt'] ?? null, 'The prompt must be stored exactly as given.' );
+		$this->assert_same(
+			array_diff_key( $original_settings, array( 'speech_prompt' => true ) ),
+			array_diff_key( $stored_settings, array( 'speech_prompt' => true ) ),
+			'Replacing the prompt must keep all other settings.'
+		);
+		$debug_log = (string) file_get_contents( WP_CONTENT_DIR . '/debug.log' );
+		$this->assert_same(
+			true,
+			str_contains( $debug_log, 'Speech prompt replaced through the REST API' ) && str_contains( $debug_log, hash( 'sha256', $new_prompt ) ),
+			'The change must be logged.'
+		);
+		$this->assert_same(
+			array( 200, $new_prompt ),
+			array_map(
+				static fn( mixed $value ): mixed => $value['prompt'] ?? $value,
+				$this->wordpress_rest_request( 'GET', $route, $admin )
+			),
+			'A user who manages options must read the prompt too.'
+		);
+
+		list( $code, $response ) = $this->wordpress_rest_request( 'PUT', $route, $bot, array_merge( $put_body, array( 'prompt' => 'Verouderde prompt.' ) ) );
+		$this->assert_same(
+			array( 409, 'knabbel_speech_prompt_conflict', hash( 'sha256', $new_prompt ) ),
+			array( $code, $response['code'] ?? null, $response['data']['sha256'] ?? null ),
+			'A stale hash must be refused with the current hash.'
+		);
+
+		// A hand edit in the admin between the bot's read and write.
+		$read_sha = $this->wordpress_rest_request( 'GET', $route, $bot )[1]['sha256'] ?? '';
+		update_option( 'knabbel_settings', array_merge( get_option( 'knabbel_settings' ), array( 'speech_prompt' => $hand_prompt ) ) );
+		list( $code, $response ) = $this->wordpress_rest_request(
+			'PUT',
+			$route,
+			$bot,
+			array(
+				'prompt'          => 'Voorstel van de bot.',
+				'expected_sha256' => $read_sha,
+			)
+		);
+		$this->assert_same(
+			array( 409, hash( 'sha256', $hand_prompt ), $hand_prompt ),
+			array( $code, $response['data']['sha256'] ?? null, $this->stored_speech_prompt() ),
+			'A hand edit must never be overwritten.'
+		);
+
+		$invalid_bodies = array(
+			'a number'         => array( 'prompt' => 42 ),
+			'an empty string'  => array( 'prompt' => '' ),
+			'only whitespace'  => array( 'prompt' => " \n\t " ),
+			'too long'         => array( 'prompt' => str_repeat( 'é', KnabbelWP\SPEECH_PROMPT_MAX_LENGTH + 1 ) ),
+			'a malformed hash' => array( 'expected_sha256' => strtoupper( hash( 'sha256', $hand_prompt ) ) ),
+			'no expected hash' => array( 'expected_sha256' => null ),
+		);
+		foreach ( $invalid_bodies as $label => $override ) {
+			$body = array_filter(
+				array_merge(
+					array(
+						'prompt'          => 'Geldige prompt.',
+						'expected_sha256' => hash( 'sha256', $hand_prompt ),
+					),
+					$override
+				),
+				static fn( mixed $value ): bool => null !== $value
+			);
+			$code = $this->wordpress_rest_request( 'PUT', $route, $bot, $body )[0];
+			$this->assert_same( array( 400, $hand_prompt ), array( $code, $this->stored_speech_prompt() ), "A body with $label must be refused." );
+		}
+
+		$longest_prompt = str_repeat( 'é', KnabbelWP\SPEECH_PROMPT_MAX_LENGTH );
+		$this->assert_same(
+			array( 200, $longest_prompt ),
+			array(
+				$this->wordpress_rest_request(
+					'PUT',
+					$route,
+					$bot,
+					array(
+						'prompt'          => $longest_prompt,
+						'expected_sha256' => hash( 'sha256', $hand_prompt ),
+					)
+				)[0],
+				$this->stored_speech_prompt(),
+			),
+			'A prompt of exactly the maximum number of characters must be accepted.'
+		);
+
+		$this->assert_speech_prompt_missing_row( $bot );
+
+		update_option( 'knabbel_settings', $original_settings );
+		require_once ABSPATH . 'wp-admin/includes/user.php';
+		wp_delete_user( $bot[2] );
+		wp_delete_user( $subscriber[2] );
+		WP_Application_Passwords::delete_all_application_passwords( $admin[2] );
+	}
+
+	/**
+	 * Verifies a write when the settings row is missing, also when another request creates it meanwhile.
+	 *
+	 * @param array{0: string, 1: string, 2: int} $bot Login, application password and user ID of the prompt bot.
+	 */
+	private function assert_speech_prompt_missing_row( array $bot ): void {
+		global $wpdb;
+
+		$route = '/knabbel/v1/speech-prompt';
+		$body  = array(
+			'prompt'          => 'Eerste prompt.',
+			'expected_sha256' => hash( 'sha256', '' ),
+		);
+
+		delete_option( 'knabbel_settings' );
+		$this->assert_same(
+			array( 200, array_merge( KnabbelWP\default_settings(), array( 'speech_prompt' => 'Eerste prompt.' ) ) ),
+			array( $this->wordpress_rest_request( 'PUT', $route, $bot, $body )[0], get_option( 'knabbel_settings' ) ),
+			'A missing settings row must be created with the defaults and the prompt.'
+		);
+
+		// Another request creates the row between this request's read and its insert.
+		delete_option( 'knabbel_settings' );
+		$other_settings = array_merge(
+			KnabbelWP\default_settings(),
+			array(
+				'speech_prompt' => 'Handmatig tussendoor.',
+				'api_username'  => 'tussendoor',
+			)
+		);
+		$create_first   = static function ( string $query ) use ( &$create_first, $wpdb, $other_settings ): string {
+			if ( str_starts_with( $query, 'INSERT' ) && str_contains( $query, "'knabbel_settings'" ) ) {
+				remove_filter( 'query', $create_first );
+				$wpdb->insert(
+					$wpdb->options,
+					array(
+						'option_name'  => 'knabbel_settings',
+						'option_value' => maybe_serialize( $other_settings ),
+						'autoload'     => 'on',
+					)
+				);
+			}
+			return $query;
+		};
+		add_filter( 'query', $create_first );
+		wp_set_current_user( $bot[2] );
+		try {
+			$request = new WP_REST_Request( 'PUT', $route );
+			$request->set_header( 'Content-Type', 'application/json' );
+			$request->set_body( (string) wp_json_encode( $body ) );
+			$response = rest_do_request( $request );
+		} finally {
+			remove_filter( 'query', $create_first );
+			wp_set_current_user( 0 );
+		}
+		wp_cache_delete( 'alloptions', 'options' );
+		wp_cache_delete( 'knabbel_settings', 'options' );
+		wp_cache_delete( 'notoptions', 'options' );
+
+		$this->assert_same(
+			array( 409, hash( 'sha256', 'Handmatig tussendoor.' ), $other_settings ),
+			array( $response->get_status(), $response->get_data()['data']['sha256'] ?? null, get_option( 'knabbel_settings' ) ),
+			'A settings row created by another request must never be overwritten.'
+		);
+	}
+
+	/**
+	 * Returns the stored custom speech prompt as WordPress now has it.
+	 *
+	 * @return mixed The stored prompt.
+	 */
+	private function stored_speech_prompt(): mixed {
+		return get_option( 'knabbel_settings' )['speech_prompt'] ?? null;
+	}
+
+	/**
+	 * Creates a user with an application password.
+	 *
+	 * @param string $login User login.
+	 * @param string $role  User role.
+	 * @return array{0: string, 1: string, 2: int} Login, application password and user ID.
+	 * @throws RuntimeException When WordPress cannot create the user.
+	 */
+	private function create_application_user( string $login, string $role ): array {
+		$user_id = wp_insert_user(
+			array(
+				'user_login' => $login,
+				'user_pass'  => wp_generate_password(),
+				'user_email' => $login . '@example.test',
+				'role'       => $role,
+			)
+		);
+		if ( is_wp_error( $user_id ) ) {
+			throw new RuntimeException( 'Could not create test user: ' . $user_id->get_error_message() );
+		}
+
+		return $this->application_password( $user_id );
+	}
+
+	/**
+	 * Creates an application password for a user.
+	 *
+	 * @param int $user_id User ID.
+	 * @return array{0: string, 1: string, 2: int} Login, application password and user ID.
+	 * @throws RuntimeException When WordPress cannot create the password.
+	 */
+	private function application_password( int $user_id ): array {
+		$created = WP_Application_Passwords::create_new_application_password( $user_id, array( 'name' => 'Knabbel E2E' ) );
+		if ( is_wp_error( $created ) ) {
+			throw new RuntimeException( 'Could not create application password: ' . $created->get_error_message() );
+		}
+
+		return array( get_userdata( $user_id )->user_login, $created[0], $user_id );
+	}
+
+	/**
+	 * Sends a request to the WordPress REST API over HTTP and clears this process's option caches.
+	 *
+	 * @param string                                   $method HTTP method.
+	 * @param string                                   $route  REST route.
+	 * @param array{0: string, 1: string, 2: int}|null $auth   Login and application password, or null for none.
+	 * @param array<string, mixed>|null                $body   JSON body.
+	 * @return array{0: int, 1: mixed} Status code and decoded body.
+	 * @throws RuntimeException When the HTTP request fails.
+	 */
+	private function wordpress_rest_request( string $method, string $route, ?array $auth = null, ?array $body = null ): array {
+		$args = array(
+			'method'  => $method,
+			'timeout' => 30,
+			'headers' => array(),
+		);
+		if ( null !== $auth ) {
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- HTTP Basic credentials.
+			$args['headers']['Authorization'] = 'Basic ' . base64_encode( $auth[0] . ':' . $auth[1] );
+		}
+		if ( null !== $body ) {
+			$args['headers']['Content-Type'] = 'application/json';
+			$args['body']                    = wp_json_encode( $body );
+		}
+
+		// The Compose service name reaches the WordPress container from the CLI container.
+		$response = wp_remote_request( 'http://wordpress/?rest_route=' . rawurlencode( $route ), $args );
+		if ( is_wp_error( $response ) ) {
+			throw new RuntimeException( 'WordPress REST request failed: ' . $response->get_error_message() );
+		}
+
+		// The request ran in another PHP process, so drop this process's copy of the options.
+		wp_cache_delete( 'alloptions', 'options' );
+		wp_cache_delete( 'knabbel_settings', 'options' );
+		wp_cache_delete( 'notoptions', 'options' );
+
+		return array( wp_remote_retrieve_response_code( $response ), json_decode( wp_remote_retrieve_body( $response ), true ) );
 	}
 
 	/**
