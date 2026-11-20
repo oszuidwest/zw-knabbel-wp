@@ -441,10 +441,12 @@ final class Knabbel_E2E_Suite {
 		);
 		$generation = $story['metadata']['generation'] ?? null;
 		$this->assert_same( true, is_array( $generation ), 'Babbel metadata must record the generation input.' );
-		// Babbel stores metadata in a MySQL JSON column, which sorts object keys.
+		// Key order is not part of the contract, and Babbel returns metadata keys in its own order.
+		$generation_keys = array_keys( $generation );
+		sort( $generation_keys );
 		$this->assert_same(
 			array( 'article', 'examples', 'generated_at', 'model', 'prompt', 'prompt_source', 'version' ),
-			array_keys( $generation ),
+			$generation_keys,
 			'The generation record must have the agreed fields.'
 		);
 		$this->assert_same( 1, $generation['version'], 'The generation record must carry its format version.' );
