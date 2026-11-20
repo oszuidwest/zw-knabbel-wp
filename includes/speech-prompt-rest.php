@@ -170,24 +170,35 @@ function speech_prompt_rest_put( \WP_REST_Request $request ): \WP_REST_Response|
 		$settings['speech_prompt'] = $prompt;
 		$new_value                 = maybe_serialize( $settings );
 
-		if ( null === $stored_value ) {
-			$written = add_option( $option_name, $settings, '', true );
-		} elseif ( $new_value === $stored_value ) {
+		if ( $new_value === $stored_value ) {
 			$written = true;
 		} else {
-			// Only update the row if no other request changed it after our read.
 			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-			$written = 1 === $wpdb->query(
-				$wpdb->prepare(
-					"UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = CAST(%s AS BINARY)",
-					$new_value,
-					$option_name,
-					$stored_value
-				)
-			);
+			if ( null === $stored_value ) {
+				// add_option() would overwrite a row another request created after our read. This insert
+				// leaves such a row alone, and the next attempt checks the hash against it.
+				$written = 1 === $wpdb->query(
+					$wpdb->prepare(
+						"INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'on')",
+						$option_name,
+						$new_value
+					)
+				);
+			} else {
+				// Only update the row if no other request changed it after our read.
+				$written = 1 === $wpdb->query(
+					$wpdb->prepare(
+						"UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = CAST(%s AS BINARY)",
+						$new_value,
+						$option_name,
+						$stored_value
+					)
+				);
+			}
 			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 			wp_cache_delete( $option_name, 'options' );
 			wp_cache_delete( 'alloptions', 'options' );
+			wp_cache_delete( 'notoptions', 'options' );
 		}
 
 		if ( $written ) {

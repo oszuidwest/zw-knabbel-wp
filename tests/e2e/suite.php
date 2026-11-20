@@ -1494,11 +1494,79 @@ final class Knabbel_E2E_Suite {
 			'A prompt of exactly the maximum number of characters must be accepted.'
 		);
 
+		$this->assert_speech_prompt_missing_row( $bot );
+
 		update_option( 'knabbel_settings', $original_settings );
 		require_once ABSPATH . 'wp-admin/includes/user.php';
 		wp_delete_user( $bot[2] );
 		wp_delete_user( $subscriber[2] );
 		WP_Application_Passwords::delete_all_application_passwords( $admin[2] );
+	}
+
+	/**
+	 * Verifies a write when the settings row is missing, also when another request creates it meanwhile.
+	 *
+	 * @param array{0: string, 1: string, 2: int} $bot Login, application password and user ID of the prompt bot.
+	 */
+	private function assert_speech_prompt_missing_row( array $bot ): void {
+		global $wpdb;
+
+		$route = '/knabbel/v1/speech-prompt';
+		$body  = array(
+			'prompt'          => 'Eerste prompt.',
+			'expected_sha256' => hash( 'sha256', '' ),
+		);
+
+		delete_option( 'knabbel_settings' );
+		$this->assert_same(
+			array( 200, array_merge( KnabbelWP\default_settings(), array( 'speech_prompt' => 'Eerste prompt.' ) ) ),
+			array( $this->wordpress_rest_request( 'PUT', $route, $bot, $body )[0], get_option( 'knabbel_settings' ) ),
+			'A missing settings row must be created with the defaults and the prompt.'
+		);
+
+		// Another request creates the row between this request's read and its insert.
+		delete_option( 'knabbel_settings' );
+		$other_settings = array_merge(
+			KnabbelWP\default_settings(),
+			array(
+				'speech_prompt' => 'Handmatig tussendoor.',
+				'api_username'  => 'tussendoor',
+			)
+		);
+		$create_first   = static function ( string $query ) use ( &$create_first, $wpdb, $other_settings ): string {
+			if ( str_starts_with( $query, 'INSERT' ) && str_contains( $query, "'knabbel_settings'" ) ) {
+				remove_filter( 'query', $create_first );
+				$wpdb->insert(
+					$wpdb->options,
+					array(
+						'option_name'  => 'knabbel_settings',
+						'option_value' => maybe_serialize( $other_settings ),
+						'autoload'     => 'on',
+					)
+				);
+			}
+			return $query;
+		};
+		add_filter( 'query', $create_first );
+		wp_set_current_user( $bot[2] );
+		try {
+			$request = new WP_REST_Request( 'PUT', $route );
+			$request->set_header( 'Content-Type', 'application/json' );
+			$request->set_body( (string) wp_json_encode( $body ) );
+			$response = rest_do_request( $request );
+		} finally {
+			remove_filter( 'query', $create_first );
+			wp_set_current_user( 0 );
+		}
+		wp_cache_delete( 'alloptions', 'options' );
+		wp_cache_delete( 'knabbel_settings', 'options' );
+		wp_cache_delete( 'notoptions', 'options' );
+
+		$this->assert_same(
+			array( 409, hash( 'sha256', 'Handmatig tussendoor.' ), $other_settings ),
+			array( $response->get_status(), $response->get_data()['data']['sha256'] ?? null, get_option( 'knabbel_settings' ) ),
+			'A settings row created by another request must never be overwritten.'
+		);
 	}
 
 	/**
@@ -1584,6 +1652,7 @@ final class Knabbel_E2E_Suite {
 		// The request ran in another PHP process, so drop this process's copy of the options.
 		wp_cache_delete( 'alloptions', 'options' );
 		wp_cache_delete( 'knabbel_settings', 'options' );
+		wp_cache_delete( 'notoptions', 'options' );
 
 		return array( wp_remote_retrieve_response_code( $response ), json_decode( wp_remote_retrieve_body( $response ), true ) );
 	}
