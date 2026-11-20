@@ -674,6 +674,7 @@ function ajax_test_api(): void {
  * @since 0.8.0 Accepts only a post ID and leaves already sent stories untouched.
  * @since 0.8.1 Reconciles the post with the new story after creating it.
  * @since 1.0.0 Sends the post ID as external ID and takes over the story of a create whose answer was lost.
+ * @since 1.1.0 Records the generation input in the story metadata.
  * @param int $post_id The WordPress post ID.
  */
 function process_story_async( int $post_id ): void {
@@ -728,8 +729,8 @@ function process_story_async( int $post_id ): void {
 	$content = wp_strip_all_tags( $post->post_content );
 
 	// Generate speech text.
-	$speech_text = ai_generate_content( $content, $post_id );
-	if ( null === $speech_text ) {
+	$generated = ai_generate_content( $content, $post_id );
+	if ( null === $generated ) {
 		update_story_state(
 			$post_id,
 			array(
@@ -739,6 +740,7 @@ function process_story_async( int $post_id ): void {
 		);
 		return;
 	}
+	$speech_text = $generated['text'];
 
 	// Generating takes a while, and an editor may have rescheduled, unpublished or disabled the post meanwhile.
 	clean_post_cache( $post_id );
@@ -769,6 +771,7 @@ function process_story_async( int $post_id ): void {
 		'metadata'     => array(
 			'wordpress_id'         => $post_id,
 			'original_speech_text' => $speech_text,
+			'generation'           => $generated['generation'],
 		),
 		// The worker runs without a user, and get_edit_post_link() needs one who may edit the post.
 		'external_id'  => (string) $post_id,
