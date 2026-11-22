@@ -407,22 +407,33 @@ final class Knabbel_E2E_Suite {
 		);
 
 		$settings = get_option( 'knabbel_settings' );
-		update_option( 'knabbel_settings', array_merge( $settings, array( 'speech_prompt' => 'Eigen prompt, het is {year}.' ) ) );
+		// Without a model preference the AI Client picks the model, and the record must name that one.
+		update_option(
+			'knabbel_settings',
+			array_merge(
+				$settings,
+				array(
+					'speech_prompt' => 'Eigen prompt, het is {year}.',
+					'ai_model'      => '',
+				)
+			)
+		);
 		$custom_generation = KnabbelWP\ai_generate_content( 'Een kort artikel.', 0 );
 		update_option( 'knabbel_settings', $settings );
+		$custom_request = get_option( 'knabbel_e2e_ai_last_request', array() );
 		$this->assert_same(
 			'Eigen prompt, het is ' . wp_date( 'Y' ) . '.',
-			get_option( 'knabbel_e2e_ai_last_request', array() )['instructions'] ?? null,
+			$custom_request['instructions'] ?? null,
 			'A custom prompt must get the current year for {year}.'
 		);
 		$this->assert_same(
-			array( 'custom', 'Eigen prompt, het is ' . wp_date( 'Y' ) . '.', 'Een kort artikel.' ),
+			array( 'custom', $custom_request['instructions'] ?? null, 'openai/' . ( $custom_request['model'] ?? '' ) ),
 			array(
 				$custom_generation['generation']['prompt_source'] ?? null,
 				$custom_generation['generation']['prompt'] ?? null,
-				$custom_generation['generation']['article'] ?? null,
+				$custom_generation['generation']['model'] ?? null,
 			),
-			'The generation record must name a custom prompt as sent, after the {year} replacement.'
+			'The generation record must name a custom prompt as sent, after the {year} replacement, and the model that answered.'
 		);
 		$this->assert_generation_article_limit();
 		delete_option( 'knabbel_few_shot_examples' );
@@ -439,45 +450,40 @@ final class Knabbel_E2E_Suite {
 			$story['metadata']['original_speech_text'] ?? null,
 			'Babbel metadata must retain the original generated text.'
 		);
-		$generation = $story['metadata']['generation'] ?? null;
-		$this->assert_same( true, is_array( $generation ), 'Babbel metadata must record the generation input.' );
-		// Key order is not part of the contract, and Babbel returns metadata keys in its own order.
-		$generation_keys = array_keys( $generation );
-		sort( $generation_keys );
-		$this->assert_same(
-			array( 'article', 'examples', 'generated_at', 'model', 'prompt', 'prompt_source', 'version' ),
-			$generation_keys,
-			'The generation record must have the agreed fields.'
-		);
-		$this->assert_same( 1, $generation['version'], 'The generation record must carry its format version.' );
-		$this->assert_same( 'openai/gpt-4.1', $generation['model'], 'The generation record must hold the model setting as stored.' );
-		$this->assert_same( 'default', $generation['prompt_source'], 'Without a custom prompt the record must name the default prompt.' );
-		$this->assert_same( $ai_request['instructions'] ?? null, $generation['prompt'], 'The recorded prompt must be the instruction the provider received.' );
-		$this->assert_same( $content, $generation['article'], 'The recorded article must be the post content.' );
-		$this->assert_same(
-			sprintf( KnabbelWP\AI_ARTICLE_PROMPT, $generation['article'] ),
-			end( $request_messages )['content'][0]['text'] ?? null,
-			'The recorded article must be the article the provider received.'
-		);
-		$this->assert_same(
-			array(
-				array(
-					'post_id'    => $post_id + 1001,
-					'provenance' => 'accepted',
-				),
-				array(
-					'post_id'    => $post_id + 1000,
-					'provenance' => 'edited',
-				),
-			),
-			$generation['examples'],
-			'The generation record must list the examples the provider received, in order.'
-		);
-		$generated_at = DateTimeImmutable::createFromFormat( DATE_ATOM, (string) $generation['generated_at'] );
+		$generation   = (array) ( $story['metadata']['generation'] ?? array() );
+		$generated_at = DateTimeImmutable::createFromFormat( DATE_ATOM, (string) ( $generation['generated_at'] ?? '' ) );
 		$this->assert_same(
 			true,
 			false !== $generated_at && '+00:00' === $generated_at->format( 'P' ) && abs( time() - $generated_at->getTimestamp() ) < 300,
 			'The generation time must be a recent UTC ISO 8601 time.'
+		);
+		unset( $generation['generated_at'] );
+		ksort( $generation ); // Babbel returns metadata keys in its own order.
+		$this->assert_same(
+			array(
+				'article'       => $content,
+				'examples'      => array(
+					array(
+						'post_id'    => $post_id + 1001,
+						'provenance' => 'accepted',
+					),
+					array(
+						'post_id'    => $post_id + 1000,
+						'provenance' => 'edited',
+					),
+				),
+				'model'         => 'openai/gpt-4.1',
+				'prompt'        => $ai_request['instructions'] ?? null,
+				'prompt_source' => 'default',
+				'version'       => 1,
+			),
+			$generation,
+			'The generation record must hold the prompt and article the provider received and its examples in order.'
+		);
+		$this->assert_same(
+			sprintf( KnabbelWP\AI_ARTICLE_PROMPT, $content ),
+			end( $request_messages )['content'][0]['text'] ?? null,
+			'The provider must receive the recorded article.'
 		);
 		$this->assert_same( (string) $post_id, $story['external_id'] ?? null, 'Babbel must receive the post ID as external ID.' );
 		$this->assert_same(
@@ -507,7 +513,7 @@ final class Knabbel_E2E_Suite {
 		$above_limit = KnabbelWP\ai_generate_content( str_repeat( 'a', KnabbelWP\AI_GENERATION_ARTICLE_MAX_BYTES + 1 ), 0 );
 		$this->assert_same(
 			array( self::GENERATED_TEXT, false ),
-			array( $above_limit['text'] ?? null, array_key_exists( 'article', $above_limit['generation'] ?? array( 'article' => '' ) ) ),
+			array( $above_limit['text'] ?? null, isset( $above_limit['generation']['article'] ) ),
 			'An article above the size limit must be left out of the record without failing the generation.'
 		);
 	}

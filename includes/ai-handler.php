@@ -59,7 +59,7 @@ PROMPT;
 const AI_ARTICLE_PROMPT = "Artikel:\n\"\"\"\n%s\n\"\"\"";
 const AI_EXAMPLE_PROMPT = '%s — leer van toon, nieuwsselectie en formulering. Neem geen feiten over. '
 	. 'De lengte en het zinsaantal kunnen afwijken van de instructie voor het nieuwe artikel.';
-// Babbel takes JSON bodies up to 1 MiB, so the generation record leaves out a larger article.
+// Babbel takes JSON bodies up to 1 MiB; an article over this many bytes is left out of the generation record.
 const AI_GENERATION_ARTICLE_MAX_BYTES = 200000;
 
 /**
@@ -124,7 +124,7 @@ function ai_parse_model_setting( mixed $value ): ?array {
  * @since 0.5.0
  * @since 0.7.0 Added the `$current_post_id` parameter and curated example mix.
  * @since 0.8.0 Omits the temperature parameter and rebuilds the prompt per attempt.
- * @since 1.1.0 Returns the text with a record of the exact input that produced it.
+ * @since 1.1.0 Returns the text with a record of the input that produced it.
  * @param string $content         The source content.
  * @param int    $current_post_id Current post ID to exclude from examples, 0 for none.
  * @return array{text: string, generation: array<string, mixed>}|null The generated text and its generation record, or null on failure.
@@ -173,7 +173,7 @@ function ai_generate_content( string $content, int $current_post_id ): ?array {
 
 	$max_attempts = 3;
 	for ( $attempt = 1; $attempt <= $max_attempts; ++$attempt ) {
-		$result = $build_prompt()->generate_text();
+		$result = $build_prompt()->generate_text_result();
 
 		if ( is_wp_error( $result ) ) {
 			log(
@@ -186,26 +186,33 @@ function ai_generate_content( string $content, int $current_post_id ): ?array {
 				)
 			);
 		} else {
-			$result = trim( $result );
-			if ( '' !== $result ) {
-				log( 'info', 'AiHandler', 'Speech text generated successfully', array( 'content_length' => strlen( $result ) ) );
+			try {
+				$text = trim( $result->toText() );
+			} catch ( \RuntimeException $e ) {
+				log( 'error', 'AiHandler', 'WordPress AI Client returned no text content', array( 'error' => $e->getMessage() ) );
+				$text = '';
+			}
+			if ( '' !== $text ) {
+				log( 'info', 'AiHandler', 'Speech text generated successfully', array( 'content_length' => strlen( $text ) ) );
 
-				// Built from the values the request used, so the record cannot drift from what was sent.
+				// The prompt, article and model are the request's own values; the examples are referenced by post ID.
 				$generation = array(
 					'version'       => 1,
-					'generated_at'  => gmdate( 'c' ),
-					'model'         => is_string( $options['ai_model'] ) ? $options['ai_model'] : '',
+					'generated_at'  => gmdate( DATE_ATOM ),
+					// The model the AI Client sent the request to; with an empty preference the client picks it.
+					'model'         => $result->getProviderMetadata()->getId() . '/' . $result->getModelMetadata()->getId(),
 					'prompt_source' => $custom_prompt ? 'custom' : 'default',
 					'prompt'        => $instruction,
 					'article'       => $content,
 					'examples'      => $example_refs,
 				);
 				if ( strlen( $content ) > AI_GENERATION_ARTICLE_MAX_BYTES ) {
+					log( 'warning', 'AiHandler', 'Article left out of the generation record', array( 'bytes' => strlen( $content ) ) );
 					unset( $generation['article'] );
 				}
 
 				return array(
-					'text'       => $result,
+					'text'       => $text,
 					'generation' => $generation,
 				);
 			}
