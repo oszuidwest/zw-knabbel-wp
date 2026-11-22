@@ -162,7 +162,8 @@ function ai_generate_content( string $content, int $current_post_id ): ?array {
 	$build_prompt = static function () use ( $messages, $instruction, $model_preference ): \WP_AI_Client_Prompt_Builder {
 		$prompt = wp_ai_client_prompt( $messages )
 			->using_system_instruction( $instruction )
-			->using_max_tokens( 1000 );
+			// Reasoning counts toward this limit, and a very short article can need more than 1000 tokens.
+			->using_max_tokens( 2000 );
 		return null === $model_preference ? $prompt : $prompt->using_model_preference( $model_preference );
 	};
 

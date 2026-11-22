@@ -356,7 +356,7 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( self::GENERATED_TEXT, $state['generated_speech_text'] ?? null, 'The generated speech text must be persisted.' );
 		$ai_request = get_option( 'knabbel_e2e_ai_last_request', array() );
 		$this->assert_same( true, is_array( $ai_request ), 'The native AI provider request must be observable.' );
-		$this->assert_same( 1000, $ai_request['max_output_tokens'] ?? null, 'The native AI request must retain the output token limit.' );
+		$this->assert_same( 2000, $ai_request['max_output_tokens'] ?? null, 'The native AI request must retain the output token limit.' );
 		$this->assert_same(
 			true,
 			str_contains( (string) ( $ai_request['instructions'] ?? '' ), 'Het is ' . wp_date( 'Y' ) . '.' ),
