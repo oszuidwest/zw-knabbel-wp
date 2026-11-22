@@ -486,6 +486,14 @@ msgstr "Het verhaal voor dit bericht is verwijderd in Babbel. Wil je het opnieuw
 msgid "Its link does not point to this post on this site"
 msgstr "De link wijst niet naar dit bericht op deze site"
 
+#: includes/speech-prompt-rest.php:161
+msgid "The speech prompt changed since it was read."
+msgstr "De prompt voor spreektekstgeneratie is gewijzigd sinds hij is gelezen."
+
+#: includes/speech-prompt-rest.php:229
+msgid "The settings kept changing. Read the speech prompt again and retry."
+msgstr "De instellingen bleven veranderen. Lees de prompt opnieuw en probeer het nog eens."
+
 #~ msgid "Connection successful"
 #~ msgstr "Verbinding succesvol"
 

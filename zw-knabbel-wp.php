@@ -45,6 +45,7 @@ require_once KNABBEL_PLUGIN_DIR . 'includes/babbel-api.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/ai-handler.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/few-shot-selection.php';
 require_once KNABBEL_PLUGIN_DIR . 'includes/few-shot-cache.php';
+require_once KNABBEL_PLUGIN_DIR . 'includes/speech-prompt-rest.php';
 
 // Register plugin lifecycle hooks.
 add_action( 'init', __NAMESPACE__ . '\\init' );
@@ -500,6 +501,7 @@ function story_base_date( \WP_Post $post ): string {
  *
  * @since 0.1.0
  * @since 0.8.0 Runs legacy cleanup only when the installed version changes.
+ * @since 1.1.0 Adds the prompt bot role and registers the speech prompt REST routes.
  */
 function init(): void {
 	load_plugin_textdomain( 'zw-knabbel-wp', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
@@ -520,6 +522,10 @@ function init(): void {
 	// Schedule check runs on every init because activation hooks do not fire on plugin updates.
 	few_shot_register_hook();
 	few_shot_schedule_sync();
+
+	// Role check runs on every init for the same reason.
+	speech_prompt_register_role();
+	add_action( 'rest_api_init', __NAMESPACE__ . '\\speech_prompt_register_routes' );
 
 	// Register global post hooks for REST API, CLI, and cron support.
 	// This file contains only sync logic, no admin UI code.
