@@ -22,6 +22,9 @@ parameters:
     RecentError: 'array{timestamp: string, component: string, message: string, context: array<string, mixed>}'
     # Few-shot types
     FewShotCandidate: 'array{post_id: int, input: string, output: string, edit_score: float, original_word_count: int, output_word_count: int, sentence_count: int, provenance: "accepted"|"edited"}'
+    # AI types
+    GenerationRecord: 'array{version: int, generated_at: string, model: string, prompt_source: "custom"|"default", prompt: string, article?: string, examples: list<array{post_id: int, provenance: FewShotCandidate["provenance"]}>}'
+    SpeechGeneration: 'array{text: string, generation: GenerationRecord}'
     # HTTP types
     WpHttpArgs: 'array{method?: string, headers?: array<string, string>, body?: string, timeout?: int, cookies?: array<mixed>}'
     WpHttpResponse: 'array<string, mixed>'

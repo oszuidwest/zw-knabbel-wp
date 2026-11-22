@@ -59,6 +59,8 @@ PROMPT;
 const AI_ARTICLE_PROMPT = "Artikel:\n\"\"\"\n%s\n\"\"\"";
 const AI_EXAMPLE_PROMPT = '%s — leer van toon, nieuwsselectie en formulering. Neem geen feiten over. '
 	. 'De lengte en het zinsaantal kunnen afwijken van de instructie voor het nieuwe artikel.';
+// Babbel takes JSON bodies up to 1 MiB; an article over this many bytes is left out of the generation record.
+const AI_GENERATION_ARTICLE_MAX_BYTES = 200000;
 
 /**
  * Returns configured text-generation models.
@@ -122,17 +124,22 @@ function ai_parse_model_setting( mixed $value ): ?array {
  * @since 0.5.0
  * @since 0.7.0 Added the `$current_post_id` parameter and curated example mix.
  * @since 0.8.0 Omits the temperature parameter and rebuilds the prompt per attempt.
+ * @since 1.1.0 Returns the text with a record of the input that produced it.
  * @param string $content         The source content.
  * @param int    $current_post_id Current post ID to exclude from examples, 0 for none.
- * @return string|null The generated content or null on failure.
+ * @return array{text: string, generation: array<string, mixed>}|null The generated text and its generation record, or null on failure.
+ *
+ * @phpstan-return SpeechGeneration|null
  */
-function ai_generate_content( string $content, int $current_post_id ): ?string {
+function ai_generate_content( string $content, int $current_post_id ): ?array {
 	$options       = get_plugin_settings();
 	$speech_prompt = (string) $options['speech_prompt'];
-	$instruction   = '' !== trim( $speech_prompt ) ? $speech_prompt : AI_DEFAULT_INSTRUCTION;
+	$custom_prompt = '' !== trim( $speech_prompt );
+	$instruction   = $custom_prompt ? $speech_prompt : AI_DEFAULT_INSTRUCTION;
 	$instruction   = str_replace( '{year}', wp_date( 'Y' ), $instruction );
 
-	$messages = array();
+	$messages     = array();
+	$example_refs = array();
 	foreach ( get_few_shot_examples( $current_post_id ) as $example ) {
 		$example_label = 'accepted' === $example['provenance']
 			? 'VOORBEELD DAT DE REDACTIE DIRECT HEEFT GEACCEPTEERD'
@@ -141,6 +148,11 @@ function ai_generate_content( string $content, int $current_post_id ): ?string {
 			array( new MessagePart( sprintf( AI_EXAMPLE_PROMPT, $example_label ) . "\n\n" . sprintf( AI_ARTICLE_PROMPT, $example['input'] ) ) )
 		);
 		$messages[]    = new ModelMessage( array( new MessagePart( $example['output'] ) ) );
+
+		$example_refs[] = array(
+			'post_id'    => $example['post_id'],
+			'provenance' => $example['provenance'],
+		);
 	}
 	$messages[] = new UserMessage( array( new MessagePart( sprintf( AI_ARTICLE_PROMPT, $content ) ) ) );
 
@@ -161,7 +173,7 @@ function ai_generate_content( string $content, int $current_post_id ): ?string {
 
 	$max_attempts = 3;
 	for ( $attempt = 1; $attempt <= $max_attempts; ++$attempt ) {
-		$result = $build_prompt()->generate_text();
+		$result = $build_prompt()->generate_text_result();
 
 		if ( is_wp_error( $result ) ) {
 			log(
@@ -174,10 +186,35 @@ function ai_generate_content( string $content, int $current_post_id ): ?string {
 				)
 			);
 		} else {
-			$result = trim( $result );
-			if ( '' !== $result ) {
-				log( 'info', 'AiHandler', 'Speech text generated successfully', array( 'content_length' => strlen( $result ) ) );
-				return $result;
+			try {
+				$text = trim( $result->toText() );
+			} catch ( \RuntimeException $e ) {
+				log( 'error', 'AiHandler', 'WordPress AI Client returned no text content', array( 'error' => $e->getMessage() ) );
+				$text = '';
+			}
+			if ( '' !== $text ) {
+				log( 'info', 'AiHandler', 'Speech text generated successfully', array( 'content_length' => strlen( $text ) ) );
+
+				// The prompt, article and model are the request's own values; the examples are referenced by post ID.
+				$generation = array(
+					'version'       => 1,
+					'generated_at'  => gmdate( DATE_ATOM ),
+					// The model the AI Client sent the request to; with an empty preference the client picks it.
+					'model'         => $result->getProviderMetadata()->getId() . '/' . $result->getModelMetadata()->getId(),
+					'prompt_source' => $custom_prompt ? 'custom' : 'default',
+					'prompt'        => $instruction,
+					'article'       => $content,
+					'examples'      => $example_refs,
+				);
+				if ( strlen( $content ) > AI_GENERATION_ARTICLE_MAX_BYTES ) {
+					log( 'warning', 'AiHandler', 'Article left out of the generation record', array( 'bytes' => strlen( $content ) ) );
+					unset( $generation['article'] );
+				}
+
+				return array(
+					'text'       => $text,
+					'generation' => $generation,
+				);
 			}
 			log( 'error', 'AiHandler', 'WordPress AI Client returned empty speech text' );
 		}
