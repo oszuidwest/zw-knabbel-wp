@@ -37,12 +37,38 @@ function register_post_hooks(): void {
 		)
 	);
 
+	// The block editor shows the last sync error; it comes back with every save response.
+	add_action( 'rest_api_init', __NAMESPACE__ . '\\register_sync_warning_field' );
+
 	add_action( 'wp_after_insert_post', __NAMESPACE__ . '\\handle_post_saved', 10, 4 );
 
 	// Meta change hooks for REST API and CLI support.
 	add_action( 'updated_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_changed', 10, 3 );
 	add_action( 'added_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_changed', 10, 3 );
 	add_action( 'deleted_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_changed', 10, 3 );
+}
+
+/**
+ * Adds the last Babbel sync error of a post to its REST response.
+ *
+ * Only in the edit context, so the message is not public.
+ *
+ * @since 2.0.0
+ */
+function register_sync_warning_field(): void {
+	register_rest_field(
+		'post',
+		'knabbel_sync_warning',
+		array(
+			'get_callback' => static fn( array $post ): ?string => get_story_sync_error( get_story_state( (int) $post['id'] ) )['message'] ?? null,
+			'schema'       => array(
+				'description' => __( 'Last Babbel sync error of the post.', 'zw-knabbel-wp' ),
+				'type'        => array( 'string', 'null' ),
+				'context'     => array( 'edit' ),
+				'readonly'    => true,
+			),
+		)
+	);
 }
 
 /**

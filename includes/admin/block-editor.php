@@ -3,8 +3,8 @@
  * Radio News control in the block editor.
  *
  * Adds a Radio News row to the Summary panel of posts and shows the last
- * Babbel sync warning under it. The row edits the post meta registered in
- * register_post_hooks(), so the block editor saves it through REST.
+ * Babbel sync warning under it. The row edits the post meta and reads the
+ * knabbel_sync_warning REST field, both registered in includes/post-hooks.php.
  *
  * @package KnabbelWP
  * @since   2.0.0
@@ -30,9 +30,8 @@ function block_editor_init(): void {
 /**
  * Loads the Radio News script on the post editor.
  *
- * The strings and the sync warning are passed in from PHP, so the script needs
- * no build step and uses the plugin's own translations. The warning is the one
- * known when the editor opens.
+ * The strings come from PHP, so the script needs no build step and uses the
+ * plugin's own translations.
  *
  * @since 2.0.0
  */
@@ -50,23 +49,14 @@ function block_editor_enqueue_assets(): void {
 		true
 	);
 
-	$sync_error = get_story_sync_error( get_story_state( $post->ID ) );
-
-	wp_add_inline_script(
+	wp_localize_script(
 		'zw-knabbel-wp-block-editor',
-		'window.knabbelBlockEditor = ' . wp_json_encode(
-			array(
-				'label'       => __( 'Radio News', 'zw-knabbel-wp' ),
-				'yes'         => __( 'Yes', 'zw-knabbel-wp' ),
-				'no'          => __( 'No', 'zw-knabbel-wp' ),
-				'turnOn'      => __( 'Turn Radio News on', 'zw-knabbel-wp' ),
-				'turnOff'     => __( 'Turn Radio News off', 'zw-knabbel-wp' ),
-				'syncWarning' => null === $sync_error ? null : array(
-					'title'   => __( 'Babbel sync warning', 'zw-knabbel-wp' ),
-					'message' => $sync_error['message'],
-				),
-			)
-		) . ';',
-		'before'
+		'knabbelBlockEditor',
+		array(
+			'label'            => __( 'Radio News', 'zw-knabbel-wp' ),
+			'yes'              => __( 'Yes', 'zw-knabbel-wp' ),
+			'no'               => __( 'No', 'zw-knabbel-wp' ),
+			'syncWarningTitle' => __( 'Babbel sync warning', 'zw-knabbel-wp' ),
+		)
 	);
 }

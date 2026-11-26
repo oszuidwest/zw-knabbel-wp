@@ -3,7 +3,7 @@
  * warning under it. Strings come from includes/admin/block-editor.php.
  */
 (({ components, coreData, editor, element, plugins }) => {
-    const { createElement: el } = element;
+    const { createElement: el, Fragment } = element;
     const text = window.knabbelBlockEditor;
     const META_KEY = '_zw_knabbel_send_to_babbel';
 
@@ -13,56 +13,59 @@
             'post',
             'meta',
         );
-        const enabled = Boolean(meta?.[META_KEY]);
-
-        // Same row markup as core's Summary rows (Status, Slug).
-        const row = el(
-            editor.PluginPostStatusInfo,
-            { className: 'knabbel-post-status' },
-            el(
-                'div',
-                { className: 'editor-post-panel__row' },
-                el(
-                    'div',
-                    { className: 'editor-post-panel__row-label' },
-                    text.label,
-                ),
-                el(
-                    'div',
-                    { className: 'editor-post-panel__row-control' },
-                    el(
-                        components.Button,
-                        {
-                            size: 'compact',
-                            variant: 'tertiary',
-                            'aria-label': enabled ? text.turnOff : text.turnOn,
-                            // Send only this key, so other meta stays untouched.
-                            onClick: () => setMeta({ [META_KEY]: !enabled }),
-                        },
-                        enabled ? text.yes : text.no,
-                    ),
-                ),
-            ),
+        // Comes back with every save, so it shows the result of the last one.
+        const [syncWarning] = coreData.useEntityProp(
+            'postType',
+            'post',
+            'knabbel_sync_warning',
         );
-
-        if (!text.syncWarning) {
-            return row;
-        }
+        const enabled = Boolean(meta?.[META_KEY]);
+        const value = enabled ? text.yes : text.no;
 
         return el(
-            element.Fragment,
+            Fragment,
             null,
-            row,
+            // Same row markup as core's Summary rows (Status, Slug).
             el(
                 editor.PluginPostStatusInfo,
                 { className: 'knabbel-post-status' },
                 el(
-                    components.Notice,
-                    { status: 'warning', isDismissible: false },
-                    el('strong', null, text.syncWarning.title),
-                    el('div', null, text.syncWarning.message),
+                    'div',
+                    { className: 'editor-post-panel__row' },
+                    el(
+                        'div',
+                        { className: 'editor-post-panel__row-label' },
+                        text.label,
+                    ),
+                    el(
+                        'div',
+                        { className: 'editor-post-panel__row-control' },
+                        el(
+                            components.Button,
+                            {
+                                size: 'compact',
+                                variant: 'tertiary',
+                                // The name holds the visible value, like core's "Change status: Draft".
+                                'aria-label': `${text.label}: ${value}`,
+                                onClick: () =>
+                                    setMeta({ [META_KEY]: !enabled }),
+                            },
+                            value,
+                        ),
+                    ),
                 ),
             ),
+            syncWarning &&
+                el(
+                    editor.PluginPostStatusInfo,
+                    { className: 'knabbel-post-status' },
+                    el(
+                        components.Notice,
+                        { status: 'warning', isDismissible: false },
+                        el('strong', null, text.syncWarningTitle),
+                        el('div', null, syncWarning),
+                    ),
+                ),
         );
     }
 

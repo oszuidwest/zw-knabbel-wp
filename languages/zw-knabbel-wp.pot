@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-26T23:28:37+00:00\n"
+"POT-Creation-Date: 2026-11-26T23:42:17+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: zw-knabbel-wp\n"
@@ -41,27 +41,19 @@ msgstr ""
 msgid "https://www.zuidwesttv.nl"
 msgstr ""
 
-#: includes/admin/block-editor.php:59
+#: includes/admin/block-editor.php:56
 msgid "Radio News"
 msgstr ""
 
-#: includes/admin/block-editor.php:60
+#: includes/admin/block-editor.php:57
 msgid "Yes"
 msgstr ""
 
-#: includes/admin/block-editor.php:61
+#: includes/admin/block-editor.php:58
 msgid "No"
 msgstr ""
 
-#: includes/admin/block-editor.php:62
-msgid "Turn Radio News on"
-msgstr ""
-
-#: includes/admin/block-editor.php:63
-msgid "Turn Radio News off"
-msgstr ""
-
-#: includes/admin/block-editor.php:65
+#: includes/admin/block-editor.php:59
 msgid "Babbel sync warning"
 msgstr ""
 
@@ -423,35 +415,39 @@ msgstr ""
 msgid "Its link does not point to this post on this site"
 msgstr ""
 
-#: includes/post-hooks.php:117
+#: includes/post-hooks.php:65
+msgid "Last Babbel sync error of the post."
+msgstr ""
+
+#: includes/post-hooks.php:143
 msgid "Story deleted from Babbel"
 msgstr ""
 
-#: includes/post-hooks.php:120
+#: includes/post-hooks.php:146
 msgid "Story deleted (post trashed)"
 msgstr ""
 
-#: includes/post-hooks.php:123
+#: includes/post-hooks.php:149
 msgid "Story deleted (post unscheduled)"
 msgstr ""
 
-#: includes/post-hooks.php:126
+#: includes/post-hooks.php:152
 msgid "Story deleted (post unpublished)"
 msgstr ""
 
-#: includes/post-hooks.php:179
+#: includes/post-hooks.php:205
 msgid "Story updated (post published)"
 msgstr ""
 
-#: includes/post-hooks.php:196
+#: includes/post-hooks.php:222
 msgid "Story updated in Babbel"
 msgstr ""
 
-#: includes/post-hooks.php:233
+#: includes/post-hooks.php:259
 msgid "Story restored in Babbel"
 msgstr ""
 
-#: includes/post-hooks.php:406
+#: includes/post-hooks.php:432
 msgid "Processing scheduled"
 msgstr ""
 

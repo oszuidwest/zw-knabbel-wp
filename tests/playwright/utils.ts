@@ -81,15 +81,19 @@ declare global {
     interface Window {
         // biome-ignore lint/suspicious/noExplicitAny: WordPress script globals.
         wp: any;
-        knabbelE2E: { nonce: string };
     }
 }
 
 /**
- * Open a post in the block editor and wait until it is ready.
+ * Open a post, or a new one without an ID, in the block editor and wait until
+ * it is ready.
  */
-export async function openEditor(page: Page, path: string): Promise<void> {
-    await page.goto(path);
+export async function openEditor(page: Page, postID?: number): Promise<void> {
+    await page.goto(
+        postID
+            ? `/wp-admin/post.php?post=${postID}&action=edit`
+            : '/wp-admin/post-new.php',
+    );
     await page.waitForFunction(() =>
         window.wp?.data?.select('core/editor')?.getCurrentPostId(),
     );
@@ -104,15 +108,12 @@ export async function openEditor(page: Page, path: string): Promise<void> {
 /**
  * Save the post through the editor store, as the Publish and Save buttons do.
  */
-export async function savePost(page: Page, status?: 'publish'): Promise<void> {
-    const failed = await page.evaluate(async (newStatus) => {
+export async function savePost(page: Page): Promise<void> {
+    const failed = await page.evaluate(async () => {
         const { dispatch, select } = window.wp.data;
-        if (newStatus) {
-            dispatch('core/editor').editPost({ status: newStatus });
-        }
         await dispatch('core/editor').savePost();
         return select('core/editor').didPostSaveRequestFail();
-    }, status);
+    });
     expect(failed, 'Post save failed.').toBe(false);
 }
 
@@ -129,16 +130,15 @@ export async function setBabbelEnabled(
     page: Page,
     enabled: boolean,
 ): Promise<void> {
-    const on = page.getByRole('button', { name: 'Turn Radio News on' });
-    const off = page.getByRole('button', { name: 'Turn Radio News off' });
+    const button = page.getByRole('button', { name: /^Radio News: (Yes|No)$/ });
+    const value = enabled ? 'Yes' : 'No';
 
-    await expect(on.or(off)).toBeVisible();
-    if (enabled && (await on.isVisible())) {
-        await on.click();
-    } else if (!enabled && (await off.isVisible())) {
-        await off.click();
+    await expect(button).toBeVisible();
+    if ((await button.textContent()) !== value) {
+        await button.click();
     }
-    await expect(enabled ? off : on).toHaveText(enabled ? 'Yes' : 'No');
+    await expect(button).toHaveText(value);
+    await expect(button).toHaveAccessibleName(`Radio News: ${value}`);
 }
 
 export async function controlStory(
@@ -146,7 +146,9 @@ export async function controlStory(
     postID: number,
     operation: 'inspect' | 'run' | 'sync_error',
 ): Promise<ControlResult> {
-    const nonce = await page.evaluate(() => window.knabbelE2E.nonce);
+    const nonce = await page.evaluate(
+        () => window.wp.apiFetch.nonceMiddleware.nonce,
+    );
     const response = await page.request.post('/wp-admin/admin-ajax.php', {
         form: {
             action: 'knabbel_e2e_control',

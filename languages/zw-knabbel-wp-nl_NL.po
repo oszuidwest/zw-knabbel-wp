@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ZuidWest Knabbel 1.1.1\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/zw-knabbel-wp\n"
-"POT-Creation-Date: 2026-11-26T23:28:37+00:00\n"
+"POT-Creation-Date: 2026-11-26T23:42:17+00:00\n"
 "PO-Revision-Date: 2026-08-11T14:51:44+00:00\n"
 "Last-Translator: Remon Mens\n"
 "Language-Team: Dutch\n"
@@ -42,27 +42,19 @@ msgstr ""
 msgid "https://www.zuidwesttv.nl"
 msgstr ""
 
-#: includes/admin/block-editor.php:59
+#: includes/admin/block-editor.php:56
 msgid "Radio News"
 msgstr "Radionieuws"
 
-#: includes/admin/block-editor.php:60
+#: includes/admin/block-editor.php:57
 msgid "Yes"
 msgstr "Ja"
 
-#: includes/admin/block-editor.php:61
+#: includes/admin/block-editor.php:58
 msgid "No"
 msgstr "Nee"
 
-#: includes/admin/block-editor.php:62
-msgid "Turn Radio News on"
-msgstr "Radionieuws aanzetten"
-
-#: includes/admin/block-editor.php:63
-msgid "Turn Radio News off"
-msgstr "Radionieuws uitzetten"
-
-#: includes/admin/block-editor.php:65
+#: includes/admin/block-editor.php:59
 msgid "Babbel sync warning"
 msgstr "Waarschuwing bij Babbel-synchronisatie"
 
@@ -423,35 +415,39 @@ msgstr "Babbel API basis-URL niet geconfigureerd"
 msgid "Its link does not point to this post on this site"
 msgstr "De link wijst niet naar dit bericht op deze site"
 
-#: includes/post-hooks.php:117
+#: includes/post-hooks.php:65
+msgid "Last Babbel sync error of the post."
+msgstr "Laatste Babbel-synchronisatiefout van het bericht."
+
+#: includes/post-hooks.php:143
 msgid "Story deleted from Babbel"
 msgstr "Verhaal verwijderd uit Babbel"
 
-#: includes/post-hooks.php:120
+#: includes/post-hooks.php:146
 msgid "Story deleted (post trashed)"
 msgstr "Verhaal verwijderd (bericht in prullenbak)"
 
-#: includes/post-hooks.php:123
+#: includes/post-hooks.php:149
 msgid "Story deleted (post unscheduled)"
 msgstr "Verhaal verwijderd (bericht niet meer ingepland)"
 
-#: includes/post-hooks.php:126
+#: includes/post-hooks.php:152
 msgid "Story deleted (post unpublished)"
 msgstr "Verhaal verwijderd (bericht niet meer gepubliceerd)"
 
-#: includes/post-hooks.php:179
+#: includes/post-hooks.php:205
 msgid "Story updated (post published)"
 msgstr "Verhaal bijgewerkt (bericht gepubliceerd)"
 
-#: includes/post-hooks.php:196
+#: includes/post-hooks.php:222
 msgid "Story updated in Babbel"
 msgstr "Verhaal bijgewerkt in Babbel"
 
-#: includes/post-hooks.php:233
+#: includes/post-hooks.php:259
 msgid "Story restored in Babbel"
 msgstr "Verhaal hersteld in Babbel"
 
-#: includes/post-hooks.php:406
+#: includes/post-hooks.php:432
 msgid "Processing scheduled"
 msgstr "Verwerking ingepland"
 

@@ -92,11 +92,14 @@ test.describe
         test('redacteur publiceert een bericht en laat de wachtrij het naar Babbel sturen', async ({
             page,
         }) => {
-            await openEditor(page, '/wp-admin/post-new.php');
+            await openEditor(page);
             await page.evaluate(
                 ({ title, content }) => {
                     const { blocks, data } = window.wp;
-                    data.dispatch('core/editor').editPost({ title });
+                    data.dispatch('core/editor').editPost({
+                        title,
+                        status: 'publish',
+                    });
                     data.dispatch('core/block-editor').insertBlocks(
                         blocks.createBlock('core/paragraph', { content }),
                         undefined,
@@ -109,7 +112,7 @@ test.describe
             );
             await setBabbelEnabled(page, true);
 
-            await savePost(page, 'publish');
+            await savePost(page);
             postID = await currentPostID(page);
             expect(
                 (await controlStory(page, postID, 'inspect')).state.status,
@@ -119,16 +122,13 @@ test.describe
             expect(result.state.story_id).toBeTruthy();
             storyID = result.state.story_id || '';
 
-            await openEditor(
-                page,
-                `/wp-admin/post.php?post=${postID}&action=edit`,
-            );
+            await openEditor(page, postID);
             await expect(
                 page.locator('.knabbel-status-badge.sent'),
             ).toBeAttached();
             await expect(
-                page.getByRole('button', { name: 'Turn Radio News off' }),
-            ).toHaveText('Yes');
+                page.getByRole('button', { name: 'Radio News: Yes' }),
+            ).toBeVisible();
 
             const story = await getBabbelStory(storyID);
             expect(story.title).toBe(originalTitle);
@@ -139,10 +139,7 @@ test.describe
         test('redacteur schakelt Babbel uit en herstelt daarna hetzelfde verhaal', async ({
             page,
         }) => {
-            await openEditor(
-                page,
-                `/wp-admin/post.php?post=${postID}&action=edit`,
-            );
+            await openEditor(page, postID);
             await setBabbelEnabled(page, false);
             await savePost(page);
             expect(
@@ -151,12 +148,9 @@ test.describe
 
             expect(await babbelStoryStatus(storyID)).toBe(404);
 
-            await openEditor(
-                page,
-                `/wp-admin/post.php?post=${postID}&action=edit`,
-            );
+            await openEditor(page, postID);
             await expect(
-                page.getByRole('button', { name: 'Turn Radio News on' }),
+                page.getByRole('button', { name: 'Radio News: No' }),
             ).toHaveText('No');
             await setBabbelEnabled(page, true);
             await savePost(page);
@@ -167,23 +161,27 @@ test.describe
             await getBabbelStory(storyID);
         });
 
-        test('redacteur ziet een Babbel-syncfout onder Radionieuws', async ({
+        test('redacteur ziet na opslaan een Babbel-syncfout onder Radionieuws', async ({
             page,
         }) => {
-            await openEditor(
-                page,
-                `/wp-admin/post.php?post=${postID}&action=edit`,
-            );
-            await controlStory(page, postID, 'sync_error');
-
-            await openEditor(
-                page,
-                `/wp-admin/post.php?post=${postID}&action=edit`,
-            );
+            await openEditor(page, postID);
             const warning = page.locator(
                 '.knabbel-post-status .components-notice.is-warning',
             );
+            await expect(warning).toHaveCount(0);
+
+            await controlStory(page, postID, 'sync_error');
+            await savePost(page);
             await expect(warning).toContainText('Babbel sync warning');
             await expect(warning).toContainText('E2E sync failure');
+
+            // A successful update clears it, also without a reload.
+            await page.evaluate(() =>
+                window.wp.data
+                    .dispatch('core/editor')
+                    .editPost({ title: 'Browser E2E bericht bijgewerkt' }),
+            );
+            await savePost(page);
+            await expect(warning).toHaveCount(0);
         });
     });
