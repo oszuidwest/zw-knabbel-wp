@@ -23,6 +23,20 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @since 0.2.0
  */
 function register_post_hooks(): void {
+	// The Radio News switch. The block editor saves it through REST.
+	register_post_meta(
+		'post',
+		'_zw_knabbel_send_to_babbel',
+		array(
+			'type'              => 'boolean',
+			'single'            => true,
+			'default'           => false,
+			'show_in_rest'      => true,
+			'sanitize_callback' => static fn( $value ): int => $value ? 1 : 0,
+			'auth_callback'     => static fn( $allowed, $meta_key, $post_id ): bool => current_user_can( 'edit_post', $post_id ),
+		)
+	);
+
 	add_action( 'wp_after_insert_post', __NAMESPACE__ . '\\handle_post_saved', 10, 4 );
 
 	// Meta change hooks for REST API and CLI support.

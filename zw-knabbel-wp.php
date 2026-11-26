@@ -6,7 +6,6 @@
  * Version: 1.1.1
  * Requires at least: 7.0
  * Requires PHP: 8.4
- * Requires Plugins: classic-editor
  * Author: Streekomroep ZuidWest
  * Author URI: https://www.zuidwesttv.nl
  * License: MIT
@@ -540,10 +539,12 @@ function admin_init(): void {
 	// Load admin functions directly.
 	require_once KNABBEL_PLUGIN_DIR . 'includes/admin/settings.php';
 	require_once KNABBEL_PLUGIN_DIR . 'includes/admin/metabox.php';
+	require_once KNABBEL_PLUGIN_DIR . 'includes/admin/block-editor.php';
 
 	// Initialize admin functionality.
 	settings_init();
 	metabox_init();
+	block_editor_init();
 
 	add_action( 'wp_ajax_knabbel_test_api', __NAMESPACE__ . '\\ajax_test_api' );
 }

@@ -16,12 +16,12 @@ if ( ! function_exists( 'wp_get_environment_type' ) || 'local' !== wp_get_enviro
 	return;
 }
 
-// The browser suite exercises the plugin's classic metabox integration.
-add_filter(
-	'use_block_editor_for_post_type',
-	static fn( bool $use_block_editor, string $post_type ): bool => 'post' === $post_type ? false : $use_block_editor,
-	10,
-	2
+// The browser suite reads this nonce to call the control endpoint below.
+add_action(
+	'admin_print_footer_scripts',
+	static function (): void {
+		printf( '<script>window.knabbelE2E = %s;</script>', wp_json_encode( array( 'nonce' => wp_create_nonce( 'knabbel_e2e_control' ) ) ) );
+	}
 );
 
 /**
@@ -74,7 +74,7 @@ function knabbel_e2e_run_due_actions( string $hook, string $group, ?array $args 
 add_action(
 	'wp_ajax_knabbel_e2e_control',
 	static function (): void {
-		check_ajax_referer( 'knabbel_metabox_nonce', 'nonce' );
+		check_ajax_referer( 'knabbel_e2e_control', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( array( 'message' => 'Insufficient permissions.' ), 403 );
@@ -88,7 +88,9 @@ add_action(
 		}
 
 		$processed = 0;
-		if ( 'run' === $operation ) {
+		if ( 'sync_error' === $operation ) {
+			KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E sync failure', 'update' ) ) );
+		} elseif ( 'run' === $operation ) {
 			try {
 				$processed = knabbel_e2e_run_due_actions( 'knabbel_process_story', 'zw-knabbel-wp', array( 'post_id' => $post_id ) );
 			} catch ( Throwable $e ) {

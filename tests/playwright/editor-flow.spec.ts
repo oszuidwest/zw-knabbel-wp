@@ -6,6 +6,7 @@ import {
     currentPostID,
     disposeBabbelContext,
     getBabbelStory,
+    openEditor,
     savePost,
     setBabbelEnabled,
 } from './utils';
@@ -91,27 +92,43 @@ test.describe
         test('redacteur publiceert een bericht en laat de wachtrij het naar Babbel sturen', async ({
             page,
         }) => {
-            await page.goto('/wp-admin/post-new.php');
-            await page.locator('#title').fill(originalTitle);
-            await page.locator('#content-html').click();
-            await page.locator('#content').fill(originalContent);
+            await openEditor(page, '/wp-admin/post-new.php');
+            await page.evaluate(
+                ({ title, content }) => {
+                    const { blocks, data } = window.wp;
+                    data.dispatch('core/editor').editPost({ title });
+                    data.dispatch('core/block-editor').insertBlocks(
+                        blocks.createBlock('core/paragraph', { content }),
+                        undefined,
+                        undefined,
+                        // Keep the Post tab open in the sidebar.
+                        false,
+                    );
+                },
+                { title: originalTitle, content: originalContent },
+            );
             await setBabbelEnabled(page, true);
 
-            await savePost(page);
-            postID = currentPostID(page);
-            await expect(
-                page.locator('.knabbel-status-badge.scheduled'),
-            ).toBeVisible();
+            await savePost(page, 'publish');
+            postID = await currentPostID(page);
+            expect(
+                (await controlStory(page, postID, 'inspect')).state.status,
+            ).toBe('scheduled');
 
             const result = await controlStory(page, postID, 'run');
             expect(result.state.story_id).toBeTruthy();
             storyID = result.state.story_id || '';
 
-            await page.reload();
+            await openEditor(
+                page,
+                `/wp-admin/post.php?post=${postID}&action=edit`,
+            );
             await expect(
                 page.locator('.knabbel-status-badge.sent'),
-            ).toBeVisible();
-            await expect(page.locator('#knabbel_send_to_babbel')).toBeChecked();
+            ).toBeAttached();
+            await expect(
+                page.getByRole('button', { name: 'Turn Radio News off' }),
+            ).toHaveText('Yes');
 
             const story = await getBabbelStory(storyID);
             expect(story.title).toBe(originalTitle);
@@ -122,22 +139,51 @@ test.describe
         test('redacteur schakelt Babbel uit en herstelt daarna hetzelfde verhaal', async ({
             page,
         }) => {
-            await page.goto(`/wp-admin/post.php?post=${postID}&action=edit`);
+            await openEditor(
+                page,
+                `/wp-admin/post.php?post=${postID}&action=edit`,
+            );
             await setBabbelEnabled(page, false);
             await savePost(page);
-            await expect(
-                page.locator('.knabbel-status-badge.deleted'),
-            ).toBeVisible();
+            expect(
+                (await controlStory(page, postID, 'inspect')).state.status,
+            ).toBe('deleted');
 
             expect(await babbelStoryStatus(storyID)).toBe(404);
 
-            await page.reload();
+            await openEditor(
+                page,
+                `/wp-admin/post.php?post=${postID}&action=edit`,
+            );
+            await expect(
+                page.getByRole('button', { name: 'Turn Radio News on' }),
+            ).toHaveText('No');
             await setBabbelEnabled(page, true);
             await savePost(page);
-            await expect(
-                page.locator('.knabbel-status-badge.sent'),
-            ).toBeVisible();
+            expect(
+                (await controlStory(page, postID, 'inspect')).state.status,
+            ).toBe('sent');
 
             await getBabbelStory(storyID);
+        });
+
+        test('redacteur ziet een Babbel-syncfout onder Radionieuws', async ({
+            page,
+        }) => {
+            await openEditor(
+                page,
+                `/wp-admin/post.php?post=${postID}&action=edit`,
+            );
+            await controlStory(page, postID, 'sync_error');
+
+            await openEditor(
+                page,
+                `/wp-admin/post.php?post=${postID}&action=edit`,
+            );
+            const warning = page.locator(
+                '.knabbel-post-status .components-notice.is-warning',
+            );
+            await expect(warning).toContainText('Babbel sync warning');
+            await expect(warning).toContainText('E2E sync failure');
         });
     });

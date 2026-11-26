@@ -77,36 +77,49 @@ export async function login(page: Page): Promise<void> {
     await expect(page).toHaveURL(/\/wp-admin\//);
 }
 
-export async function savePost(page: Page): Promise<void> {
-    const postResponse = page.waitForResponse(
-        (response) =>
-            response.request().method() === 'POST' &&
-            new URL(response.url()).pathname === '/wp-admin/post.php',
-    );
-    const navigation = page.waitForEvent(
-        'framenavigated',
-        (frame) => frame === page.mainFrame(),
-    );
-
-    const [response] = await Promise.all([
-        postResponse,
-        navigation,
-        page.locator('#publish').evaluate((button: HTMLInputElement) => {
-            if (!button.form) {
-                throw new Error(
-                    'The publish button is not associated with a form.',
-                );
-            }
-            button.form.requestSubmit(button);
-        }),
-    ]);
-    await expectResponseOk(response, 'Post save failed.');
-    await expect(page).toHaveURL(/\/wp-admin\/post\.php\?post=\d+&action=edit/);
-    await expect(page.locator('#publish')).toBeVisible();
+declare global {
+    interface Window {
+        // biome-ignore lint/suspicious/noExplicitAny: WordPress script globals.
+        wp: any;
+        knabbelE2E: { nonce: string };
+    }
 }
 
-export function currentPostID(page: Page): number {
-    const postID = Number(new URL(page.url()).searchParams.get('post'));
+/**
+ * Open a post in the block editor and wait until it is ready.
+ */
+export async function openEditor(page: Page, path: string): Promise<void> {
+    await page.goto(path);
+    await page.waitForFunction(() =>
+        window.wp?.data?.select('core/editor')?.getCurrentPostId(),
+    );
+    // The welcome guide covers the editor on the first visit.
+    await page.evaluate(() =>
+        window.wp.data
+            .dispatch('core/preferences')
+            .set('core/edit-post', 'welcomeGuide', false),
+    );
+}
+
+/**
+ * Save the post through the editor store, as the Publish and Save buttons do.
+ */
+export async function savePost(page: Page, status?: 'publish'): Promise<void> {
+    const failed = await page.evaluate(async (newStatus) => {
+        const { dispatch, select } = window.wp.data;
+        if (newStatus) {
+            dispatch('core/editor').editPost({ status: newStatus });
+        }
+        await dispatch('core/editor').savePost();
+        return select('core/editor').didPostSaveRequestFail();
+    }, status);
+    expect(failed, 'Post save failed.').toBe(false);
+}
+
+export async function currentPostID(page: Page): Promise<number> {
+    const postID = await page.evaluate(() =>
+        window.wp.data.select('core/editor').getCurrentPostId(),
+    );
     expect(postID).toBeGreaterThan(0);
 
     return postID;
@@ -116,31 +129,24 @@ export async function setBabbelEnabled(
     page: Page,
     enabled: boolean,
 ): Promise<void> {
-    const checkbox = page.locator('#knabbel_send_to_babbel');
-    const toggle = page.locator('.misc-pub-knabbel .knabbel-submitbox-toggle');
+    const on = page.getByRole('button', { name: 'Turn Radio News on' });
+    const off = page.getByRole('button', { name: 'Turn Radio News off' });
 
-    await expect(toggle).toBeVisible();
-    await expect(checkbox).toBeEnabled();
-
-    if ((await checkbox.isChecked()) !== enabled) {
-        await toggle.click();
+    await expect(on.or(off)).toBeVisible();
+    if (enabled && (await on.isVisible())) {
+        await on.click();
+    } else if (!enabled && (await off.isVisible())) {
+        await off.click();
     }
-    await expect(checkbox).toBeChecked({ checked: enabled });
-    await expect(
-        toggle.locator(
-            enabled
-                ? '.knabbel-submitbox-toggle-enabled'
-                : '.knabbel-submitbox-toggle-disabled',
-        ),
-    ).toBeVisible();
+    await expect(enabled ? off : on).toHaveText(enabled ? 'Yes' : 'No');
 }
 
 export async function controlStory(
     page: Page,
     postID: number,
-    operation: 'inspect' | 'run',
+    operation: 'inspect' | 'run' | 'sync_error',
 ): Promise<ControlResult> {
-    const nonce = await page.locator('#knabbel_nonce').inputValue();
+    const nonce = await page.evaluate(() => window.knabbelE2E.nonce);
     const response = await page.request.post('/wp-admin/admin-ajax.php', {
         form: {
             action: 'knabbel_e2e_control',

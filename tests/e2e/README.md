@@ -39,9 +39,9 @@ Before the PHP scenarios, Playwright drives the real WordPress admin UI in
 Chromium. The browser coverage saves and tests plugin settings, publishes a
 post, and disables and restores Babbel synchronization. Lifecycle edge cases
 remain in the faster PHP scenarios instead of repeating WordPress-owned editor
-flows in the browser. The browser suite uses the classic WordPress post editor
-to keep the plugin-owned metabox flow deterministic. The PHP and browser suites
-share test-only editor and queue controls loaded as an MU plugin.
+flows in the browser. The browser suite uses the block editor: it sets the
+Radionieuws switch through the UI and saves through the editor store. The PHP
+and browser suites share test-only queue controls loaded as an MU plugin.
 
 The runner invokes `npm run test:e2e:browser` with the discovered WordPress and
 Babbel URLs. To run Playwright against already-running services, set
