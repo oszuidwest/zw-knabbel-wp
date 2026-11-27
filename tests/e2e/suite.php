@@ -745,7 +745,7 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'AI provider failure must not create a Babbel story.' );
 		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same( 'create', $error['operation'] ?? null, 'AI provider failure must identify the operation.' );
-		$this->assert_same( 'Could not generate speech text', $error['message'] ?? null, 'An editor must be warned that the AI step failed.' );
+		$this->assert_same( 'Could not generate speech text', $error['message'] ?? null, 'The sync error must carry the AI failure message.' );
 
 		update_option( 'knabbel_e2e_ai_mode', 'success', false );
 		$this->update_post( $post_id, array() );
@@ -754,14 +754,16 @@ final class Knabbel_E2E_Suite {
 		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same( null, $error, 'A successful retry must clear the AI failure warning.' );
 
-		// Radio News switched off while the AI step runs: a failure then leaves no warning.
+		// Radio News switched off during the AI step: a failure then leaves no state, so no warning.
 		update_option( 'knabbel_e2e_ai_mode', 'error', false );
+		update_option( 'knabbel_e2e_ai_call_count', 0, false );
 		try {
 			$switch_off = fn( int $id ) => update_post_meta( $id, self::SEND_TO_BABBEL_META_KEY, 0 );
 			$post_id    = $this->process_with_edit_during_request( $title . ' uitgezet', $switch_off );
 		} finally {
 			update_option( 'knabbel_e2e_ai_mode', 'success', false );
 		}
+		$this->assert_same( 3, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'The AI step must fail after Radio News was switched off.' );
 		$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), 'An AI failure after Radio News was switched off must leave no state.' );
 	}
 
