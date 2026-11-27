@@ -249,10 +249,9 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null, bool $re
 	$state          = get_story_state( $post_id );
 	$status         = $state['status'] ?? '';
 	$story_id       = (string) ( $state['story_id'] ?? '' );
-	$active_status  = in_array( $post->post_status, array( 'publish', 'future' ), true );
 	// A story only exists while the post is published or scheduled. An untrashed post returns as a draft,
 	// and a delete that failed is retried on the next save.
-	$should_remove = ! $send_to_babbel || ! $active_status;
+	$should_remove = ! post_wants_story( $post );
 
 	// A failed delete leaves the story sent and a failed restore leaves it deleted. Once the post wants that state
 	// again, the failed delete or restore has nothing left to do, so its error goes once Babbel confirms that state.

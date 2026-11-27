@@ -1007,24 +1007,28 @@ final class Knabbel_E2E_Suite {
 			$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), $cancel_via . ' must not create a remote story.' );
 		}
 
-		// Switched off as the worker starts: the save sees the running action and leaves the scheduled state to the worker.
-		$title   = 'E2E annulering bij start';
-		$post_id = $this->create_enabled_draft( $title, 'Een worker die Radio News uit vindt, ruimt de geplande state op zonder fout.' );
-		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
-		$left       = null;
-		$switch_off = static function ( int $id ) use ( &$left ): void {
-			update_post_meta( $id, self::SEND_TO_BABBEL_META_KEY, 0 );
-			$left = KnabbelWP\get_story_state( $id )['status'] ?? null;
-		};
-		add_action( self::STORY_HOOK, $switch_off, 5 );
-		try {
-			$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
-		} finally {
-			remove_action( self::STORY_HOOK, $switch_off, 5 );
+		// Offline as the worker starts: the save sees the running action and leaves the scheduled state to the worker.
+		foreach ( $this->offline_edits() as $offline_via => $edit ) {
+			$title   = 'E2E annulering bij start ' . $offline_via;
+			$post_id = $this->create_enabled_draft( $title, 'Een worker die het bericht offline vindt, ruimt de geplande state op zonder fout.' );
+			$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
+			$left     = null;
+			$at_start = static function ( int $id ) use ( &$left, $edit ): void {
+				$edit( $id );
+				$left = KnabbelWP\get_story_state( $id )['status'] ?? null;
+			};
+			update_option( 'knabbel_e2e_ai_call_count', 0, false );
+			add_action( self::STORY_HOOK, $at_start, 5 );
+			try {
+				$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+			} finally {
+				remove_action( self::STORY_HOOK, $at_start, 5 );
+			}
+			$this->assert_same( StoryStatus::Scheduled->value, $left, 'Precondition: the save must leave the scheduled state to the worker: ' . $offline_via );
+			$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), $offline_via . ' at the start must clear the state, not write an error.' );
+			$this->assert_same( 0, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), $offline_via . ' at the worker start must stop before the AI step.' );
+			$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), $offline_via . ' at the worker start must not create a remote story.' );
 		}
-		$this->assert_same( StoryStatus::Scheduled->value, $left, 'Precondition: the save must leave the scheduled state to the running worker.' );
-		$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), 'A worker that finds Radio News off must clear the state, not write an error.' );
-		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'A worker that finds Radio News off must not create a remote story.' );
 	}
 
 	/**
@@ -1549,11 +1553,16 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verifies that switching off or unpublishing clears the error of a failed create.
+	 * Verifies that switching off, unpublishing or trashing clears the error of a failed create, also during the create.
+	 *
+	 * During the create the save sees the running action, so the worker must clear the state itself and log the dropped error.
 	 */
 	private function test_create_error_cleared_offline(): void {
-		$this->configure_plugin( 'wrong-create-password' );
-		foreach ( array( 'checkbox', 'unpublish' ) as $offline_via ) {
+		// Fails only the create call. A wrong password would fail logins too, and Babbel locks the account after five.
+		$fail_create = static fn( false|array|WP_Error $pre, array $args, string $url ): false|array|WP_Error => self::BABBEL_BASE_URL . '/stories' === $url
+			&& 'POST' === $args['method'] ? new WP_Error( 'http_request_failed', 'E2E create failure' ) : $pre;
+		foreach ( $this->offline_edits() as $offline_via => $edit ) {
+			$this->configure_plugin( 'wrong-create-password' );
 			$post_id = $this->create_enabled_draft(
 				'E2E mislukte create ' . $offline_via,
 				'Een story die Babbel niet aanmaakte, laat geen fout achter als het bericht offline gaat.'
@@ -1562,26 +1571,37 @@ final class Knabbel_E2E_Suite {
 			$state = KnabbelWP\get_story_state( $post_id );
 			$this->assert_same( StoryStatus::Error->value, $state['status'] ?? null, 'Precondition: the create must fail.' );
 			$this->assert_same( 'create', $state['last_sync_error']['operation'] ?? null, 'Precondition: the create failure must leave a sync error.' );
-
-			if ( 'checkbox' === $offline_via ) {
-				update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
-			} else {
-				$this->update_post( $post_id, array( 'post_status' => 'draft' ) );
-			}
-
+			$edit( $post_id );
 			$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), $offline_via . ' must clear the error state and its sync error.' );
-		}
 
-		// Offline during the failing create: the save sees the running action, so the worker must clear the state itself.
-		$offline = array(
+			$this->configure_plugin();
+			add_filter( 'pre_http_request', $fail_create, 6, 3 );
+			try {
+				$post_id = $this->process_with_edit_during_request( 'E2E mislukte create tijdens ' . $offline_via, $edit, self::BABBEL_BASE_URL . '/stories' );
+			} finally {
+				remove_filter( 'pre_http_request', $fail_create, 6 );
+			}
+			$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), $offline_via . ' during a failed create must leave no error state.' );
+			$dropped = array_filter(
+				get_option( 'knabbel_recent_errors', array() ),
+				static fn( array $entry ): bool => 'The create failed after the post went offline, so its error was dropped' === ( $entry['message'] ?? null )
+					&& ( $entry['context']['post_id'] ?? null ) === $post_id
+			);
+			$this->assert_same( 1, count( $dropped ), $offline_via . ' during a failed create must log the dropped error for this post.' );
+		}
+	}
+
+	/**
+	 * Returns the edits that take a post offline: Radio News off, unpublish and trash.
+	 *
+	 * @return array<string, callable(int): mixed> Edits keyed by name, each taking the post ID.
+	 */
+	private function offline_edits(): array {
+		return array(
 			'checkbox'  => static fn( int $id ) => update_post_meta( $id, self::SEND_TO_BABBEL_META_KEY, 0 ),
 			'unpublish' => fn( int $id ) => $this->update_post( $id, array( 'post_status' => 'draft' ) ),
+			'trash'     => static fn( int $id ) => wp_trash_post( $id ),
 		);
-		foreach ( $offline as $offline_via => $edit ) {
-			$post_id = $this->process_with_edit_during_request( 'E2E mislukte create tijdens ' . $offline_via, $edit, self::BABBEL_BASE_URL . '/sessions' );
-			$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), $offline_via . ' during a failed create must leave no error state.' );
-		}
-		$this->configure_plugin();
 	}
 
 	/**

@@ -251,12 +251,29 @@ function babbel_create_story( array $story_data ): array {
 	try {
 		$json_body = wp_json_encode( $payload );
 		if ( false === $json_body ) {
+			log(
+				'error',
+				'BabbelApi',
+				'Could not encode story data',
+				array(
+					'post_id' => $story_data['external_id'],
+				)
+			);
 			return array(
 				'success' => false,
 				'message' => __( 'Could not encode story data', 'zw-knabbel-wp' ),
 			);
 		}
 	} catch ( \JsonException $e ) {
+		log(
+			'error',
+			'BabbelApi',
+			'Could not encode story data',
+			array(
+				'post_id'    => $story_data['external_id'],
+				'json_error' => $e->getMessage(),
+			)
+		);
 		return array(
 			'success' => false,
 			'message' => __( 'Could not encode story data', 'zw-knabbel-wp' ),

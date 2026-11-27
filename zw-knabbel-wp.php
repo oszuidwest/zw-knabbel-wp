@@ -550,6 +550,17 @@ function story_base_date( \WP_Post $post ): string {
 }
 
 /**
+ * Reports whether a post should have a story: published or scheduled, with Radio News on.
+ *
+ * @since 2.0.1
+ * @param \WP_Post $post The post.
+ * @return bool True when the post should have a story.
+ */
+function post_wants_story( \WP_Post $post ): bool {
+	return in_array( $post->post_status, array( 'publish', 'future' ), true ) && (bool) get_post_meta( $post->ID, '_zw_knabbel_send_to_babbel', true );
+}
+
+/**
  * Loads translations and registers plugin hooks.
  *
  * @since 0.1.0
@@ -723,23 +734,33 @@ function ajax_test_api(): void {
 }
 
 /**
- * Re-reads the post for the story worker, and clears the state the worker left if the post should have no story.
+ * Re-reads the post for the story worker, and deletes its story state if the post should no longer have a story.
  *
- * A save leaves Scheduled or Processing to the running worker, and one before the worker wrote it found nothing to
- * clean up. A state with another status was written later and stays.
+ * A save while the worker runs leaves the Scheduled state (written by the save that queued the run) or the
+ * worker's Processing state to the worker, so the worker must clean it up itself.
  *
  * @since 2.0.1
  * @param int         $post_id The post ID.
- * @param StoryStatus $status  The status the worker left.
- * @return \WP_Post|null The post, or null when it is no longer published or scheduled with Radio News on.
+ * @param StoryStatus $status  The status the state must still have; a state with another status was written later and stays.
+ * @return \WP_Post|null The post, or null when it should no longer have a story. The state is deleted only when it still has $status.
  */
-function get_story_worker_post( int $post_id, StoryStatus $status ): ?\WP_Post {
+function recheck_story_post( int $post_id, StoryStatus $status ): ?\WP_Post {
 	clean_post_cache( $post_id );
 	$post = get_post( $post_id );
-	if ( $post && in_array( $post->post_status, array( 'publish', 'future' ), true ) && get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true ) ) {
+	if ( $post && post_wants_story( $post ) ) {
 		return $post;
 	}
 
+	log(
+		'info',
+		'CronProcessor',
+		'The post should no longer have a story, so this run stops',
+		array(
+			'post_id'     => $post_id,
+			'post_status' => $post?->post_status,
+			'status'      => $status->value,
+		)
+	);
 	$current = get_story_state( $post_id );
 	if ( ( $current['status'] ?? '' ) === $status->value ) {
 		delete_story_state( $post_id, $current );
@@ -757,7 +778,8 @@ function get_story_worker_post( int $post_id, StoryStatus $status ): ?\WP_Post {
  * @since 1.0.0 Sends the post ID as external ID and takes over the story of a create whose answer was lost.
  * @since 1.1.0 Records the generation input in the story metadata.
  * @since 2.0.1 Warns the editor when the AI step fails or is not available, unless the post went offline or was switched off meanwhile.
- * @since 2.0.1 Clears the state instead of writing an error when the post went offline or was switched off before the run or during a failed create.
+ * @since 2.0.1 Clears the state instead of writing an error when the post was switched off before the run or went offline or was
+ *              switched off during a failed create, and stops before the AI step for a post that went offline before the run.
  * @param int $post_id The WordPress post ID.
  */
 function process_story_async( int $post_id ): void {
@@ -775,20 +797,8 @@ function process_story_async( int $post_id ): void {
 		return;
 	}
 
-		$post = get_post( $post_id );
-	if ( ! $post ) {
-		update_story_state(
-			$post_id,
-			array(
-				'status'  => \KnabbelWP\StoryStatus::Error->value,
-				'message' => __( 'Post not found', 'zw-knabbel-wp' ) . ' (ID: ' . $post_id . ')',
-			)
-		);
-		return;
-	}
-
-	// The post may have gone offline or been switched off since the save that queued this run.
-	$post = get_story_worker_post( $post_id, StoryStatus::Scheduled );
+	// The post may be gone, offline or switched off since the save that queued this run.
+	$post = recheck_story_post( $post_id, StoryStatus::Scheduled );
 	if ( ! $post ) {
 		return;
 	}
@@ -808,7 +818,7 @@ function process_story_async( int $post_id ): void {
 	$generated = ai_generate_content( $content, $post_id );
 
 	// Generating takes a while, and an editor may have rescheduled, unpublished or disabled the post meanwhile.
-	$post = get_story_worker_post( $post_id, StoryStatus::Processing );
+	$post = recheck_story_post( $post_id, StoryStatus::Processing );
 	if ( ! $post ) {
 		return;
 	}
@@ -890,7 +900,17 @@ function process_story_async( int $post_id ): void {
 
 	if ( null === $state ) {
 		// The create call takes a while too, and a post that went offline or was switched off meanwhile gets no warning.
-		if ( ! get_story_worker_post( $post_id, StoryStatus::Processing ) ) {
+		if ( ! recheck_story_post( $post_id, StoryStatus::Processing ) ) {
+			// A create whose answer was lost may still have left a story in Babbel (#141).
+			log(
+				'error',
+				'CronProcessor',
+				'The create failed after the post went offline, so its error was dropped',
+				array(
+					'post_id' => $post_id,
+					'error'   => $error,
+				)
+			);
 			return;
 		}
 		update_story_state(

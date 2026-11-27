@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-27T20:53:37+00:00\n"
+"POT-Creation-Date: 2026-11-27T21:19:27+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: zw-knabbel-wp\n"
@@ -311,7 +311,7 @@ msgid "Babbel ID"
 msgstr ""
 
 #: includes/admin/settings.php:708
-#: zw-knabbel-wp.php:801
+#: zw-knabbel-wp.php:811
 msgid "Story is being processed..."
 msgstr ""
 
@@ -332,7 +332,7 @@ msgid "Could not generate speech text"
 msgstr ""
 
 #: includes/babbel-api.php:51
-#: includes/babbel-api.php:385
+#: includes/babbel-api.php:402
 msgid "Username and password are required"
 msgstr ""
 
@@ -354,76 +354,76 @@ msgstr ""
 msgid "API error: HTTP %1$d - %2$s"
 msgstr ""
 
-#: includes/babbel-api.php:256
-#: includes/babbel-api.php:262
+#: includes/babbel-api.php:264
+#: includes/babbel-api.php:279
 msgid "Could not encode story data"
 msgstr ""
 
-#: includes/babbel-api.php:288
-#: includes/babbel-api.php:494
-#: includes/babbel-api.php:570
-#: includes/babbel-api.php:668
+#: includes/babbel-api.php:305
+#: includes/babbel-api.php:511
+#: includes/babbel-api.php:587
+#: includes/babbel-api.php:685
 msgid "API connection failed: "
 msgstr ""
 
-#: includes/babbel-api.php:331
-#: includes/babbel-api.php:422
-#: includes/babbel-api.php:772
-#: includes/babbel-api.php:777
-#: includes/babbel-api.php:840
+#: includes/babbel-api.php:348
+#: includes/babbel-api.php:439
+#: includes/babbel-api.php:789
+#: includes/babbel-api.php:794
+#: includes/babbel-api.php:857
 msgid "Invalid API response"
 msgstr ""
 
-#: includes/babbel-api.php:348
+#: includes/babbel-api.php:365
 msgid "No story ID received from API"
 msgstr ""
 
-#: includes/babbel-api.php:366
-#: zw-knabbel-wp.php:913
+#: includes/babbel-api.php:383
+#: zw-knabbel-wp.php:933
 msgid "Story created successfully"
 msgstr ""
 
-#: includes/babbel-api.php:405
+#: includes/babbel-api.php:422
 msgid "Session verification failed: "
 msgstr ""
 
 #. translators: %s is the username.
-#: includes/babbel-api.php:429
+#: includes/babbel-api.php:446
 #, php-format
 msgid "Connected as: %s"
 msgstr ""
 
-#: includes/babbel-api.php:453
+#: includes/babbel-api.php:470
 msgid "No data to update"
 msgstr ""
 
-#: includes/babbel-api.php:462
-#: includes/babbel-api.php:468
+#: includes/babbel-api.php:479
+#: includes/babbel-api.php:485
 msgid "Could not encode update data"
 msgstr ""
 
-#: includes/babbel-api.php:532
+#: includes/babbel-api.php:549
 msgid "Story updated successfully"
 msgstr ""
 
-#: includes/babbel-api.php:607
+#: includes/babbel-api.php:624
 msgid "Story deleted successfully"
 msgstr ""
 
-#: includes/babbel-api.php:636
-#: includes/babbel-api.php:642
+#: includes/babbel-api.php:653
+#: includes/babbel-api.php:659
 msgid "Could not encode restore data"
 msgstr ""
 
-#: includes/babbel-api.php:705
+#: includes/babbel-api.php:722
 msgid "Story restored successfully"
 msgstr ""
 
-#: includes/babbel-api.php:720
+#: includes/babbel-api.php:737
 msgid "Babbel API base URL not configured"
 msgstr ""
 
-#: includes/babbel-api.php:844
+#: includes/babbel-api.php:861
 msgid "Its link does not point to this post on this site"
 msgstr ""
 
@@ -435,35 +435,35 @@ msgstr ""
 msgid "Whether saving the post again can fix the error."
 msgstr ""
 
-#: includes/post-hooks.php:292
+#: includes/post-hooks.php:291
 msgid "Story deleted from Babbel"
 msgstr ""
 
-#: includes/post-hooks.php:295
+#: includes/post-hooks.php:294
 msgid "Story deleted (post trashed)"
 msgstr ""
 
-#: includes/post-hooks.php:298
+#: includes/post-hooks.php:297
 msgid "Story deleted (post unscheduled)"
 msgstr ""
 
-#: includes/post-hooks.php:301
+#: includes/post-hooks.php:300
 msgid "Story deleted (post unpublished)"
 msgstr ""
 
-#: includes/post-hooks.php:356
+#: includes/post-hooks.php:355
 msgid "Story updated (post published)"
 msgstr ""
 
-#: includes/post-hooks.php:373
+#: includes/post-hooks.php:372
 msgid "Story updated in Babbel"
 msgstr ""
 
-#: includes/post-hooks.php:410
+#: includes/post-hooks.php:409
 msgid "Story restored in Babbel"
 msgstr ""
 
-#: includes/post-hooks.php:584
+#: includes/post-hooks.php:583
 msgid "Processing scheduled"
 msgstr ""
 
@@ -487,18 +487,14 @@ msgstr ""
 msgid "Deleted"
 msgstr ""
 
-#: zw-knabbel-wp.php:713
+#: zw-knabbel-wp.php:724
 msgid "Insufficient permissions"
 msgstr ""
 
-#: zw-knabbel-wp.php:784
-msgid "Post not found"
-msgstr ""
-
-#: zw-knabbel-wp.php:871
+#: zw-knabbel-wp.php:881
 msgid "Babbel already has a story with this post ID, but it could not be linked: "
 msgstr ""
 
-#: zw-knabbel-wp.php:876
+#: zw-knabbel-wp.php:886
 msgid "The story for this post was deleted in Babbel. To send it again, restore it in Babbel first and then save the post."
 msgstr ""
