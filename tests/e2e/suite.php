@@ -774,16 +774,36 @@ final class Knabbel_E2E_Suite {
 		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same( null, $error, 'A successful retry must clear the AI failure warning.' );
 
-		// A processing state whose worker died has no action left, so its old error shows again.
-		KnabbelWP\update_story_state(
-			$post_id,
-			array(
-				'status'          => StoryStatus::Processing->value,
-				'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E stale failure', 'create' ),
-			)
-		);
-		$this->assert_same( 0, $this->story_action_count( $post_id ), 'Precondition: the stale state has no action.' );
-		$this->assert_same( 'E2E stale failure', $this->get_sync_warning_field( $post_id ), 'A processing state without an action must show its error.' );
+		// A scheduled or processing state without a pending or running action is stale (a dead worker), so its error shows.
+		$args = array( 'post_id' => $post_id );
+		foreach ( array( StoryStatus::Scheduled, StoryStatus::Processing ) as $stale_status ) {
+			KnabbelWP\update_story_state(
+				$post_id,
+				array(
+					'status'          => $stale_status->value,
+					'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E stale failure', 'create' ),
+				)
+			);
+			$this->assert_same( false, as_has_scheduled_action( self::STORY_HOOK, $args, self::ACTION_GROUP ), 'Precondition: no action.' );
+			$this->assert_same( 'E2E stale failure', $this->get_sync_warning_field( $post_id ), "A stale {$stale_status->value} state must show its error." );
+		}
+
+		// A retry more than 10 minutes late means a stalled queue, so the error shows.
+		as_schedule_single_action( time() - HOUR_IN_SECONDS, self::STORY_HOOK, $args, self::ACTION_GROUP );
+		try {
+			$this->assert_same( 'E2E stale failure', $this->get_sync_warning_field( $post_id ), 'A retry that is an hour late must show the error.' );
+		} finally {
+			as_unschedule_all_actions( self::STORY_HOOK, $args, self::ACTION_GROUP );
+		}
+
+		// Only a retry hides the error: a sent story with an error and a pending action still shows it.
+		KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Sent->value ) );
+		as_schedule_single_action( time() + HOUR_IN_SECONDS, self::STORY_HOOK, $args, self::ACTION_GROUP );
+		try {
+			$this->assert_same( 'E2E stale failure', $this->get_sync_warning_field( $post_id ), 'A sent story must show its error with an action queued.' );
+		} finally {
+			as_unschedule_all_actions( self::STORY_HOOK, $args, self::ACTION_GROUP );
+		}
 
 		// Radio News switched off during the AI step: a failure then leaves no state, so no warning.
 		update_option( 'knabbel_e2e_ai_mode', 'error', false );
