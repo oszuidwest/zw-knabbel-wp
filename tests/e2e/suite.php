@@ -1614,7 +1614,7 @@ final class Knabbel_E2E_Suite {
 			$view = $get( 'view' )->get_data();
 			$this->assert_same( false, array_key_exists( 'knabbel_sync_error', $view ), 'The view context must not show the sync error.' );
 
-			// An error stored before 2.0.1 has no flag; saving again can fix most of those.
+			// An error stored before 2.1.0 has no flag; saving again can fix most of those.
 			$legacy = KnabbelWP\build_story_sync_error( 'E2E old failure', 'update' );
 			unset( $legacy['retry'] );
 			KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => $legacy ) );

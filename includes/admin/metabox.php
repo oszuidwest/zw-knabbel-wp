@@ -72,7 +72,7 @@ function metabox_add_status(): void {
  * Displays status details in Debug Mode.
  *
  * @since 0.1.0
- * @since 2.0.1 Says when the story action is running instead of showing a date.
+ * @since 2.1.0 Says when the story action is running instead of showing a date.
  *
  * @param \WP_Post $post The current post object.
  */

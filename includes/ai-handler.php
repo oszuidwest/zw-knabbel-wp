@@ -125,7 +125,7 @@ function ai_parse_model_setting( mixed $value ): ?array {
  * @since 0.7.0 Added the `$current_post_id` parameter and curated example mix.
  * @since 0.8.0 Omits the temperature parameter and rebuilds the prompt per attempt.
  * @since 1.1.0 Returns the text with a record of the input that produced it.
- * @since 2.0.1 Returns a WP_Error: ai_unavailable when no support check passed, ai_failed otherwise.
+ * @since 2.1.0 Returns a WP_Error: ai_unavailable when no support check passed, ai_failed otherwise.
  * @param string $content         The source content.
  * @param int    $current_post_id Current post ID to exclude from examples, 0 for none.
  * @return array{text: string, generation: array<string, mixed>}|\WP_Error The generated text and its generation record, or WP_Error on failure.
