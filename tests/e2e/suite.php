@@ -722,17 +722,20 @@ final class Knabbel_E2E_Suite {
 	private function test_ai_failure(): void {
 		$title = 'E2E AI-providerfout';
 		update_option( 'knabbel_e2e_ai_call_count', 0, false );
+		$post_id = $this->create_enabled_draft( $title . ' niet ingesteld', 'Zonder werkende AI-instelling helpt opnieuw opslaan niet.' );
 		add_filter( 'wp_supports_ai', '__return_false' );
 		try {
-			$this->assert_same(
-				null,
-				KnabbelWP\ai_generate_content( 'Unsupported AI must fail without a provider request.', 0 ),
-				'Unsupported text generation must fail immediately.'
-			);
-			$this->assert_same( 0, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Unsupported text generation must not call the provider.' );
+			$this->publish_and_process( $post_id );
 		} finally {
 			remove_filter( 'wp_supports_ai', '__return_false' );
 		}
+		$this->assert_story_status( $post_id, StoryStatus::Error, 'Unsupported text generation must mark processing as error.' );
+		$this->assert_same( 0, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Unsupported text generation must not call the provider.' );
+		$this->assert_same(
+			'Speech text generation is not set up. Ask an administrator.',
+			KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) )['message'] ?? null,
+			'Unsupported text generation must tell the editor that it is not set up, not that it failed.'
+		);
 
 		update_option( 'knabbel_e2e_ai_mode', 'error', false );
 		update_option( 'knabbel_e2e_ai_call_count', 0, false );

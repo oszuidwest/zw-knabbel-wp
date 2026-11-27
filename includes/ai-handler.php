@@ -125,13 +125,14 @@ function ai_parse_model_setting( mixed $value ): ?array {
  * @since 0.7.0 Added the `$current_post_id` parameter and curated example mix.
  * @since 0.8.0 Omits the temperature parameter and rebuilds the prompt per attempt.
  * @since 1.1.0 Returns the text with a record of the input that produced it.
+ * @since 2.0.1 Returns a WP_Error that tells a missing setup apart from a failed request.
  * @param string $content         The source content.
  * @param int    $current_post_id Current post ID to exclude from examples, 0 for none.
- * @return array{text: string, generation: array<string, mixed>}|null The generated text and its generation record, or null on failure.
+ * @return array{text: string, generation: array<string, mixed>}|\WP_Error The generated text and its generation record, or WP_Error on failure.
  *
- * @phpstan-return SpeechGeneration|null
+ * @phpstan-return SpeechGeneration|\WP_Error
  */
-function ai_generate_content( string $content, int $current_post_id ): ?array {
+function ai_generate_content( string $content, int $current_post_id ): array|\WP_Error {
 	$options       = get_plugin_settings();
 	$speech_prompt = (string) $options['speech_prompt'];
 	$custom_prompt = '' !== trim( $speech_prompt );
@@ -169,7 +170,7 @@ function ai_generate_content( string $content, int $current_post_id ): ?array {
 
 	if ( ! $build_prompt()->is_supported_for_text_generation() ) {
 		log( 'error', 'AiHandler', 'WordPress AI Client does not support text generation for this prompt' );
-		return null;
+		return new \WP_Error( 'ai_not_set_up', __( 'Speech text generation is not set up. Ask an administrator.', 'zw-knabbel-wp' ) );
 	}
 
 	$max_attempts = 3;
@@ -228,5 +229,5 @@ function ai_generate_content( string $content, int $current_post_id ): ?array {
 	}
 
 	log( 'error', 'AiHandler', "All {$max_attempts} retry attempts failed" );
-	return null;
+	return new \WP_Error( 'ai_failed', __( 'Could not generate speech text', 'zw-knabbel-wp' ) );
 }
