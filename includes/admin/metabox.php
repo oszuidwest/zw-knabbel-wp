@@ -72,6 +72,7 @@ function metabox_add_status(): void {
  * Displays status details in Debug Mode.
  *
  * @since 0.1.0
+ * @since 2.0.1 Says when the story action is running instead of showing a date.
  *
  * @param \WP_Post $post The current post object.
  */
@@ -105,12 +106,16 @@ function metabox_render_status( \WP_Post $post ): void {
 				<code><?php echo esc_html( $story_id ); ?></code>
 			</li>
 			<?php endif; ?>
-			<?php if ( ! empty( $scheduled ) ) : ?>
+			<?php if ( true === $scheduled ) : ?>
+			<li class="knabbel-status-muted">
+				<?php esc_html_e( 'Story action is running', 'zw-knabbel-wp' ); ?>
+			</li>
+			<?php elseif ( is_int( $scheduled ) ) : ?>
 			<li class="knabbel-status-muted">
 				<?php esc_html_e( 'Scheduled:', 'zw-knabbel-wp' ); ?>
 				<?php
 				// Action Scheduler returns UTC timestamp.
-				echo esc_html( format_stored_datetime( (int) $scheduled ) );
+				echo esc_html( format_stored_datetime( $scheduled ) );
 				?>
 			</li>
 			<?php endif; ?>
