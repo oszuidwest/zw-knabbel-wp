@@ -66,11 +66,17 @@ function register_sync_warning_field(): void {
 				// A request with _fields can leave out the id; the controller sets up the global post.
 				$post_id = (int) ( $post['id'] ?? get_the_ID() );
 				$state   = get_story_state( $post_id );
-				// The retry has not failed yet; the error stays stored for the metabox and settings page.
-				if ( in_array( $state['status'] ?? '', array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
+				$message = get_story_sync_error( $state )['message'] ?? null;
+				// A queued or running retry has not failed yet; the error stays stored for the metabox and settings
+				// page. Once the action is no longer pending or running, the old error shows again.
+				if (
+					null !== $message
+					&& in_array( $state['status'] ?? '', array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true )
+					&& \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' )
+				) {
 					return null;
 				}
-				return get_story_sync_error( $state )['message'] ?? null;
+				return $message;
 			},
 			'schema'       => array(
 				'description' => __( 'Last Babbel sync error of the post.', 'zw-knabbel-wp' ),

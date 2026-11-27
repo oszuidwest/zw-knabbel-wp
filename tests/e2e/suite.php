@@ -754,6 +754,8 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( null, $this->get_sync_warning_field( $post_id ), 'A queued retry must hide the old warning.' );
 		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same( 'Could not generate speech text', $error['message'] ?? null, 'A queued retry must keep the stored error.' );
+		// The retry succeeds; the capture runs before the AI stub answers.
+		update_option( 'knabbel_e2e_ai_mode', 'success', false );
 		$during_retry = array();
 		$capture      = function ( false|array|WP_Error $pre, array $args, string $url ) use ( &$during_retry, $post_id ): false|array|WP_Error {
 			if ( 'https://api.openai.com/v1/responses' === $url ) {
@@ -768,15 +770,20 @@ final class Knabbel_E2E_Suite {
 			remove_filter( 'pre_http_request', $capture, 5 );
 		}
 		$this->assert_same( array( StoryStatus::Processing->value, null ), $during_retry[0] ?? null, 'A running retry must hide the old warning.' );
-		$this->assert_story_status( $post_id, StoryStatus::Error, 'A retry that fails again must mark error.' );
-		$this->assert_same( 'Could not generate speech text', $this->get_sync_warning_field( $post_id ), 'A failed retry must show the warning again.' );
-
-		update_option( 'knabbel_e2e_ai_mode', 'success', false );
-		$this->update_post( $post_id, array() );
-		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
 		$this->assert_story_status( $post_id, StoryStatus::Sent, 'A save after an AI failure must retry the story.' );
 		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same( null, $error, 'A successful retry must clear the AI failure warning.' );
+
+		// A processing state whose worker died has no action left, so its old error shows again.
+		KnabbelWP\update_story_state(
+			$post_id,
+			array(
+				'status'          => StoryStatus::Processing->value,
+				'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E stale failure', 'create' ),
+			)
+		);
+		$this->assert_same( 0, $this->story_action_count( $post_id ), 'Precondition: the stale state has no action.' );
+		$this->assert_same( 'E2E stale failure', $this->get_sync_warning_field( $post_id ), 'A processing state without an action must show its error.' );
 
 		// Radio News switched off during the AI step: a failure then leaves no state, so no warning.
 		update_option( 'knabbel_e2e_ai_mode', 'error', false );
@@ -1607,7 +1614,11 @@ final class Knabbel_E2E_Suite {
 		try {
 			$request = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
 			$request->set_param( 'context', 'edit' );
-			return rest_do_request( $request )->get_data()['knabbel_sync_warning'] ?? null;
+			$response = rest_do_request( $request );
+			$this->assert_same( 200, $response->get_status(), 'The editor must be able to read the post.' );
+			$data = $response->get_data();
+			$this->assert_same( true, array_key_exists( 'knabbel_sync_warning', $data ), 'The edit context must have the sync warning field.' );
+			return $data['knabbel_sync_warning'];
 		} finally {
 			wp_set_current_user( $previous_user );
 		}
