@@ -552,7 +552,7 @@ function story_base_date( \WP_Post $post ): string {
 /**
  * Reports whether a post should have a story: published or scheduled, with Radio News on.
  *
- * @since 2.0.1
+ * @since 2.1.1
  * @param \WP_Post $post The post.
  * @return bool True when the post should have a story.
  */
@@ -739,7 +739,7 @@ function ajax_test_api(): void {
  * A save while the worker runs leaves the Scheduled state (written by the save that queued the run) or the
  * worker's Processing state to the worker, so the worker must clean it up itself.
  *
- * @since 2.0.1
+ * @since 2.1.1
  * @param int         $post_id The post ID.
  * @param StoryStatus $status  The status the state must still have; a state with another status was written later and stays.
  * @return \WP_Post|null The post, or null when it should no longer have a story. The state is deleted only when it still has $status.
@@ -778,7 +778,7 @@ function recheck_story_post( int $post_id, StoryStatus $status ): ?\WP_Post {
  * @since 1.0.0 Sends the post ID as external ID and takes over the story of a create whose answer was lost.
  * @since 1.1.0 Records the generation input in the story metadata.
  * @since 2.0.1 Warns the editor when the AI step fails or is not available, unless the post went offline or was switched off meanwhile.
- * @since 2.0.1 Clears the state instead of writing an error when the post was switched off before the run or went offline or was
+ * @since 2.1.1 Clears the state instead of writing an error when the post was switched off before the run or went offline or was
  *              switched off during a failed create, and stops before the AI step for a post that went offline before the run.
  * @param int $post_id The WordPress post ID.
  */

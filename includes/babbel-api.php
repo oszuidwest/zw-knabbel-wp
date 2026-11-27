@@ -221,7 +221,7 @@ function babbel_make_authenticated_request( string $url, array $args = array() )
  * @since 0.1.0
  * @since 0.8.0 Reports Problem Details errors and requires an integer story ID.
  * @since 1.0.0 Sends the external ID and link, and reports a duplicate external ID.
- * @since 2.0.1 Logs errors with the post ID.
+ * @since 2.1.1 Logs errors with the post ID.
  * @param array<string, mixed> $story_data The story data to send.
  * @return array{success: bool, message: string, story_id?: string, duplicate?: bool} Response with success status and message.
  *
