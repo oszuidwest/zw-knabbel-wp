@@ -227,11 +227,12 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 	$should_remove = ! $send_to_babbel || ! $active_status;
 
 	// A failed delete leaves the story sent and a failed restore leaves it deleted. Once the post wants that state
-	// again, there is nothing to retry, so the error goes. Compared with the state read, so a newer write stays.
+	// again, the failed delete or restore has nothing left to do, so its error goes. A pending update keeps the error:
+	// the next save sends it. Writes only if the stored state is still $state, so a newer write is kept.
 	$failed_operation = get_story_sync_error( $state )['operation'] ?? null;
 	if ( $should_remove
 		? 'restore' === $failed_operation && StoryStatus::Deleted->value === $status
-		: 'delete' === $failed_operation && StoryStatus::Sent->value === $status
+		: 'delete' === $failed_operation && StoryStatus::Sent->value === $status && ! isset( $state['pending_update'] )
 	) {
 		update_story_state( $post_id, array( 'last_sync_error' => null ), $state );
 	}
