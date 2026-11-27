@@ -325,7 +325,8 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 		update_story_state(
 			$post_id,
 			array(
-				'last_sync_error' => build_story_sync_error( $result['message'], 'update' ),
+				// Saving again sends the same update to the same deleted story.
+				'last_sync_error' => build_story_sync_error( $result['message'], 'update', ! ( $result['deleted'] ?? false ) ),
 				'pending_update'  => $update_data,
 			)
 		);

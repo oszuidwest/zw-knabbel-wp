@@ -1361,6 +1361,13 @@ final class Knabbel_E2E_Suite {
 			$view = $get( 'view' )->get_data();
 			$this->assert_same( false, array_key_exists( 'knabbel_sync_warning', $view ), 'The view context must not show the sync error.' );
 
+			// An error stored before 2.0.1 has no flag; most of those are retried.
+			$legacy = KnabbelWP\build_story_sync_error( 'E2E old failure', 'update' );
+			unset( $legacy['retry'] );
+			KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => $legacy ) );
+			$legacy_warning = $get( 'edit' )->get_data()['knabbel_sync_warning'] ?? array();
+			$this->assert_same( true, $legacy_warning['retry'] ?? null, 'An error stored without a flag must offer the retry.' );
+
 			wp_set_current_user( 0 );
 			$view = $get( 'view' )->get_data();
 			$this->assert_same( false, array_key_exists( 'knabbel_sync_warning', $view ), 'A visitor must not see the sync error.' );

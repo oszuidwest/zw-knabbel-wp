@@ -129,16 +129,6 @@ function babbel_clear_session_cache(): void {
 }
 
 /**
- * Returns the message for an update to a story deleted in Babbel.
- *
- * @since 2.0.1
- * @return string Translated error message.
- */
-function babbel_story_deleted_message(): string {
-	return __( 'This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again.', 'zw-knabbel-wp' );
-}
-
-/**
  * Formats a Babbel error response.
  *
  * Babbel reports errors as RFC 9457 Problem Details; field errors from
@@ -155,7 +145,7 @@ function babbel_story_deleted_message(): string {
 function babbel_error_message( int $code, string $body ): string {
 	$problem = json_decode( $body, true );
 	if ( 'story.deleted' === ( $problem['code'] ?? null ) ) {
-		return babbel_story_deleted_message();
+		return __( 'This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again.', 'zw-knabbel-wp' );
 	}
 	if ( is_array( $problem ) && is_string( $problem['detail'] ?? null ) ) {
 		$detail       = $problem['detail'];
@@ -440,9 +430,10 @@ function babbel_test_connection(): array {
  *
  * @since 0.2.0
  * @since 0.8.0 Reports Problem Details errors.
+ * @since 2.0.1 Reports a story deleted in Babbel.
  * @param string                                                                        $story_id   The Babbel story ID.
  * @param array{title?: string, start_date?: string, end_date?: string, weekdays?: int} $story_data The story data to update.
- * @return array{success: bool, message: string} Response with success status and message.
+ * @return array{success: bool, message: string, deleted?: bool} Response with success status and message.
  *
  * @phpstan-param StoryUpdateData $story_data
  * @phpstan-return BabbelApiResponse
@@ -517,6 +508,7 @@ function babbel_update_story( string $story_id, array $story_data ): array {
 		return array(
 			'success' => false,
 			'message' => babbel_error_message( $response_code, $body ),
+			'deleted' => 'story.deleted' === ( json_decode( $body, true )['code'] ?? null ),
 		);
 	}
 

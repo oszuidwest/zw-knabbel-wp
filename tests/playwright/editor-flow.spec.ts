@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import {
     BABBEL_ADMIN,
@@ -23,19 +23,33 @@ const originalContent =
 const generatedText = 'Deterministische E2E-radiospreektekst.';
 const retryHint = 'Save the post to try again.';
 
-async function setBabbelPassword(page: Page, password: string): Promise<void> {
-    await page.goto(
-        '/wp-admin/options-general.php?page=zw-knabbel-wp-settings',
-    );
-    await page
-        .locator('[name="knabbel_settings[api_password]"]')
-        .fill(password);
+const settingsURL = '/wp-admin/options-general.php?page=zw-knabbel-wp-settings';
+
+async function submitSettings(page: Page): Promise<void> {
     await Promise.all([
         page.waitForURL(
             /\/wp-admin\/options-general\.php\?page=zw-knabbel-wp-settings/,
         ),
         page.locator('button[form="knabbel-settings-form"]').click(),
     ]);
+}
+
+async function setBabbelPassword(page: Page, password: string): Promise<void> {
+    await page.goto(settingsURL);
+    await page
+        .locator('[name="knabbel_settings[api_password]"]')
+        .fill(password);
+    await submitSettings(page);
+}
+
+function syncNotices(page: Page): { inline: Locator; top: Locator } {
+    return {
+        inline: page.locator('.knabbel-sync-notice'),
+        // Core's notice at the top of the editor, outside the sidebar.
+        top: page
+            .locator('.components-notice:not(.knabbel-sync-notice)')
+            .filter({ hasText: 'Babbel was not updated' }),
+    };
 }
 
 test.describe
@@ -50,9 +64,7 @@ test.describe
         test('beheerder configureert en test de integratie via Instellingen', async ({
             page,
         }) => {
-            await page.goto(
-                '/wp-admin/options-general.php?page=zw-knabbel-wp-settings',
-            );
+            await page.goto(settingsURL);
 
             const settings = {
                 api_base_url: 'http://babbel:8080/api/v1',
@@ -77,12 +89,7 @@ test.describe
                     .click();
             }
 
-            await Promise.all([
-                page.waitForURL(
-                    /\/wp-admin\/options-general\.php\?page=zw-knabbel-wp-settings/,
-                ),
-                page.locator('button[form="knabbel-settings-form"]').click(),
-            ]);
+            await submitSettings(page);
             await expect(
                 page.locator('[name="knabbel_settings[api_base_url]"]'),
             ).toHaveValue('http://babbel:8080/api/v1');
@@ -186,11 +193,7 @@ test.describe
         test('redacteur ziet een Babbel-fout direct na opslaan en herstelt het verhaal', async ({
             page,
         }) => {
-            const inline = page.locator('.knabbel-sync-notice');
-            // Core's notice at the top of the editor, outside the sidebar.
-            const top = page
-                .locator('.components-notice:not(.knabbel-sync-notice)')
-                .filter({ hasText: 'Babbel was not updated' });
+            const { inline, top } = syncNotices(page);
 
             await openEditor(page, postID);
             await expect(radioNewsButton(page)).toBeVisible();
@@ -241,10 +244,7 @@ test.describe
         test('redacteur leest bij een gewone Babbel-fout dat opslaan het opnieuw probeert', async ({
             page,
         }) => {
-            const inline = page.locator('.knabbel-sync-notice');
-            const top = page
-                .locator('.components-notice:not(.knabbel-sync-notice)')
-                .filter({ hasText: 'Babbel was not updated' });
+            const { inline, top } = syncNotices(page);
             const message =
                 'API connection failed: Login failed: API error: HTTP 401 - Invalid username or password';
 
