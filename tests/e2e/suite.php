@@ -1299,6 +1299,12 @@ final class Knabbel_E2E_Suite {
 		$state = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Switching on must keep the story sent.' );
 		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Switching on must clear a delete error.' );
+		// Only a delete error goes: an update error stored without a pending update (older data) stays.
+		KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E oude updatefout', 'update' ) ) );
+		KnabbelWP\sync_story_state( $post_id );
+		$kept = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
+		$this->assert_same( 'update', $kept['operation'] ?? null, 'A sync must keep an update error.' );
+		KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => null ) );
 
 		$this->configure_plugin();
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
