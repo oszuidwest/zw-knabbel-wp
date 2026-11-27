@@ -723,6 +723,31 @@ function ajax_test_api(): void {
 }
 
 /**
+ * Re-reads the post for the story worker, and clears the state the worker left if the post should have no story.
+ *
+ * A save leaves Scheduled or Processing to the running worker, and one before the worker wrote it found nothing to
+ * clean up. A state with another status was written later and stays.
+ *
+ * @since 2.0.1
+ * @param int         $post_id The post ID.
+ * @param StoryStatus $status  The status the worker left.
+ * @return \WP_Post|null The post, or null when it is no longer published or scheduled with Radio News on.
+ */
+function get_story_worker_post( int $post_id, StoryStatus $status ): ?\WP_Post {
+	clean_post_cache( $post_id );
+	$post = get_post( $post_id );
+	if ( $post && in_array( $post->post_status, array( 'publish', 'future' ), true ) && get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true ) ) {
+		return $post;
+	}
+
+	$current = get_story_state( $post_id );
+	if ( ( $current['status'] ?? '' ) === $status->value ) {
+		delete_story_state( $post_id, $current );
+	}
+	return null;
+}
+
+/**
  * Generates and sends a story through Action Scheduler.
  *
  * @since 0.1.0
@@ -732,6 +757,7 @@ function ajax_test_api(): void {
  * @since 1.0.0 Sends the post ID as external ID and takes over the story of a create whose answer was lost.
  * @since 1.1.0 Records the generation input in the story metadata.
  * @since 2.0.1 Warns the editor when the AI step fails or is not available, unless the post went offline or was switched off meanwhile.
+ * @since 2.0.1 Clears the state instead of writing an error when the post went offline or was switched off before the run or during a failed create.
  * @param int $post_id The WordPress post ID.
  */
 function process_story_async( int $post_id ): void {
@@ -761,16 +787,9 @@ function process_story_async( int $post_id ): void {
 		return;
 	}
 
-	// Check if still enabled for this post.
-	$send_to_babbel = get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true );
-	if ( ! $send_to_babbel ) {
-		update_story_state(
-			$post_id,
-			array(
-				'status'  => \KnabbelWP\StoryStatus::Error->value,
-				'message' => __( 'Send to Babbel is disabled for this post', 'zw-knabbel-wp' ),
-			)
-		);
+	// The post may have gone offline or been switched off since the save that queued this run.
+	$post = get_story_worker_post( $post_id, StoryStatus::Scheduled );
+	if ( ! $post ) {
 		return;
 	}
 
@@ -789,14 +808,8 @@ function process_story_async( int $post_id ): void {
 	$generated = ai_generate_content( $content, $post_id );
 
 	// Generating takes a while, and an editor may have rescheduled, unpublished or disabled the post meanwhile.
-	clean_post_cache( $post_id );
-	$post = get_post( $post_id );
-	if ( ! $post || ! in_array( $post->post_status, array( 'publish', 'future' ), true ) || ! get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true ) ) {
-		// A save leaves Processing to the running worker, and one before this run wrote it found nothing to clean up.
-		$current = get_story_state( $post_id );
-		if ( StoryStatus::Processing->value === ( $current['status'] ?? null ) ) {
-			delete_story_state( $post_id, $current );
-		}
+	$post = get_story_worker_post( $post_id, StoryStatus::Processing );
+	if ( ! $post ) {
 		return;
 	}
 
@@ -876,6 +889,10 @@ function process_story_async( int $post_id ): void {
 	}
 
 	if ( null === $state ) {
+		// The create call takes a while too, and a post that went offline or was switched off meanwhile gets no warning.
+		if ( ! get_story_worker_post( $post_id, StoryStatus::Processing ) ) {
+			return;
+		}
 		update_story_state(
 			$post_id,
 			array(
