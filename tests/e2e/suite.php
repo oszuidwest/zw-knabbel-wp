@@ -1100,12 +1100,8 @@ final class Knabbel_E2E_Suite {
 		require_once KNABBEL_PLUGIN_DIR . 'includes/admin/metabox.php';
 		$metabox = static function () use ( $processing_id ): string {
 			ob_start();
-			try {
-				KnabbelWP\metabox_render_status( get_post( $processing_id ) );
-			} finally {
-				$html = (string) ob_get_clean();
-			}
-			return $html;
+			KnabbelWP\metabox_render_status( get_post( $processing_id ) );
+			return (string) ob_get_clean();
 		};
 		$pending = $metabox();
 		$this->assert_same( true, str_contains( $pending, 'Scheduled:' ), 'The debug metabox must show a pending action.' );
