@@ -747,13 +747,64 @@ final class Knabbel_E2E_Suite {
 		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same( 'create', $error['operation'] ?? null, 'AI provider failure must identify the operation.' );
 		$this->assert_same( 'Could not generate speech text', $error['message'] ?? null, 'The sync error must carry the AI failure message.' );
+		$this->assert_same( 'Could not generate speech text', $this->get_sync_warning_field( $post_id ), 'An editor must get the AI failure warning.' );
 
-		update_option( 'knabbel_e2e_ai_mode', 'success', false );
+		// While a retry is queued or running the old warning is hidden, but it stays stored.
 		$this->update_post( $post_id, array() );
-		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		$this->assert_story_status( $post_id, StoryStatus::Scheduled, 'A save after an AI failure must queue a retry.' );
+		$this->assert_same( null, $this->get_sync_warning_field( $post_id ), 'A queued retry must hide the old warning.' );
+		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
+		$this->assert_same( 'Could not generate speech text', $error['message'] ?? null, 'A queued retry must keep the stored error.' );
+		// The retry succeeds; the capture runs before the AI stub answers.
+		update_option( 'knabbel_e2e_ai_mode', 'success', false );
+		$during_retry = array();
+		$capture      = function ( false|array|WP_Error $pre, array $args, string $url ) use ( &$during_retry, $post_id ): false|array|WP_Error {
+			if ( 'https://api.openai.com/v1/responses' === $url ) {
+				$during_retry[] = array( KnabbelWP\get_story_state( $post_id )['status'] ?? null, $this->get_sync_warning_field( $post_id ) );
+			}
+			return $pre;
+		};
+		add_filter( 'pre_http_request', $capture, 5, 3 );
+		try {
+			$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		} finally {
+			remove_filter( 'pre_http_request', $capture, 5 );
+		}
+		$this->assert_same( array( StoryStatus::Processing->value, null ), $during_retry[0] ?? null, 'A running retry must hide the old warning.' );
 		$this->assert_story_status( $post_id, StoryStatus::Sent, 'A save after an AI failure must retry the story.' );
 		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same( null, $error, 'A successful retry must clear the AI failure warning.' );
+
+		// A scheduled or processing state without a pending or running action is stale (a dead worker), so its error shows.
+		$args = array( 'post_id' => $post_id );
+		foreach ( array( StoryStatus::Scheduled, StoryStatus::Processing ) as $stale_status ) {
+			KnabbelWP\update_story_state(
+				$post_id,
+				array(
+					'status'          => $stale_status->value,
+					'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E stale failure', 'create' ),
+				)
+			);
+			$this->assert_same( false, as_has_scheduled_action( self::STORY_HOOK, $args, self::ACTION_GROUP ), 'Precondition: no action.' );
+			$this->assert_same( 'E2E stale failure', $this->get_sync_warning_field( $post_id ), "A stale {$stale_status->value} state must show its error." );
+		}
+
+		// A retry more than 10 minutes late means a stalled queue, so the error shows.
+		as_schedule_single_action( time() - HOUR_IN_SECONDS, self::STORY_HOOK, $args, self::ACTION_GROUP );
+		try {
+			$this->assert_same( 'E2E stale failure', $this->get_sync_warning_field( $post_id ), 'A retry that is an hour late must show the error.' );
+		} finally {
+			as_unschedule_all_actions( self::STORY_HOOK, $args, self::ACTION_GROUP );
+		}
+
+		// Only a retry hides the error: a sent story with an error and a pending action still shows it.
+		KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Sent->value ) );
+		as_schedule_single_action( time() + HOUR_IN_SECONDS, self::STORY_HOOK, $args, self::ACTION_GROUP );
+		try {
+			$this->assert_same( 'E2E stale failure', $this->get_sync_warning_field( $post_id ), 'A sent story must show its error with an action queued.' );
+		} finally {
+			as_unschedule_all_actions( self::STORY_HOOK, $args, self::ACTION_GROUP );
+		}
 
 		// Radio News switched off during the AI step: a failure then leaves no state, so no warning.
 		update_option( 'knabbel_e2e_ai_mode', 'error', false );
@@ -1647,6 +1698,28 @@ final class Knabbel_E2E_Suite {
 		$result = wp_update_post( array_merge( array( 'ID' => $post_id ), $updates ), true );
 		if ( is_wp_error( $result ) ) {
 			throw new RuntimeException( 'Could not update test post: ' . $result->get_error_message() );
+		}
+	}
+
+	/**
+	 * Returns the sync warning an editor gets from the REST API.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return mixed The knabbel_sync_warning field.
+	 */
+	private function get_sync_warning_field( int $post_id ): mixed {
+		$previous_user = get_current_user_id();
+		wp_set_current_user( (int) get_user_by( 'login', 'admin' )->ID );
+		try {
+			$request = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
+			$request->set_param( 'context', 'edit' );
+			$response = rest_do_request( $request );
+			$this->assert_same( 200, $response->get_status(), 'The editor must be able to read the post.' );
+			$data = $response->get_data();
+			$this->assert_same( true, array_key_exists( 'knabbel_sync_warning', $data ), 'The edit context must have the sync warning field.' );
+			return $data['knabbel_sync_warning'];
+		} finally {
+			wp_set_current_user( $previous_user );
 		}
 	}
 
