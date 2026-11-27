@@ -1410,6 +1410,9 @@ final class Knabbel_E2E_Suite {
 		$this->save_with_update_during_lookup( $post_id, $story_id, 'E2E titel zonder antwoord', '2030-01-01', true );
 		KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E verwijderfout', 'delete' ) ) );
 		$this->save_with_update_during_lookup( $post_id, $story_id, 'E2E titel tijdens het opzoeken', '2030-02-01', false );
+		// Without a pending update, a confirming lookup clears the delete error by itself.
+		KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E verwijderfout', 'delete' ) ) );
+		KnabbelWP\sync_story_state( $post_id );
 		$state = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Switching on must keep the story sent.' );
 		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Switching on must clear a delete error.' );
