@@ -4,10 +4,14 @@ import {
     babbelStoryStatus,
     controlStory,
     currentPostID,
+    deleteBabbelStory,
     disposeBabbelContext,
     getBabbelStory,
+    openEditor,
+    radioNewsButton,
     savePost,
     setBabbelEnabled,
+    setSidebar,
 } from './utils';
 
 const runID = Date.now().toString();
@@ -91,27 +95,44 @@ test.describe
         test('redacteur publiceert een bericht en laat de wachtrij het naar Babbel sturen', async ({
             page,
         }) => {
-            await page.goto('/wp-admin/post-new.php');
-            await page.locator('#title').fill(originalTitle);
-            await page.locator('#content-html').click();
-            await page.locator('#content').fill(originalContent);
+            await openEditor(page);
+            await page.evaluate(
+                ({ title, content }) => {
+                    const { blocks, data } = window.wp;
+                    data.dispatch('core/editor').editPost({
+                        title,
+                        status: 'publish',
+                    });
+                    data.dispatch('core/block-editor').insertBlocks(
+                        blocks.createBlock('core/paragraph', { content }),
+                        undefined,
+                        undefined,
+                        // Keep the Post tab open in the sidebar.
+                        false,
+                    );
+                },
+                { title: originalTitle, content: originalContent },
+            );
             await setBabbelEnabled(page, true);
 
             await savePost(page);
-            postID = currentPostID(page);
-            await expect(
-                page.locator('.knabbel-status-badge.scheduled'),
-            ).toBeVisible();
+            postID = await currentPostID(page);
+            expect(
+                (await controlStory(page, postID, 'inspect')).state.status,
+            ).toBe('scheduled');
 
             const result = await controlStory(page, postID, 'run');
             expect(result.state.story_id).toBeTruthy();
             storyID = result.state.story_id || '';
 
-            await page.reload();
+            await openEditor(page, postID);
             await expect(
                 page.locator('.knabbel-status-badge.sent'),
-            ).toBeVisible();
-            await expect(page.locator('#knabbel_send_to_babbel')).toBeChecked();
+            ).toBeAttached();
+            await expect(radioNewsButton(page)).toHaveAttribute(
+                'aria-pressed',
+                'true',
+            );
 
             const story = await getBabbelStory(storyID);
             expect(story.title).toBe(originalTitle);
@@ -122,22 +143,95 @@ test.describe
         test('redacteur schakelt Babbel uit en herstelt daarna hetzelfde verhaal', async ({
             page,
         }) => {
-            await page.goto(`/wp-admin/post.php?post=${postID}&action=edit`);
+            await openEditor(page, postID);
             await setBabbelEnabled(page, false);
             await savePost(page);
-            await expect(
-                page.locator('.knabbel-status-badge.deleted'),
-            ).toBeVisible();
+            expect(
+                (await controlStory(page, postID, 'inspect')).state.status,
+            ).toBe('deleted');
 
             expect(await babbelStoryStatus(storyID)).toBe(404);
 
-            await page.reload();
+            await openEditor(page, postID);
+            await expect(radioNewsButton(page)).toHaveAttribute(
+                'aria-pressed',
+                'false',
+            );
             await setBabbelEnabled(page, true);
             await savePost(page);
-            await expect(
-                page.locator('.knabbel-status-badge.sent'),
-            ).toBeVisible();
+            expect(
+                (await controlStory(page, postID, 'inspect')).state.status,
+            ).toBe('sent');
 
             await getBabbelStory(storyID);
+        });
+
+        test('redacteur ziet een Babbel-fout direct na opslaan en herstelt het verhaal', async ({
+            page,
+        }) => {
+            const inline = page.locator('.knabbel-sync-notice');
+            // Core's notice at the top of the editor, outside the sidebar.
+            const top = page
+                .locator('.components-notice:not(.knabbel-sync-notice)')
+                .filter({ hasText: 'Babbel was not updated' });
+
+            await openEditor(page, postID);
+            await expect(radioNewsButton(page)).toBeVisible();
+            await expect(inline).toHaveCount(0);
+            await expect(top).toHaveCount(0);
+
+            // The story disappears in Babbel; the next update fails in this
+            // save. With the sidebar closed only the top notice can show it.
+            await setSidebar(page, false);
+            await expect(radioNewsButton(page)).toHaveCount(0);
+            await deleteBabbelStory(storyID);
+            await page.evaluate(() =>
+                window.wp.data
+                    .dispatch('core/editor')
+                    .editPost({ title: 'Browser E2E bericht bijgewerkt' }),
+            );
+            await savePost(page);
+            await expect(top).toBeVisible();
+            await expect(top).toContainText(
+                'This story was deleted in Babbel.',
+            );
+
+            // A stored error shows when the editor opens, in both places.
+            await openEditor(page, postID);
+            await setSidebar(page, true);
+            await expect(inline).toContainText('Babbel was not updated');
+            await expect(inline).toContainText(
+                'This story was deleted in Babbel.',
+            );
+            await expect(top).toBeVisible();
+
+            // The way back the warning describes.
+            await setBabbelEnabled(page, false);
+            await savePost(page);
+            await setBabbelEnabled(page, true);
+            await savePost(page);
+            await expect(inline).toHaveCount(0);
+            await expect(top).toHaveCount(0);
+            expect(
+                (await controlStory(page, postID, 'inspect')).state.status,
+            ).toBe('sent');
+            await getBabbelStory(storyID);
+        });
+
+        test('de Radionieuws-regel staat alleen bij berichten', async ({
+            page,
+        }) => {
+            await page.goto('/wp-admin/post-new.php?post_type=page');
+            await page.waitForFunction(() =>
+                window.wp?.data?.select('core/editor')?.getCurrentPostId(),
+            );
+            await setSidebar(page, true);
+            // Core's own Summary rows are drawn by then.
+            await expect(
+                page.locator('.editor-post-panel__row').first(),
+            ).toBeVisible();
+            // Not by role: a welcome guide can hide the sidebar from the
+            // accessibility tree, which would make this pass without checking.
+            await expect(page.locator('.knabbel-post-status')).toHaveCount(0);
         });
     });

@@ -21,8 +21,26 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Registers post and metadata hooks.
  *
  * @since 0.2.0
+ * @since 2.0.0 Registers the Radio News meta for REST and the sync warning REST field.
  */
 function register_post_hooks(): void {
+	// The Radio News switch. The block editor saves it through REST.
+	register_post_meta(
+		'post',
+		'_zw_knabbel_send_to_babbel',
+		array(
+			'type'              => 'boolean',
+			'single'            => true,
+			'default'           => false,
+			'show_in_rest'      => true,
+			'sanitize_callback' => static fn( mixed $value ): int => (int) filter_var( $value, FILTER_VALIDATE_BOOLEAN ),
+			'auth_callback'     => static fn( $allowed, $meta_key, $post_id ): bool => current_user_can( 'edit_post', $post_id ),
+		)
+	);
+
+	// The block editor shows the last sync error; it comes back with every save response.
+	add_action( 'rest_api_init', __NAMESPACE__ . '\\register_sync_warning_field' );
+
 	add_action( 'wp_after_insert_post', __NAMESPACE__ . '\\handle_post_saved', 10, 4 );
 
 	// Meta change hooks for REST API and CLI support.
@@ -32,11 +50,38 @@ function register_post_hooks(): void {
 }
 
 /**
- * Reconciles state after a checkbox change.
+ * Adds the last Babbel sync error of a post to its REST response.
+ *
+ * Only in the edit context, so the message is not public.
+ *
+ * @since 2.0.0
+ */
+function register_sync_warning_field(): void {
+	register_rest_field(
+		'post',
+		'knabbel_sync_warning',
+		array(
+			'get_callback' => static function ( array $post ): ?string {
+				// A request with _fields can leave out the id; the controller sets up the global post.
+				$post_id = (int) ( $post['id'] ?? get_the_ID() );
+				return get_story_sync_error( get_story_state( $post_id ) )['message'] ?? null;
+			},
+			'schema'       => array(
+				'description' => __( 'Last Babbel sync error of the post.', 'zw-knabbel-wp' ),
+				'type'        => array( 'string', 'null' ),
+				'context'     => array( 'edit' ),
+				'readonly'    => true,
+			),
+		)
+	);
+}
+
+/**
+ * Reconciles state after a Radio News change.
  *
  * WordPress only fires the added/updated/deleted metadata actions after the
  * requested change has succeeded, so reconciliation can read the current
- * checkbox value directly.
+ * Radio News value directly.
  *
  * @since 0.5.0
  *

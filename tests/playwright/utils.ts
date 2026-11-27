@@ -2,6 +2,7 @@ import {
     type APIRequestContext,
     type APIResponse,
     expect,
+    type Locator,
     type Page,
     request,
 } from '@playwright/test';
@@ -77,36 +78,58 @@ export async function login(page: Page): Promise<void> {
     await expect(page).toHaveURL(/\/wp-admin\//);
 }
 
-export async function savePost(page: Page): Promise<void> {
-    const postResponse = page.waitForResponse(
-        (response) =>
-            response.request().method() === 'POST' &&
-            new URL(response.url()).pathname === '/wp-admin/post.php',
-    );
-    const navigation = page.waitForEvent(
-        'framenavigated',
-        (frame) => frame === page.mainFrame(),
-    );
-
-    const [response] = await Promise.all([
-        postResponse,
-        navigation,
-        page.locator('#publish').evaluate((button: HTMLInputElement) => {
-            if (!button.form) {
-                throw new Error(
-                    'The publish button is not associated with a form.',
-                );
-            }
-            button.form.requestSubmit(button);
-        }),
-    ]);
-    await expectResponseOk(response, 'Post save failed.');
-    await expect(page).toHaveURL(/\/wp-admin\/post\.php\?post=\d+&action=edit/);
-    await expect(page.locator('#publish')).toBeVisible();
+declare global {
+    interface Window {
+        // biome-ignore lint/suspicious/noExplicitAny: WordPress script globals.
+        wp: any;
+    }
 }
 
-export function currentPostID(page: Page): number {
-    const postID = Number(new URL(page.url()).searchParams.get('post'));
+/**
+ * Open a post, or a new one without an ID, in the block editor and wait until
+ * it is ready.
+ */
+export async function openEditor(page: Page, postID?: number): Promise<void> {
+    await page.goto(
+        postID
+            ? `/wp-admin/post.php?post=${postID}&action=edit`
+            : '/wp-admin/post-new.php',
+    );
+    await page.waitForFunction(() =>
+        window.wp?.data?.select('core/editor')?.getCurrentPostId(),
+    );
+    // The welcome guide covers the editor on the first visit.
+    await page.evaluate(() =>
+        window.wp.data
+            .dispatch('core/preferences')
+            .set('core/edit-post', 'welcomeGuide', false),
+    );
+}
+
+/**
+ * Save the post through the editor store, as the Publish and Save buttons do.
+ */
+export async function savePost(page: Page): Promise<void> {
+    const result = await page.evaluate(async () => {
+        const { dispatch, select } = window.wp.data;
+        await dispatch('core/editor').savePost();
+        const editor = select('core/editor');
+        return {
+            failed: editor.didPostSaveRequestFail(),
+            // savePost() returns without a request when there is nothing to save.
+            dirty: editor.isEditedPostDirty(),
+        };
+    });
+    expect(result, 'Post save failed.').toEqual({
+        failed: false,
+        dirty: false,
+    });
+}
+
+export async function currentPostID(page: Page): Promise<number> {
+    const postID = await page.evaluate(() =>
+        window.wp.data.select('core/editor').getCurrentPostId(),
+    );
     expect(postID).toBeGreaterThan(0);
 
     return postID;
@@ -116,23 +139,44 @@ export async function setBabbelEnabled(
     page: Page,
     enabled: boolean,
 ): Promise<void> {
-    const checkbox = page.locator('#knabbel_send_to_babbel');
-    const toggle = page.locator('.misc-pub-knabbel .knabbel-submitbox-toggle');
+    const button = radioNewsButton(page);
 
-    await expect(toggle).toBeVisible();
-    await expect(checkbox).toBeEnabled();
-
-    if ((await checkbox.isChecked()) !== enabled) {
-        await toggle.click();
+    await expect(button).toBeVisible();
+    if ((await button.getAttribute('aria-pressed')) !== String(enabled)) {
+        await button.click();
     }
-    await expect(checkbox).toBeChecked({ checked: enabled });
-    await expect(
-        toggle.locator(
-            enabled
-                ? '.knabbel-submitbox-toggle-enabled'
-                : '.knabbel-submitbox-toggle-disabled',
-        ),
-    ).toBeVisible();
+    await expect(button).toHaveAttribute('aria-pressed', String(enabled));
+    await expect(button).toHaveText(enabled ? 'Yes' : 'No');
+}
+
+/**
+ * Open or close the editor's settings sidebar. The choice is stored per user,
+ * so it carries over to the next editor that opens.
+ */
+export async function setSidebar(page: Page, open: boolean): Promise<void> {
+    await page.evaluate((show) => {
+        const area = window.wp.data.dispatch('core/interface');
+        if (show) {
+            area.enableComplementaryArea('core', 'edit-post/document');
+        } else {
+            area.disableComplementaryArea('core');
+        }
+    }, open);
+}
+
+export function radioNewsButton(page: Page): Locator {
+    return page.getByRole('button', { name: 'Radio News', exact: true });
+}
+
+/**
+ * Delete a story in Babbel itself, outside WordPress.
+ */
+export async function deleteBabbelStory(storyID: string): Promise<void> {
+    const response = await babbelRequest(
+        `/stories/${encodeURIComponent(storyID)}`,
+        { method: 'DELETE' },
+    );
+    expect(response.status(), await response.text()).toBe(204);
 }
 
 export async function controlStory(
@@ -140,7 +184,9 @@ export async function controlStory(
     postID: number,
     operation: 'inspect' | 'run',
 ): Promise<ControlResult> {
-    const nonce = await page.locator('#knabbel_nonce').inputValue();
+    const nonce = await page.evaluate(
+        () => window.wp.apiFetch.nonceMiddleware.nonce,
+    );
     const response = await page.request.post('/wp-admin/admin-ajax.php', {
         form: {
             action: 'knabbel_e2e_control',

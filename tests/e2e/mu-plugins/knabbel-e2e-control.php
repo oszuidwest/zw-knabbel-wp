@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Knabbel E2E Control
- * Description: Deterministic editor and Action Scheduler controls for PHP and browser E2E tests.
+ * Description: Deterministic Action Scheduler controls for PHP and browser E2E tests.
  *
  * @package KnabbelWP
  */
@@ -15,14 +15,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 if ( ! function_exists( 'wp_get_environment_type' ) || 'local' !== wp_get_environment_type() ) {
 	return;
 }
-
-// The browser suite exercises the plugin's classic metabox integration.
-add_filter(
-	'use_block_editor_for_post_type',
-	static fn( bool $use_block_editor, string $post_type ): bool => 'post' === $post_type ? false : $use_block_editor,
-	10,
-	2
-);
 
 /**
  * Runs due actions and fails on errors.
@@ -74,7 +66,8 @@ function knabbel_e2e_run_due_actions( string $hook, string $group, ?array $args 
 add_action(
 	'wp_ajax_knabbel_e2e_control',
 	static function (): void {
-		check_ajax_referer( 'knabbel_metabox_nonce', 'nonce' );
+		// The browser suite sends the REST nonce the block editor already has.
+		check_ajax_referer( 'wp_rest', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( array( 'message' => 'Insufficient permissions.' ), 403 );

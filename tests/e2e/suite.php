@@ -88,6 +88,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-018', 'stored Unix timestamps retain their meaning after serialization', $this->test_stored_datetime_formatting( ... ) );
 		$this->run_case( 'E2E-019', 'a story deleted in Babbel tells the editor what to do on update', $this->test_story_deleted_in_babbel( ... ) );
 		$this->run_case( 'E2E-021', 'a create whose answer was lost is taken over, unless it was deleted in Babbel', $this->test_lost_create_answer( ... ) );
+		$this->run_case( 'E2E-022', 'the sync warning REST field is only in the edit context', $this->test_sync_warning_rest_field( ... ) );
 		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
@@ -1301,6 +1302,46 @@ final class Knabbel_E2E_Suite {
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_same( 'E2E bewerking na verwijdering', $this->get_babbel_story( $story_id )['title'] ?? null, 'The toggle must restore the story.' );
 		$this->assert_story_window( $story_id, 'now', 'The toggle must give the story the current window.' );
+	}
+
+	/**
+	 * Verifies that the sync error is only in the edit context: an editor gets it, the view context and a visitor do not.
+	 */
+	private function test_sync_warning_rest_field(): void {
+		$post_id = $this->create_draft( 'E2E syncfout in REST', 'Het blokeditorveld toont de laatste syncfout.' );
+		wp_update_post(
+			array(
+				'ID'          => $post_id,
+				'post_status' => 'publish',
+			)
+		);
+		KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E REST failure', 'update' ) ) );
+
+		$get = static function ( string $context ) use ( $post_id ): WP_REST_Response {
+			$request = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
+			$request->set_param( 'context', $context );
+			return rest_do_request( $request );
+		};
+
+		$previous_user = get_current_user_id();
+		try {
+			wp_set_current_user( (int) get_user_by( 'login', 'admin' )->ID );
+			$this->assert_same( 'E2E REST failure', $get( 'edit' )->get_data()['knabbel_sync_warning'] ?? null, 'An editor must get the sync error.' );
+			$only = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
+			$only->set_param( 'context', 'edit' );
+			$only->set_param( '_fields', 'knabbel_sync_warning' );
+			$only_data = rest_get_server()->response_to_data( rest_do_request( $only ), false );
+			$this->assert_same( 'E2E REST failure', $only_data['knabbel_sync_warning'] ?? null, 'Only asking for the field must still give the error.' );
+			$view = $get( 'view' )->get_data();
+			$this->assert_same( false, array_key_exists( 'knabbel_sync_warning', $view ), 'The view context must not show the sync error.' );
+
+			wp_set_current_user( 0 );
+			$view = $get( 'view' )->get_data();
+			$this->assert_same( false, array_key_exists( 'knabbel_sync_warning', $view ), 'A visitor must not see the sync error.' );
+			$this->assert_same( 401, $get( 'edit' )->get_status(), 'A visitor must not get the edit context.' );
+		} finally {
+			wp_set_current_user( $previous_user );
+		}
 	}
 
 	/**

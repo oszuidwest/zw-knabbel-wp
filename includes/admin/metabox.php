@@ -1,9 +1,9 @@
 <?php
 /**
- * Admin metabox integration for the post editor.
+ * Debug status metabox for the post editor.
  *
- * Provides the post editor metabox UI for sending posts to the Babbel API.
- * This file is only loaded in admin context.
+ * Shows the story state of a post in Debug Mode. The Radio News control is in
+ * includes/admin/block-editor.php. This file is only loaded in admin context.
  *
  * @package KnabbelWP
  * @since   0.1.0
@@ -21,11 +21,10 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Registers the admin-only metabox hooks.
  *
  * @since 0.1.0
+ * @since 2.0.0 No longer adds the Publish box control and its save handler.
  */
 function metabox_init(): void {
-	add_action( 'post_submitbox_misc_actions', __NAMESPACE__ . '\\submitbox_render' );
 	add_action( 'add_meta_boxes', __NAMESPACE__ . '\\metabox_add_status' );
-	add_action( 'save_post', __NAMESPACE__ . '\\metabox_save' );
 	add_action( 'admin_enqueue_scripts', __NAMESPACE__ . '\\metabox_enqueue_assets' );
 }
 
@@ -67,49 +66,6 @@ function metabox_add_status(): void {
 		'side',
 		'default'
 	);
-}
-
-/**
- * Displays the Radionieuws control in the Publish metabox.
- *
- * @since 0.6.0
- *
- * @param \WP_Post $post The current post object.
- */
-function submitbox_render( \WP_Post $post ): void {
-	if ( 'post' !== $post->post_type ) {
-		return;
-	}
-
-	$send_to_babbel = (bool) get_post_meta( $post->ID, '_zw_knabbel_send_to_babbel', true );
-	$state          = get_story_state( $post->ID );
-	$sync_error     = get_story_sync_error( $state );
-
-	wp_nonce_field( 'knabbel_metabox_nonce', 'knabbel_nonce' );
-	?>
-	<div class="misc-pub-section misc-pub-knabbel">
-		<span class="dashicons dashicons-microphone" aria-hidden="true"></span>
-		<label for="knabbel_send_to_babbel"><?php esc_html_e( 'Radio News', 'zw-knabbel-wp' ); ?>:</label>
-		<input
-			type="checkbox"
-			id="knabbel_send_to_babbel"
-			name="knabbel_send_to_babbel"
-			value="1"
-			<?php checked( $send_to_babbel ); ?>
-		/>
-		<label class="knabbel-submitbox-toggle" for="knabbel_send_to_babbel">
-			<span class="knabbel-submitbox-toggle-enabled" aria-hidden="true"><?php esc_html_e( 'Yes', 'zw-knabbel-wp' ); ?></span>
-			<span class="knabbel-submitbox-toggle-disabled" aria-hidden="true"><?php esc_html_e( 'No', 'zw-knabbel-wp' ); ?></span>
-		</label>
-
-		<?php if ( null !== $sync_error ) : ?>
-			<div class="knabbel-sync-warning" role="alert">
-				<strong><?php esc_html_e( 'Babbel sync warning', 'zw-knabbel-wp' ); ?></strong>
-				<div><?php echo esc_html( $sync_error['message'] ); ?></div>
-			</div>
-		<?php endif; ?>
-	</div>
-	<?php
 }
 
 /**
@@ -183,45 +139,4 @@ function metabox_render_status( \WP_Post $post ): void {
 			<?php endif; ?>
 		</ul>
 		<?php
-}
-
-/**
- * Saves the Radionieuws checkbox state.
- *
- * The post-meta and post-save hooks reconcile story state after WordPress has
- * persisted the checkbox and post status.
- *
- * @since 0.1.0
- *
- * @param int $post_id The post ID being saved.
- */
-function metabox_save( int $post_id ): void {
-	// Skip revisions - they don't have our metabox.
-	if ( wp_is_post_revision( $post_id ) ) {
-		return;
-	}
-
-	// Only handle 'post' post type - our metabox is only registered there.
-	if ( 'post' !== get_post_type( $post_id ) ) {
-		return;
-	}
-
-	if (
-		! isset( $_POST['knabbel_nonce'] ) ||
-		! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['knabbel_nonce'] ) ), 'knabbel_metabox_nonce' )
-	) {
-		return;
-	}
-
-	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-		return;
-	}
-
-	if ( ! current_user_can( 'edit_post', $post_id ) ) {
-		return;
-	}
-
-	// Save new checkbox state.
-	$send_to_babbel = isset( $_POST['knabbel_send_to_babbel'] ) ? 1 : 0;
-	update_post_meta( $post_id, '_zw_knabbel_send_to_babbel', $send_to_babbel );
 }
