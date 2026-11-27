@@ -90,6 +90,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-021', 'a create whose answer was lost is taken over, unless it was deleted in Babbel', $this->test_lost_create_answer( ... ) );
 		$this->run_case( 'E2E-022', 'the sync warning REST field is only in the edit context', $this->test_sync_warning_rest_field( ... ) );
 		$this->run_case( 'E2E-023', 'a REST save that changes Radio News calls Babbel once', $this->test_rest_save_syncs_once( ... ) );
+		$this->run_case( 'E2E-024', 'a delete or restore error goes once the post wants the state it left', $this->test_settled_sync_errors_clear( ... ) );
 		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
@@ -1441,6 +1442,55 @@ final class Knabbel_E2E_Suite {
 			remove_filter( 'pre_http_request', $babbel, 1 );
 			wp_set_current_user( $previous_user );
 		}
+	}
+
+	/**
+	 * Verifies that a failed delete or restore stops warning once the post wants the story state it left behind, while
+	 * an update error with a pending update stays until it is sent.
+	 */
+	private function test_settled_sync_errors_clear(): void {
+		list( $post_id, $story_id ) = $this->create_sent_story(
+			'E2E opgeloste synchronisatiefout',
+			'Een fout bij verwijderen of herstellen verdwijnt zodra het bericht weer de staat van het verhaal wil.'
+		);
+
+		$title = 'E2E opgeloste synchronisatiefout nieuwe titel';
+
+		// An update error is retried on the next save, so a sync that sends nothing keeps it.
+		$this->configure_plugin( 'wrong-update-password' );
+		$this->update_post( $post_id, array( 'post_title' => $title ) );
+		$this->configure_plugin();
+		KnabbelWP\sync_story_state( $post_id );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'update' );
+		$pending = KnabbelWP\get_story_state( $post_id )['pending_update'] ?? array();
+		$this->assert_same( $title, $pending['title'] ?? null, 'A sync that sends nothing must keep the pending update.' );
+
+		// Babbel refuses the delete, so the story stays sent. Switching on again needs no Babbel call, so it works while Babbel still refuses.
+		$this->configure_plugin( 'wrong-delete-password' );
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Switching on after a failed delete must keep the story sent.' );
+		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Switching on after a failed delete must clear the delete error.' );
+		$this->assert_same( $title, $state['pending_update']['title'] ?? null, 'Clearing a delete error must keep the pending update.' );
+		$this->configure_plugin();
+		$this->assert_babbel_response_code( 200, 'GET', '/stories/' . $story_id );
+		$this->update_post( $post_id, array( 'post_content' => 'Een gewone opslag stuurt de bewaarde titel alsnog naar Babbel.' ) );
+		$this->assert_same( $title, $this->get_babbel_story( $story_id )['title'] ?? null, 'The next save must send the pending update.' );
+
+		// Babbel refuses the restore, so the story stays deleted. Switching off again needs no Babbel call either.
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Precondition: the story must be deleted before the failed restore.' );
+		$this->configure_plugin( 'wrong-restore-password' );
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Deleted, 'restore' );
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->configure_plugin();
+		$this->assert_same( StoryStatus::Deleted->value, $state['status'] ?? null, 'Switching off after a failed restore must keep the story deleted.' );
+		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Switching off after a failed restore must clear the restore error.' );
+		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 	}
 
 	/**

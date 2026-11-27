@@ -205,6 +205,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
  * trigger reconciliation after WordPress has persisted the relevant change.
  *
  * @since 0.5.0
+ * @since 2.0.1 Clears a delete or restore error that no longer applies.
  *
  * @param int           $post_id     Post ID.
  * @param \WP_Post|null $post_before Post state before a save, when available.
@@ -224,6 +225,15 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 	// A story only exists while the post is published or scheduled. An untrashed post returns as a draft,
 	// and a delete that failed is retried on the next save.
 	$should_remove = ! $send_to_babbel || ! $active_status;
+
+	// A failed delete leaves the story sent and a failed restore leaves it deleted. Once the post wants that state
+	// again, there is nothing to retry, so the error goes. Compared with the state read, so a newer write stays.
+	$settled_status    = $should_remove ? StoryStatus::Deleted->value : StoryStatus::Sent->value;
+	$settled_operation = $should_remove ? 'restore' : 'delete';
+	$failed_operation  = get_story_sync_error( $state )['operation'] ?? null;
+	if ( $settled_status === $status && $settled_operation === $failed_operation ) {
+		update_story_state( $post_id, array( 'last_sync_error' => null ), $state );
+	}
 
 	if ( $should_remove ) {
 		if ( $story_id && in_array( $status, array( StoryStatus::Sent->value, StoryStatus::Error->value ), true ) ) {
