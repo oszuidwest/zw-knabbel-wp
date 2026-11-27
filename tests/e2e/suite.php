@@ -90,6 +90,8 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-021', 'a create whose answer was lost is taken over, unless it was deleted in Babbel', $this->test_lost_create_answer( ... ) );
 		$this->run_case( 'E2E-022', 'the sync warning REST field is only in the edit context', $this->test_sync_warning_rest_field( ... ) );
 		$this->run_case( 'E2E-023', 'a REST save that changes Radio News calls Babbel once', $this->test_rest_save_syncs_once( ... ) );
+		$this->run_case( 'E2E-024', 'clearing the story state keeps a state written after it was read', $this->test_state_delete_keeps_newer_state( ... ) );
+		$this->run_case( 'E2E-025', 'a failed create leaves no error once the post should have no story', $this->test_create_error_cleared_offline( ... ) );
 		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
@@ -553,6 +555,20 @@ final class Knabbel_E2E_Suite {
 			'update',
 			'API connection failed: Login failed: API error: HTTP 401 - Invalid username or password'
 		);
+		// A sync without a save makes no HTTP call and keeps the update error.
+		$babbel_calls = 0;
+		$count_calls  = static function ( false|array|WP_Error $pre ) use ( &$babbel_calls ): false|array|WP_Error {
+			++$babbel_calls;
+			return $pre;
+		};
+		add_filter( 'pre_http_request', $count_calls );
+		try {
+			KnabbelWP\sync_story_state( $this->published_post_id );
+		} finally {
+			remove_filter( 'pre_http_request', $count_calls );
+		}
+		$this->assert_same( 0, $babbel_calls, 'A sync without a save must not call Babbel.' );
+		$this->assert_sync_failure_preserved( $this->published_post_id, $this->published_story_id, StoryStatus::Sent, 'update' );
 		$connection = KnabbelWP\babbel_test_connection();
 		$this->assert_same( false, $connection['success'], 'Connection test must fail with wrong credentials.' );
 		$this->assert_same(
@@ -1355,21 +1371,87 @@ final class Knabbel_E2E_Suite {
 			'Mislukte synchronisatieovergangen moeten zonder verlies van lifecycle-state opnieuw uitvoerbaar blijven.'
 		);
 
+		// A failed update leaves a pending update; a failed delete then replaces its error.
+		$pending_title = 'E2E verwijder- en herstelfout bijgewerkt';
+		$this->configure_plugin( 'wrong-update-password' );
+		$this->update_post( $post_id, array( 'post_title' => $pending_title ) );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'update' );
 		$this->configure_plugin( 'wrong-delete-password' );
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
 		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
 		$this->assert_babbel_response_code( 200, 'GET', '/stories/' . $story_id );
 
-		$this->configure_plugin();
+		// Switching on again: the pending update still has to go, so the error stays until a save sends it.
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
+		$this->configure_plugin();
+		$this->update_post( $post_id, array() );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'The save that sends the pending update must clear the error.' );
+		$this->assert_same( true, ! isset( $state['pending_update'] ), 'The save must send the pending update.' );
+		$this->assert_same( $pending_title, $this->get_babbel_story( $story_id )['title'] ?? null, 'The save must send the pending title.' );
+
+		// Without a pending update, switching on clears the delete error once Babbel confirms the story is still there.
+		$this->configure_plugin( 'wrong-delete-password' );
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
-		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'A retried delete must reach deleted state.' );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
+		$this->configure_plugin();
+		// A delete whose answer was lost but that went through: Babbel has it deleted, so the error stays.
+		$this->assert_babbel_response_code( 204, 'DELETE', '/stories/' . $story_id );
+		KnabbelWP\sync_story_state( $post_id );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
+		$this->restore_babbel_story( $story_id );
+		// Babbel's story for this post has another ID than the stored one, so the error stays.
+		KnabbelWP\update_story_state( $post_id, array( 'story_id' => '999999' ) );
+		KnabbelWP\sync_story_state( $post_id );
+		$this->assert_sync_failure_preserved( $post_id, '999999', StoryStatus::Sent, 'delete' );
+		KnabbelWP\update_story_state( $post_id, array( 'story_id' => $story_id ) );
+		// Another save stores a pending update during the lookup, so this sync starts again and sends both changes.
+		// Without an answer from Babbel the sync writes nothing, so only the state check sees the change.
+		$this->save_with_update_during_lookup( $post_id, $story_id, 'E2E titel zonder antwoord', '2030-01-01', true );
+		KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E verwijderfout', 'delete' ) ) );
+		$this->save_with_update_during_lookup( $post_id, $story_id, 'E2E titel tijdens het opzoeken', '2030-02-01', false );
+		// Without a pending update, a confirming lookup clears the delete error by itself.
+		KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E verwijderfout', 'delete' ) ) );
+		KnabbelWP\sync_story_state( $post_id );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Switching on must keep the story sent.' );
+		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Switching on must clear a delete error.' );
+		// Only a delete error goes: an update error stored without a pending update (older data) stays.
+		KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E oude updatefout', 'update' ) ) );
+		KnabbelWP\sync_story_state( $post_id );
+		$kept = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
+		$this->assert_same( 'update', $kept['operation'] ?? null, 'A sync must keep an update error.' );
+		KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => null ) );
+
+		$this->configure_plugin();
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'A delete after the cleared error must reach deleted state.' );
 		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 
 		$this->configure_plugin( 'wrong-restore-password' );
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Deleted, 'restore' );
 		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
+		// Switching off leaves nothing to restore, so the error goes once Babbel confirms the story is still deleted.
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Deleted, 'restore' );
+		$this->configure_plugin();
+		// A restore whose answer was lost but that went through: Babbel has it back, so the error stays.
+		$this->restore_babbel_story( $story_id );
+		KnabbelWP\sync_story_state( $post_id );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Deleted, 'restore' );
+		$this->assert_babbel_response_code( 204, 'DELETE', '/stories/' . $story_id );
+		KnabbelWP\sync_story_state( $post_id );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( StoryStatus::Deleted->value, $state['status'] ?? null, 'Switching off must keep the story deleted.' );
+		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Switching off must clear a restore error.' );
+		// Switching on again fails the restore again.
+		$this->configure_plugin( 'wrong-restore-password' );
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Deleted, 'restore' );
 
 		$this->configure_plugin();
 		$retry_title = 'E2E verwijder- en herstelfout hersteld';
@@ -1445,6 +1527,32 @@ final class Knabbel_E2E_Suite {
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_same( 'E2E bewerking na verwijdering', $this->get_babbel_story( $story_id )['title'] ?? null, 'The toggle must restore the story.' );
 		$this->assert_story_window( $story_id, 'now', 'The toggle must give the story the current window.' );
+	}
+
+	/**
+	 * Verifies that switching off or unpublishing clears the error of a failed create.
+	 */
+	private function test_create_error_cleared_offline(): void {
+		$this->configure_plugin( 'wrong-create-password' );
+		foreach ( array( 'checkbox', 'unpublish' ) as $offline_via ) {
+			$post_id = $this->create_enabled_draft(
+				'E2E mislukte create ' . $offline_via,
+				'Een story die Babbel niet aanmaakte, laat geen fout achter als het bericht offline gaat.'
+			);
+			$this->publish_and_process( $post_id );
+			$state = KnabbelWP\get_story_state( $post_id );
+			$this->assert_same( StoryStatus::Error->value, $state['status'] ?? null, 'Precondition: the create must fail.' );
+			$this->assert_same( 'create', $state['last_sync_error']['operation'] ?? null, 'Precondition: the create failure must leave a sync error.' );
+
+			if ( 'checkbox' === $offline_via ) {
+				update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+			} else {
+				$this->update_post( $post_id, array( 'post_status' => 'draft' ) );
+			}
+
+			$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), $offline_via . ' must clear the error state and its sync error.' );
+		}
+		$this->configure_plugin();
 	}
 
 	/**
@@ -1574,6 +1682,118 @@ final class Knabbel_E2E_Suite {
 			remove_filter( 'pre_http_request', $babbel, 1 );
 			wp_set_current_user( $previous_user );
 		}
+	}
+
+	/**
+	 * Verifies that clearing the story state keeps a state another request wrote after it was read, in a save and in the
+	 * worker, still clears a state with a backslash in its message, and refreshes cached post queries.
+	 */
+	private function test_state_delete_keeps_newer_state(): void {
+		$target = 0;
+		$armed  = null;
+		// Once armed, the next read of the target's state sees the old state while another request writes a sent one.
+		$write_after_read = static function ( mixed $value, int $object_id, string $meta_key ) use ( &$target, &$armed ): mixed {
+			if ( ! $armed || $target !== $object_id || '_zw_knabbel_story_state' !== $meta_key ) {
+				return $value;
+			}
+			$armed = false;
+			$read  = get_post_meta( $object_id, $meta_key, true );
+			$GLOBALS['wpdb']->update(
+				$GLOBALS['wpdb']->postmeta,
+				array(
+					'meta_value' => maybe_serialize(
+						array(
+							'status'   => StoryStatus::Sent->value,
+							'story_id' => 'e2e-written-meanwhile',
+						)
+					),
+				),
+				array(
+					'post_id'  => $object_id,
+					'meta_key' => $meta_key,
+				)
+			);
+			return array( $read );
+		};
+
+		$arm = static function () use ( &$armed ): void {
+			$armed = true;
+		};
+
+		add_filter( 'get_post_metadata', $write_after_read, 10, 3 );
+		try {
+			// A save that switches off a scheduled story reads the state again after it cancels the action.
+			$target = $this->create_draft( 'E2E opruimen na nieuwe state', 'Een state die een worker net schreef, blijft staan als een opslag opruimt.' );
+			$this->update_post( $target, array( 'post_status' => 'publish' ) );
+			update_post_meta( $target, self::SEND_TO_BABBEL_META_KEY, 1 );
+			$this->assert_story_status( $target, StoryStatus::Scheduled, 'Precondition: enabling must schedule the story.' );
+			add_action( 'action_scheduler_canceled_action', $arm );
+			try {
+				update_post_meta( $target, self::SEND_TO_BABBEL_META_KEY, 0 );
+			} finally {
+				remove_action( 'action_scheduler_canceled_action', $arm );
+			}
+			$this->assert_same( false, $armed, 'Precondition: the save must read the state again after canceling the action.' );
+			$this->assert_same(
+				'e2e-written-meanwhile',
+				KnabbelWP\get_story_state( $target )['story_id'] ?? null,
+				'A save must keep a state written after it read the state.'
+			);
+
+			// The worker's freshness check after generating, for a post that went offline meanwhile.
+			$armed   = null;
+			$post_id = $this->process_with_edit_during_request(
+				'E2E worker ruimt op na nieuwe state',
+				static function ( int $id ) use ( &$target, &$armed ): void {
+					$GLOBALS['wpdb']->update( $GLOBALS['wpdb']->posts, array( 'post_status' => 'draft' ), array( 'ID' => $id ) );
+					$target = $id;
+					$armed  = true;
+				}
+			);
+			$this->assert_same( false, $armed, 'Precondition: the worker must read the state after generating.' );
+			$this->assert_same(
+				'e2e-written-meanwhile',
+				KnabbelWP\get_story_state( $post_id )['story_id'] ?? null,
+				'The worker must keep a state written after it read the state.'
+			);
+		} finally {
+			remove_filter( 'get_post_metadata', $write_after_read, 10 );
+		}
+
+		// update_story_state() with $expected stores the backslashes as is; delete_post_meta() would unslash the value and
+		// match nothing.
+		$post_id = $this->create_draft( 'E2E opruimen met backslash', 'Een state met een backslash in de melding wordt ook opgeruimd.' );
+		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		KnabbelWP\update_story_state( $post_id, array( 'message' => 'E2E fout in C:\knabbel\babbel' ), KnabbelWP\get_story_state( $post_id ) );
+		$this->assert_same(
+			'E2E fout in C:\knabbel\babbel',
+			KnabbelWP\get_story_state( $post_id )['message'] ?? null,
+			'Precondition: the message must keep its backslashes.'
+		);
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), 'Switching off must delete a state with a backslash in its message.' );
+
+		// A delete refreshes cached queries on the meta key, as the deleted_post_meta hook does.
+		$post_id = $this->create_draft( 'E2E opruimen in query-cache', 'Een opgeruimde state verdwijnt ook uit een gecachete query.' );
+		KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Scheduled->value ) );
+		$with_state = static fn(): array => ( new WP_Query(
+			array(
+				'post_type'      => 'post',
+				'post_status'    => 'any',
+				'fields'         => 'ids',
+				'posts_per_page' => -1,
+				'meta_query'     => array(
+					array(
+						'key'     => '_zw_knabbel_story_state',
+						'compare' => 'EXISTS',
+					),
+				), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+			)
+		) )->posts;
+		$this->assert_same( true, in_array( $post_id, $with_state(), true ), 'Precondition: the query must list the post.' );
+		KnabbelWP\delete_story_state( $post_id, KnabbelWP\get_story_state( $post_id ) );
+		$this->assert_same( false, in_array( $post_id, $with_state(), true ), 'A cached query must not list the post after its state is deleted.' );
 	}
 
 	/**
@@ -2018,6 +2238,51 @@ final class Knabbel_E2E_Suite {
 				static fn( array $story ): bool => ( $story['title'] ?? null ) === $title
 			)
 		);
+	}
+
+	/**
+	 * Saves a new title while another save stores a pending update during the Babbel lookup.
+	 *
+	 * @param int    $post_id     Post ID with a delete error on a sent story.
+	 * @param string $story_id    Story ID.
+	 * @param string $title       Title of this save.
+	 * @param string $start_date  Start date in the other save's pending update.
+	 * @param bool   $fail_lookup Whether the lookup gets no answer from Babbel.
+	 */
+	private function save_with_update_during_lookup( int $post_id, string $story_id, string $title, string $start_date, bool $fail_lookup ): void {
+		$pending = array(
+			'start_date' => $start_date,
+			'end_date'   => gmdate( 'Y-m-d', strtotime( $start_date . ' +1 day' ) ),
+		);
+		$lookup  = static function ( false|array|WP_Error $pre, array $args, string $url ) use ( &$lookup, $post_id, $pending, $fail_lookup ) {
+			if ( ! str_contains( $url, 'external_id' ) ) {
+				return $pre;
+			}
+			remove_filter( 'pre_http_request', $lookup, 5 );
+			KnabbelWP\update_story_state( $post_id, array( 'pending_update' => $pending ) );
+			return $fail_lookup ? new WP_Error( 'http_request_failed', 'E2E timeout' ) : $pre;
+		};
+		add_filter( 'pre_http_request', $lookup, 5, 3 );
+		try {
+			$this->update_post( $post_id, array( 'post_title' => $title ) );
+		} finally {
+			remove_filter( 'pre_http_request', $lookup, 5 );
+		}
+		$story = $this->get_babbel_story( $story_id );
+		$this->assert_same( $title, $story['title'] ?? null, 'The restarted sync must send the title of this save.' );
+		$this->assert_same( $start_date, $this->date_only( $story['start_date'] ?? '' ), 'The restarted sync must send the other pending update.' );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( true, ! isset( $state['pending_update'] ), 'The restarted sync must clear the pending update it sent.' );
+	}
+
+	/**
+	 * Restores a deleted story in Babbel, outside the plugin.
+	 *
+	 * @param string $story_id Story ID.
+	 */
+	private function restore_babbel_story( string $story_id ): void {
+		$response = $this->babbel_request( 'PATCH', '/stories/' . $story_id, array( 'deleted_at' => '' ) );
+		$this->assert_same( 200, wp_remote_retrieve_response_code( $response ), 'Babbel must restore the story.' );
 	}
 
 	/**

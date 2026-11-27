@@ -231,11 +231,14 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
  * trigger reconciliation after WordPress has persisted the relevant change.
  *
  * @since 0.5.0
+ * @since 2.0.1 Also clears an error without a known story ID when the post should not have a story.
+ * @since 2.0.1 Clears a delete or restore error that no longer applies, once Babbel confirms the story state.
  *
  * @param int           $post_id     Post ID.
  * @param \WP_Post|null $post_before Post state before a save, when available.
+ * @param bool          $restarted   Whether this sync started again after a Babbel lookup, because the state changed or its clear failed.
  */
-function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
+function sync_story_state( int $post_id, ?\WP_Post $post_before = null, bool $restarted = false ): void {
 	$post = get_post( $post_id );
 	// Revisions and autosaves have post type 'revision', so this also excludes them.
 	if ( ! $post || 'post' !== $post->post_type ) {
@@ -250,6 +253,38 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 	// A story only exists while the post is published or scheduled. An untrashed post returns as a draft,
 	// and a delete that failed is retried on the next save.
 	$should_remove = ! $send_to_babbel || ! $active_status;
+
+	// A failed delete leaves the story sent and a failed restore leaves it deleted. Once the post wants that state
+	// again, the failed delete or restore has nothing left to do, so its error goes once Babbel confirms that state.
+	// A pending update keeps the error: the next save sends it. Writes only if the stored state is still $state, so a
+	// newer write is kept.
+	$failed_operation = get_story_sync_error( $state )['operation'] ?? null;
+	if ( $should_remove
+		? 'restore' === $failed_operation && StoryStatus::Deleted->value === $status
+		: 'delete' === $failed_operation && StoryStatus::Sent->value === $status && ! isset( $state['pending_update'] )
+	) {
+		// A delete or restore whose answer was lost may still have gone through. A story Babbel cannot find, for
+		// example one made before stories had an external ID, keeps its error.
+		$found     = babbel_find_story_by_external_id( (string) $post_id, story_external_url( $post_id ) );
+		$confirmed = ! is_wp_error( $found ) && $story_id === $found['story_id'] && $should_remove === $found['deleted'];
+		// Another save can write a newer state during the lookup, such as a pending update. Going on with the post and
+		// state read before it would send an older post and drop that update, so the sync starts again, once.
+		wp_cache_delete( $post_id, 'post_meta' );
+		if ( get_story_state( $post_id ) !== $state
+			|| ( $confirmed && ! update_story_state( $post_id, array( 'last_sync_error' => null ), $state ) )
+		) {
+			if ( $restarted ) {
+				log( 'info', 'PostHooks', 'The story state changed again or could not be written, so this sync stops', array( 'post_id' => $post_id ) );
+				return;
+			}
+			wp_cache_delete( $post_id, 'posts' );
+			sync_story_state( $post_id, $post_before, true );
+			return;
+		}
+		if ( ! $confirmed ) {
+			log( 'info', 'PostHooks', 'Babbel did not confirm the story state, so the sync error stays', array( 'post_id' => $post_id ) );
+		}
+	}
 
 	if ( $should_remove ) {
 		if ( $story_id && in_array( $status, array( StoryStatus::Sent->value, StoryStatus::Error->value ), true ) ) {
@@ -268,17 +303,19 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 			}
 
 			push_story_delete( $post_id, $story_id, $message, $context );
-		} elseif ( in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
-			// Only these states can have a pending processing action.
+		} elseif ( in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value, StoryStatus::Error->value ), true ) ) {
+			// Cancel pending processing and clear the state. An error here has no known story ID, but a
+			// create whose answer was lost may still have left a story in Babbel (#141).
 			\as_unschedule_all_actions( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
-			// A running worker catches up after its create call, and deleting the state could drop the story ID it just wrote.
+			// A running worker catches up after a successful create, and deleting the state could drop the story ID it just wrote.
 			if ( \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' ) ) {
 				return;
 			}
 			// A worker may have finished since the state was read.
 			wp_cache_delete( $post_id, 'post_meta' );
-			if ( ( get_story_state( $post_id )['status'] ?? '' ) === $status ) {
-				delete_post_meta( $post_id, '_zw_knabbel_story_state' );
+			$current = get_story_state( $post_id );
+			if ( ( $current['status'] ?? '' ) === $status ) {
+				delete_story_state( $post_id, $current );
 			}
 		}
 		return;
