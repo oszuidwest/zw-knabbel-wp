@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ZuidWest Knabbel 2.0.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/zw-knabbel-wp\n"
-"POT-Creation-Date: 2026-11-27T11:58:00+00:00\n"
+"POT-Creation-Date: 2026-11-27T12:48:15+00:00\n"
 "PO-Revision-Date: 2026-08-11T14:51:44+00:00\n"
 "Last-Translator: Remon Mens\n"
 "Language-Team: Dutch\n"
@@ -427,39 +427,39 @@ msgstr "Babbel API basis-URL niet geconfigureerd"
 msgid "Its link does not point to this post on this site"
 msgstr "De link wijst niet naar dit bericht op deze site"
 
-#: includes/post-hooks.php:70
+#: includes/post-hooks.php:84
 msgid "Last Babbel sync error of the post."
 msgstr "Laatste Babbel-synchronisatiefout van het bericht."
 
-#: includes/post-hooks.php:148
+#: includes/post-hooks.php:241
 msgid "Story deleted from Babbel"
 msgstr "Verhaal verwijderd uit Babbel"
 
-#: includes/post-hooks.php:151
+#: includes/post-hooks.php:244
 msgid "Story deleted (post trashed)"
 msgstr "Verhaal verwijderd (bericht in prullenbak)"
 
-#: includes/post-hooks.php:154
+#: includes/post-hooks.php:247
 msgid "Story deleted (post unscheduled)"
 msgstr "Verhaal verwijderd (bericht niet meer ingepland)"
 
-#: includes/post-hooks.php:157
+#: includes/post-hooks.php:250
 msgid "Story deleted (post unpublished)"
 msgstr "Verhaal verwijderd (bericht niet meer gepubliceerd)"
 
-#: includes/post-hooks.php:210
+#: includes/post-hooks.php:303
 msgid "Story updated (post published)"
 msgstr "Verhaal bijgewerkt (bericht gepubliceerd)"
 
-#: includes/post-hooks.php:227
+#: includes/post-hooks.php:320
 msgid "Story updated in Babbel"
 msgstr "Verhaal bijgewerkt in Babbel"
 
-#: includes/post-hooks.php:264
+#: includes/post-hooks.php:357
 msgid "Story restored in Babbel"
 msgstr "Verhaal hersteld in Babbel"
 
-#: includes/post-hooks.php:437
+#: includes/post-hooks.php:530
 msgid "Processing scheduled"
 msgstr "Verwerking ingepland"
 
