@@ -177,7 +177,7 @@ function ai_generate_content( string $content, int $current_post_id ): array|\WP
 		$result    = $supported ? $build_prompt()->generate_text_result() : null;
 
 		if ( null === $result ) {
-			log( 'error', 'AiHandler', 'WordPress AI Client does not support text generation for this prompt', array( 'post_id' => $current_post_id ) );
+			log( 'error', 'AiHandler', 'Text generation support check did not pass', array( 'post_id' => $current_post_id ) );
 		} elseif ( is_wp_error( $result ) ) {
 			log(
 				'error',

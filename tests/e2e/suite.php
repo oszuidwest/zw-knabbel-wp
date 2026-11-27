@@ -756,7 +756,7 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 1, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'The retry after failed support checks must call the provider once.' );
 		$this->assert_same( 4, $checks, 'Two blocked checks, then one check and one request.' );
 
-		// A request that failed means it is set up, even if the support checks before and after it fail.
+		// One support check passed, so the error is a failed request, even if the checks before and after it fail.
 		$post_id = $this->create_enabled_draft( $title . ' eerst mislukt', 'Een mislukte aanvraag gevolgd door een storing is geen ontbrekende instelling.' );
 		$checks  = 0;
 		$block   = static function ( bool $prevent ) use ( &$checks ): bool {
