@@ -2,6 +2,7 @@ import {
     type APIRequestContext,
     type APIResponse,
     expect,
+    type Locator,
     type Page,
     request,
 } from '@playwright/test';
@@ -109,12 +110,20 @@ export async function openEditor(page: Page, postID?: number): Promise<void> {
  * Save the post through the editor store, as the Publish and Save buttons do.
  */
 export async function savePost(page: Page): Promise<void> {
-    const failed = await page.evaluate(async () => {
+    const result = await page.evaluate(async () => {
         const { dispatch, select } = window.wp.data;
         await dispatch('core/editor').savePost();
-        return select('core/editor').didPostSaveRequestFail();
+        const editor = select('core/editor');
+        return {
+            failed: editor.didPostSaveRequestFail(),
+            // savePost() returns without a request when there is nothing to save.
+            dirty: editor.isEditedPostDirty(),
+        };
     });
-    expect(failed, 'Post save failed.').toBe(false);
+    expect(result, 'Post save failed.').toEqual({
+        failed: false,
+        dirty: false,
+    });
 }
 
 export async function currentPostID(page: Page): Promise<number> {
@@ -130,21 +139,50 @@ export async function setBabbelEnabled(
     page: Page,
     enabled: boolean,
 ): Promise<void> {
-    const button = page.getByRole('button', { name: /^Radio News: (Yes|No)$/ });
-    const value = enabled ? 'Yes' : 'No';
+    const button = radioNewsButton(page);
 
     await expect(button).toBeVisible();
-    if ((await button.textContent()) !== value) {
+    if ((await button.getAttribute('aria-pressed')) !== String(enabled)) {
         await button.click();
     }
-    await expect(button).toHaveText(value);
-    await expect(button).toHaveAccessibleName(`Radio News: ${value}`);
+    await expect(button).toHaveAttribute('aria-pressed', String(enabled));
+    await expect(button).toHaveText(enabled ? 'Yes' : 'No');
+}
+
+/**
+ * Open or close the editor's settings sidebar. The choice is stored per user,
+ * so it carries over to the next editor that opens.
+ */
+export async function setSidebar(page: Page, open: boolean): Promise<void> {
+    await page.evaluate((show) => {
+        const area = window.wp.data.dispatch('core/interface');
+        if (show) {
+            area.enableComplementaryArea('core', 'edit-post/document');
+        } else {
+            area.disableComplementaryArea('core');
+        }
+    }, open);
+}
+
+export function radioNewsButton(page: Page): Locator {
+    return page.getByRole('button', { name: 'Radio News', exact: true });
+}
+
+/**
+ * Delete a story in Babbel itself, outside WordPress.
+ */
+export async function deleteBabbelStory(storyID: string): Promise<void> {
+    const response = await babbelRequest(
+        `/stories/${encodeURIComponent(storyID)}`,
+        { method: 'DELETE' },
+    );
+    expect(response.status(), await response.text()).toBe(204);
 }
 
 export async function controlStory(
     page: Page,
     postID: number,
-    operation: 'inspect' | 'run' | 'sync_error',
+    operation: 'inspect' | 'run',
 ): Promise<ControlResult> {
     const nonce = await page.evaluate(
         () => window.wp.apiFetch.nonceMiddleware.nonce,

@@ -4,11 +4,14 @@ import {
     babbelStoryStatus,
     controlStory,
     currentPostID,
+    deleteBabbelStory,
     disposeBabbelContext,
     getBabbelStory,
     openEditor,
+    radioNewsButton,
     savePost,
     setBabbelEnabled,
+    setSidebar,
 } from './utils';
 
 const runID = Date.now().toString();
@@ -126,9 +129,10 @@ test.describe
             await expect(
                 page.locator('.knabbel-status-badge.sent'),
             ).toBeAttached();
-            await expect(
-                page.getByRole('button', { name: 'Radio News: Yes' }),
-            ).toBeVisible();
+            await expect(radioNewsButton(page)).toHaveAttribute(
+                'aria-pressed',
+                'true',
+            );
 
             const story = await getBabbelStory(storyID);
             expect(story.title).toBe(originalTitle);
@@ -149,9 +153,10 @@ test.describe
             expect(await babbelStoryStatus(storyID)).toBe(404);
 
             await openEditor(page, postID);
-            await expect(
-                page.getByRole('button', { name: 'Radio News: No' }),
-            ).toHaveText('No');
+            await expect(radioNewsButton(page)).toHaveAttribute(
+                'aria-pressed',
+                'false',
+            );
             await setBabbelEnabled(page, true);
             await savePost(page);
             expect(
@@ -161,27 +166,72 @@ test.describe
             await getBabbelStory(storyID);
         });
 
-        test('redacteur ziet na opslaan een Babbel-syncfout onder Radionieuws', async ({
+        test('redacteur ziet een Babbel-fout direct na opslaan en herstelt het verhaal', async ({
             page,
         }) => {
+            const inline = page.locator('.knabbel-sync-notice');
+            // Core's notice at the top of the editor, outside the sidebar.
+            const top = page
+                .locator('.components-notice:not(.knabbel-sync-notice)')
+                .filter({ hasText: 'Babbel was not updated' });
+
             await openEditor(page, postID);
-            const warning = page.locator(
-                '.knabbel-post-status .components-notice.is-warning',
-            );
-            await expect(warning).toHaveCount(0);
+            await expect(radioNewsButton(page)).toBeVisible();
+            await expect(inline).toHaveCount(0);
+            await expect(top).toHaveCount(0);
 
-            await controlStory(page, postID, 'sync_error');
-            await savePost(page);
-            await expect(warning).toContainText('Babbel sync warning');
-            await expect(warning).toContainText('E2E sync failure');
-
-            // A successful update clears it, also without a reload.
+            // The story disappears in Babbel; the next update fails in this
+            // save. With the sidebar closed only the top notice can show it.
+            await setSidebar(page, false);
+            await expect(radioNewsButton(page)).toHaveCount(0);
+            await deleteBabbelStory(storyID);
             await page.evaluate(() =>
                 window.wp.data
                     .dispatch('core/editor')
                     .editPost({ title: 'Browser E2E bericht bijgewerkt' }),
             );
             await savePost(page);
-            await expect(warning).toHaveCount(0);
+            await expect(top).toBeVisible();
+            await expect(top).toContainText(
+                'This story was deleted in Babbel.',
+            );
+
+            // A stored error shows when the editor opens, in both places.
+            await openEditor(page, postID);
+            await setSidebar(page, true);
+            await expect(inline).toContainText('Babbel was not updated');
+            await expect(inline).toContainText(
+                'This story was deleted in Babbel.',
+            );
+            await expect(top).toBeVisible();
+
+            // The way back the warning describes.
+            await setBabbelEnabled(page, false);
+            await savePost(page);
+            await setBabbelEnabled(page, true);
+            await savePost(page);
+            await expect(inline).toHaveCount(0);
+            await expect(top).toHaveCount(0);
+            expect(
+                (await controlStory(page, postID, 'inspect')).state.status,
+            ).toBe('sent');
+            await getBabbelStory(storyID);
+        });
+
+        test('de Radionieuws-regel staat alleen bij berichten', async ({
+            page,
+        }) => {
+            await page.goto('/wp-admin/post-new.php?post_type=page');
+            await page.waitForFunction(() =>
+                window.wp?.data?.select('core/editor')?.getCurrentPostId(),
+            );
+            await setSidebar(page, true);
+            // Core's own Summary rows are drawn by then.
+            await expect(
+                page.locator('.editor-post-panel__row').first(),
+            ).toBeVisible();
+            // Not by role: a welcome guide can hide the sidebar from the
+            // accessibility tree, which would make this pass without checking.
+            await expect(page.locator('.knabbel-post-status')).toHaveCount(0);
         });
     });

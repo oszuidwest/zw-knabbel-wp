@@ -21,6 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Registers post and metadata hooks.
  *
  * @since 0.2.0
+ * @since 2.0.0 Registers the Radio News meta for REST and the sync warning REST field.
  */
 function register_post_hooks(): void {
 	// The Radio News switch. The block editor saves it through REST.
@@ -32,7 +33,7 @@ function register_post_hooks(): void {
 			'single'            => true,
 			'default'           => false,
 			'show_in_rest'      => true,
-			'sanitize_callback' => static fn( $value ): int => $value ? 1 : 0,
+			'sanitize_callback' => static fn( mixed $value ): int => (int) filter_var( $value, FILTER_VALIDATE_BOOLEAN ),
 			'auth_callback'     => static fn( $allowed, $meta_key, $post_id ): bool => current_user_can( 'edit_post', $post_id ),
 		)
 	);
@@ -60,7 +61,11 @@ function register_sync_warning_field(): void {
 		'post',
 		'knabbel_sync_warning',
 		array(
-			'get_callback' => static fn( array $post ): ?string => get_story_sync_error( get_story_state( (int) $post['id'] ) )['message'] ?? null,
+			'get_callback' => static function ( array $post ): ?string {
+				// A request with _fields can leave out the id; the controller sets up the global post.
+				$post_id = (int) ( $post['id'] ?? get_the_ID() );
+				return get_story_sync_error( get_story_state( $post_id ) )['message'] ?? null;
+			},
 			'schema'       => array(
 				'description' => __( 'Last Babbel sync error of the post.', 'zw-knabbel-wp' ),
 				'type'        => array( 'string', 'null' ),
@@ -72,11 +77,11 @@ function register_sync_warning_field(): void {
 }
 
 /**
- * Reconciles state after a checkbox change.
+ * Reconciles state after a Radio News change.
  *
  * WordPress only fires the added/updated/deleted metadata actions after the
  * requested change has succeeded, so reconciliation can read the current
- * checkbox value directly.
+ * Radio News value directly.
  *
  * @since 0.5.0
  *

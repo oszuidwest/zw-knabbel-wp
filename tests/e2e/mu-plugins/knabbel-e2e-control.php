@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Knabbel E2E Control
- * Description: Deterministic Action Scheduler and story state controls for PHP and browser E2E tests.
+ * Description: Deterministic Action Scheduler controls for PHP and browser E2E tests.
  *
  * @package KnabbelWP
  */
@@ -81,9 +81,7 @@ add_action(
 		}
 
 		$processed = 0;
-		if ( 'sync_error' === $operation ) {
-			KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E sync failure', 'update' ) ) );
-		} elseif ( 'run' === $operation ) {
+		if ( 'run' === $operation ) {
 			try {
 				$processed = knabbel_e2e_run_due_actions( 'knabbel_process_story', 'zw-knabbel-wp', array( 'post_id' => $post_id ) );
 			} catch ( Throwable $e ) {

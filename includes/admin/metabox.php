@@ -21,6 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Registers the admin-only metabox hooks.
  *
  * @since 0.1.0
+ * @since 2.0.0 No longer adds the Publish box control and its save handler.
  */
 function metabox_init(): void {
 	add_action( 'add_meta_boxes', __NAMESPACE__ . '\\metabox_add_status' );

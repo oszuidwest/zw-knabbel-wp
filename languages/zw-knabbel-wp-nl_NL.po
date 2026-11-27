@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ZuidWest Knabbel 1.1.1\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/zw-knabbel-wp\n"
-"POT-Creation-Date: 2026-11-26T23:42:17+00:00\n"
+"POT-Creation-Date: 2026-11-27T09:21:32+00:00\n"
 "PO-Revision-Date: 2026-08-11T14:51:44+00:00\n"
 "Last-Translator: Remon Mens\n"
 "Language-Team: Dutch\n"
@@ -42,56 +42,56 @@ msgstr ""
 msgid "https://www.zuidwesttv.nl"
 msgstr ""
 
-#: includes/admin/block-editor.php:56
+#: includes/admin/block-editor.php:58
 msgid "Radio News"
 msgstr "Radionieuws"
 
-#: includes/admin/block-editor.php:57
+#: includes/admin/block-editor.php:59
 msgid "Yes"
 msgstr "Ja"
 
-#: includes/admin/block-editor.php:58
+#: includes/admin/block-editor.php:60
 msgid "No"
 msgstr "Nee"
 
-#: includes/admin/block-editor.php:59
-msgid "Babbel sync warning"
-msgstr "Waarschuwing bij Babbel-synchronisatie"
+#: includes/admin/block-editor.php:61
+msgid "Babbel was not updated"
+msgstr "Babbel is niet bijgewerkt"
 
-#: includes/admin/metabox.php:62
+#: includes/admin/metabox.php:63
 msgid "Knabbel Status"
 msgstr "Knabbel Status"
 
-#: includes/admin/metabox.php:88 includes/admin/settings.php:510
+#: includes/admin/metabox.php:89 includes/admin/settings.php:510
 #: includes/admin/settings.php:680
 msgid "Status"
 msgstr "Status"
 
-#: includes/admin/metabox.php:91
+#: includes/admin/metabox.php:92
 msgid "—"
 msgstr "—"
 
-#: includes/admin/metabox.php:97
+#: includes/admin/metabox.php:98
 msgid "Last status change:"
 msgstr "Laatste statuswijziging:"
 
-#: includes/admin/metabox.php:103
+#: includes/admin/metabox.php:104
 msgid "Story ID"
 msgstr "Verhaal-ID"
 
-#: includes/admin/metabox.php:109
+#: includes/admin/metabox.php:110
 msgid "Scheduled:"
 msgstr "Ingepland:"
 
-#: includes/admin/metabox.php:118 includes/admin/settings.php:718
+#: includes/admin/metabox.php:119 includes/admin/settings.php:718
 msgid "Last sync error"
 msgstr "Laatste synchronisatiefout"
 
-#: includes/admin/metabox.php:123 includes/admin/settings.php:723
+#: includes/admin/metabox.php:124 includes/admin/settings.php:723
 msgid "Operation"
 msgstr "Bewerking"
 
-#: includes/admin/metabox.php:135 includes/admin/settings.php:270
+#: includes/admin/metabox.php:136 includes/admin/settings.php:270
 #: includes/admin/settings.php:702 includes/admin/settings.php:707
 msgid "Message"
 msgstr "Bericht"
@@ -415,39 +415,39 @@ msgstr "Babbel API basis-URL niet geconfigureerd"
 msgid "Its link does not point to this post on this site"
 msgstr "De link wijst niet naar dit bericht op deze site"
 
-#: includes/post-hooks.php:65
+#: includes/post-hooks.php:67
 msgid "Last Babbel sync error of the post."
 msgstr "Laatste Babbel-synchronisatiefout van het bericht."
 
-#: includes/post-hooks.php:143
+#: includes/post-hooks.php:145
 msgid "Story deleted from Babbel"
 msgstr "Verhaal verwijderd uit Babbel"
 
-#: includes/post-hooks.php:146
+#: includes/post-hooks.php:148
 msgid "Story deleted (post trashed)"
 msgstr "Verhaal verwijderd (bericht in prullenbak)"
 
-#: includes/post-hooks.php:149
+#: includes/post-hooks.php:151
 msgid "Story deleted (post unscheduled)"
 msgstr "Verhaal verwijderd (bericht niet meer ingepland)"
 
-#: includes/post-hooks.php:152
+#: includes/post-hooks.php:154
 msgid "Story deleted (post unpublished)"
 msgstr "Verhaal verwijderd (bericht niet meer gepubliceerd)"
 
-#: includes/post-hooks.php:205
+#: includes/post-hooks.php:207
 msgid "Story updated (post published)"
 msgstr "Verhaal bijgewerkt (bericht gepubliceerd)"
 
-#: includes/post-hooks.php:222
+#: includes/post-hooks.php:224
 msgid "Story updated in Babbel"
 msgstr "Verhaal bijgewerkt in Babbel"
 
-#: includes/post-hooks.php:259
+#: includes/post-hooks.php:261
 msgid "Story restored in Babbel"
 msgstr "Verhaal hersteld in Babbel"
 
-#: includes/post-hooks.php:432
+#: includes/post-hooks.php:434
 msgid "Processing scheduled"
 msgstr "Verwerking ingepland"
 

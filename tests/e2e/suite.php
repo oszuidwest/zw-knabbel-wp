@@ -1305,7 +1305,7 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verifies that the block editor gets the last sync error, and nobody else does.
+	 * Verifies that the sync error is only in the edit context: an editor gets it, the view context and a visitor do not.
 	 */
 	private function test_sync_warning_rest_field(): void {
 		$post_id = $this->create_draft( 'E2E syncfout in REST', 'Het blokeditorveld toont de laatste syncfout.' );
@@ -1320,13 +1320,18 @@ final class Knabbel_E2E_Suite {
 		$get = static function ( string $context ) use ( $post_id ): WP_REST_Response {
 			$request = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
 			$request->set_param( 'context', $context );
-			return rest_ensure_response( rest_do_request( $request ) );
+			return rest_do_request( $request );
 		};
 
 		$previous_user = get_current_user_id();
 		try {
 			wp_set_current_user( (int) get_user_by( 'login', 'admin' )->ID );
 			$this->assert_same( 'E2E REST failure', $get( 'edit' )->get_data()['knabbel_sync_warning'] ?? null, 'An editor must get the sync error.' );
+			$only = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
+			$only->set_param( 'context', 'edit' );
+			$only->set_param( '_fields', 'knabbel_sync_warning' );
+			$only_data = rest_get_server()->response_to_data( rest_do_request( $only ), false );
+			$this->assert_same( 'E2E REST failure', $only_data['knabbel_sync_warning'] ?? null, 'Only asking for the field must still give the error.' );
 			$view = $get( 'view' )->get_data();
 			$this->assert_same( false, array_key_exists( 'knabbel_sync_warning', $view ), 'The view context must not show the sync error.' );
 

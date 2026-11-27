@@ -1,7 +1,8 @@
 /**
  * Knabbel WP Admin Styles
  *
- * Consolidated styles for settings page and post metabox.
+ * Styles for the settings page, the Debug Mode metabox and the block editor
+ * Radio News row.
  */
 
 /* ==========================================================================
@@ -84,7 +85,8 @@
    Block editor - Radio News row
    ========================================================================== */
 
-/* PluginPostStatusInfo wraps the row in a PanelRow, which adds its own margin. */
+/* PluginPostStatusInfo wraps the row in a PanelRow, which adds its own margin
+   and minimum height. */
 .knabbel-post-status.components-panel__row {
     margin: 0;
     min-height: 0;

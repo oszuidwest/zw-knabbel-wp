@@ -1,11 +1,13 @@
 /**
  * Radio News row in the block editor's Summary panel, and the last Babbel sync
- * warning under it. Strings come from includes/admin/block-editor.php.
+ * error under it and as an editor notice. Strings come from
+ * includes/admin/block-editor.php.
  */
-(({ components, coreData, editor, element, plugins }) => {
-    const { createElement: el, Fragment } = element;
+(({ components, coreData, data, editor, element, plugins }) => {
+    const { createElement: el, Fragment, useEffect } = element;
     const text = window.knabbelBlockEditor;
     const META_KEY = '_zw_knabbel_send_to_babbel';
+    const NOTICE_ID = 'knabbel-sync-warning';
 
     function RadioNews() {
         const [meta, setMeta] = coreData.useEntityProp(
@@ -13,14 +15,30 @@
             'post',
             'meta',
         );
-        // Comes back with every save, so it shows the result of the last one.
+        // Every save response carries this field, so the warning shows the
+        // error stored after that save, without a reload.
         const [syncWarning] = coreData.useEntityProp(
             'postType',
             'post',
             'knabbel_sync_warning',
         );
+        const { createWarningNotice, removeNotice } =
+            data.useDispatch('core/notices');
         const enabled = Boolean(meta?.[META_KEY]);
-        const value = enabled ? text.yes : text.no;
+
+        // The sidebar can be closed or covered by the post-publish panel, so
+        // the error also shows at the top of the editor.
+        useEffect(() => {
+            if (syncWarning) {
+                // Not dismissible: a repeat of the same error would not bring it back.
+                createWarningNotice(
+                    `${text.syncWarningTitle}: ${syncWarning}`,
+                    { id: NOTICE_ID, isDismissible: false },
+                );
+            } else {
+                removeNotice(NOTICE_ID);
+            }
+        }, [syncWarning, createWarningNotice, removeNotice]);
 
         return el(
             Fragment,
@@ -45,12 +63,14 @@
                             {
                                 size: 'compact',
                                 variant: 'tertiary',
-                                // The name holds the visible value, like core's "Change status: Draft".
-                                'aria-label': `${text.label}: ${value}`,
+                                // A toggle button: screen readers announce the
+                                // name and whether it is pressed.
+                                'aria-label': text.label,
+                                'aria-pressed': enabled,
                                 onClick: () =>
                                     setMeta({ [META_KEY]: !enabled }),
                             },
-                            value,
+                            enabled ? text.yes : text.no,
                         ),
                     ),
                 ),
@@ -61,7 +81,11 @@
                     { className: 'knabbel-post-status' },
                     el(
                         components.Notice,
-                        { status: 'warning', isDismissible: false },
+                        {
+                            className: 'knabbel-sync-notice',
+                            status: 'warning',
+                            isDismissible: false,
+                        },
                         el('strong', null, text.syncWarningTitle),
                         el('div', null, syncWarning),
                     ),
