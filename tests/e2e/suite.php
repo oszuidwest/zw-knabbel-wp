@@ -90,7 +90,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-021', 'a create whose answer was lost is taken over, unless it was deleted in Babbel', $this->test_lost_create_answer( ... ) );
 		$this->run_case( 'E2E-022', 'the sync warning REST field is only in the edit context', $this->test_sync_warning_rest_field( ... ) );
 		$this->run_case( 'E2E-023', 'a REST save that changes Radio News calls Babbel once', $this->test_rest_save_syncs_once( ... ) );
-		$this->run_case( 'E2E-024', 'clearing the story state keeps a state written after it was read', $this->test_state_delete_keeps_newer_state( ... ) );
+		$this->run_case( 'E2E-024', 'writing or clearing the story state keeps a state written meanwhile', $this->test_state_delete_keeps_newer_state( ... ) );
 		$this->run_case( 'E2E-025', 'a failed create leaves no error once the post should have no story', $this->test_create_error_cleared_offline( ... ) );
 		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
@@ -1696,7 +1696,8 @@ final class Knabbel_E2E_Suite {
 
 	/**
 	 * Verifies that clearing the story state keeps a state another request wrote after it was read, in a save and in the
-	 * worker, still clears a state with a backslash in its message, and refreshes cached post queries.
+	 * worker, still clears a state with a backslash in its message, and refreshes cached post queries. A merge write
+	 * also keeps such a state and backslashes.
 	 */
 	private function test_state_delete_keeps_newer_state(): void {
 		$target = 0;
@@ -1784,9 +1785,155 @@ final class Knabbel_E2E_Suite {
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
 		$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), 'Switching off must delete a state with a backslash in its message.' );
 
-		// A delete refreshes cached queries on the meta key, as the deleted_post_meta hook does.
-		$post_id = $this->create_draft( 'E2E opruimen in query-cache', 'Een opgeruimde state verdwijnt ook uit een gecachete query.' );
-		KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Scheduled->value ) );
+		// A merge write stores the same bytes, so its backslashes stay too.
+		KnabbelWP\update_story_state( $post_id, array( 'message' => 'E2E fout in C:\knabbel\babbel' ) );
+		$this->assert_same(
+			'E2E fout in C:\knabbel\babbel',
+			KnabbelWP\get_story_state( $post_id )['message'] ?? null,
+			'A merge write must keep the backslashes in a message.'
+		);
+
+		// Another request writes a story ID right before the merge writes its status; the merge must keep both.
+		$armed           = true;
+		$write_before_us = static function ( string $query ) use ( &$armed, $post_id ): string {
+			global $wpdb;
+			if ( ! $armed || ! str_starts_with( ltrim( $query ), 'UPDATE' ) || ! str_contains( $query, $wpdb->postmeta ) ) {
+				return $query;
+			}
+			$armed = false;
+			$state = KnabbelWP\get_story_state( $post_id );
+			$wpdb->update(
+				$wpdb->postmeta,
+				array( 'meta_value' => maybe_serialize( array_merge( $state, array( 'story_id' => 'e2e-written-meanwhile' ) ) ) ),
+				array(
+					'post_id'  => $post_id,
+					'meta_key' => '_zw_knabbel_story_state',
+				)
+			);
+			return $query;
+		};
+		add_filter( 'query', $write_before_us );
+		try {
+			KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Processing->value ) );
+		} finally {
+			remove_filter( 'query', $write_before_us );
+		}
+		$this->assert_same( false, $armed, 'Precondition: another write must land before the merge writes.' );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same(
+			array( 'e2e-written-meanwhile', StoryStatus::Processing->value, 'E2E fout in C:\knabbel\babbel' ),
+			array( $state['story_id'] ?? null, $state['status'] ?? null, $state['message'] ?? null ),
+			'A merge write must keep a state written after it read the state.'
+		);
+
+		// Another request inserts a state right before the merge inserts its own; the merge must write into that row.
+		$post_id       = $this->create_draft( 'E2E state tegelijk aangemaakt', 'Een state die een ander verzoek net aanmaakte, krijgt de status erbij.' );
+		$armed         = true;
+		$insert_before = static function ( string $query ) use ( &$armed, $post_id ): string {
+			global $wpdb;
+			if ( ! $armed || ! str_starts_with( $query, "INSERT INTO {$wpdb->postmeta} " ) ) {
+				return $query;
+			}
+			$armed = false;
+			$wpdb->insert(
+				$wpdb->postmeta,
+				array(
+					'post_id'    => $post_id,
+					'meta_key'   => '_zw_knabbel_story_state',
+					'meta_value' => maybe_serialize( array( 'story_id' => 'e2e-inserted-meanwhile' ) ),
+				)
+			);
+			return $query;
+		};
+		add_filter( 'query', $insert_before );
+		try {
+			$written = KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Scheduled->value ) );
+		} finally {
+			remove_filter( 'query', $insert_before );
+		}
+		$this->assert_same( false, $armed, 'Precondition: another insert must land before the merge inserts.' );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$rows  = (int) $GLOBALS['wpdb']->get_var(
+			$GLOBALS['wpdb']->prepare(
+				"SELECT COUNT(*) FROM {$GLOBALS['wpdb']->postmeta} WHERE post_id = %d AND meta_key = %s",
+				$post_id,
+				'_zw_knabbel_story_state'
+			)
+		);
+		$this->assert_same(
+			array( true, 1, 'e2e-inserted-meanwhile', StoryStatus::Scheduled->value ),
+			array( $written, $rows, $state['story_id'] ?? null, $state['status'] ?? null ),
+			'A merge after a concurrent insert must write into that one row.'
+		);
+
+		// Another request writes before every try; the merge must give up after its tries and log that.
+		$collisions = 0;
+		$write_each = static function ( string $query ) use ( &$collisions, $post_id ): string {
+			global $wpdb;
+			if ( ! str_starts_with( $query, "UPDATE {$wpdb->postmeta} SET meta_value" ) ) {
+				return $query;
+			}
+			++$collisions;
+			$wpdb->update(
+				$wpdb->postmeta,
+				array( 'meta_value' => maybe_serialize( array( 'story_id' => 'e2e-collision-' . $collisions ) ) ),
+				array(
+					'post_id'  => $post_id,
+					'meta_key' => '_zw_knabbel_story_state',
+				)
+			);
+			return $query;
+		};
+		add_filter( 'query', $write_each );
+		try {
+			$written = KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Processing->value ) );
+		} finally {
+			remove_filter( 'query', $write_each );
+		}
+		$errors = get_option( 'knabbel_recent_errors', array() );
+		$last   = is_array( $errors ) ? end( $errors ) : false;
+		$this->assert_same(
+			array( false, 3, 'StoryState', 'Story state could not be written', $post_id ),
+			array( $written, $collisions, $last['component'] ?? null, $last['message'] ?? null, (int) ( $last['context']['post_id'] ?? 0 ) ),
+			'A merge that keeps colliding must stop after three tries and log the failure.'
+		);
+
+		// With two identical rows, a merge writes the first one, which reads see.
+		$post_id = $this->create_draft( 'E2E dubbele state', 'Twee gelijke state-rijen: de eerste krijgt de nieuwe status.' );
+		$twin    = maybe_serialize(
+			array(
+				'status'   => StoryStatus::Sent->value,
+				'story_id' => 'e2e-twin',
+			)
+		);
+		foreach ( array( 1, 2 ) as $copy ) {
+			$GLOBALS['wpdb']->insert(
+				$GLOBALS['wpdb']->postmeta,
+				array(
+					'post_id'    => $post_id,
+					'meta_key'   => '_zw_knabbel_story_state',
+					'meta_value' => $twin,
+				)
+			);
+		}
+		wp_cache_delete( $post_id, 'post_meta' );
+		$written = KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Processing->value ) );
+		$state   = KnabbelWP\get_story_state( $post_id );
+		$rows    = $GLOBALS['wpdb']->get_col(
+			$GLOBALS['wpdb']->prepare(
+				"SELECT meta_value FROM {$GLOBALS['wpdb']->postmeta} WHERE post_id = %d AND meta_key = %s ORDER BY meta_id",
+				$post_id,
+				'_zw_knabbel_story_state'
+			)
+		);
+		$this->assert_same(
+			array( true, StoryStatus::Processing->value, 'e2e-twin', $twin ),
+			array( $written, $state['status'] ?? null, $state['story_id'] ?? null, $rows[1] ?? null ),
+			'A merge must write the first of two identical rows and leave the other.'
+		);
+
+		// An insert and a delete refresh cached queries on the meta key, as the added_post_meta and deleted_post_meta hooks do.
+		$post_id    = $this->create_draft( 'E2E opruimen in query-cache', 'Een opgeruimde state verdwijnt ook uit een gecachete query.' );
 		$with_state = static fn(): array => ( new WP_Query(
 			array(
 				'post_type'      => 'post',
@@ -1801,7 +1948,9 @@ final class Knabbel_E2E_Suite {
 				), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
 			)
 		) )->posts;
-		$this->assert_same( true, in_array( $post_id, $with_state(), true ), 'Precondition: the query must list the post.' );
+		$this->assert_same( false, in_array( $post_id, $with_state(), true ), 'Precondition: the query must not list a post without state.' );
+		KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Scheduled->value ) );
+		$this->assert_same( true, in_array( $post_id, $with_state(), true ), 'A cached query must list the post after its state is added.' );
 		KnabbelWP\delete_story_state( $post_id, KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same( false, in_array( $post_id, $with_state(), true ), 'A cached query must not list the post after its state is deleted.' );
 	}

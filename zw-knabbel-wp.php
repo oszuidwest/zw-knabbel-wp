@@ -284,15 +284,23 @@ function log( string $level, string $component, string $message, array $context 
 /**
  * Updates consolidated story state metadata.
  *
- * Stores all state in `_knabbel_story_state` with single database operation.
- * Triggers WordPress action hook for extensibility.
+ * Stores all state in `_zw_knabbel_story_state` with a compare-and-set write on the stored bytes of the first row of
+ * the post, the row that reads see. Without $expected the updates are merged into the stored state; when another write
+ * lands between the read and the write, the state is read and merged again, up to three tries. With $expected there is
+ * one try, and the stored state must still be $expected. A row is inserted only when the post has none.
+ *
+ * Fires no post meta filters or actions: clears the meta cache and bumps the posts last_changed itself, and fires
+ * knabbel_story_state_changed. A write that changes nothing does neither of the last two and still returns true.
  *
  * @since 0.1.0
  * @since 1.0.0 Can write only when the stored state is still the expected one.
+ * @since 2.1.1 Merges into the stored state again when another write lands first, keeps backslashes, and fires
+ *              knabbel_story_state_changed only when the state changed.
  * @param int                       $post_id  The post ID.
  * @param array<string, mixed>      $updates  Partial state updates to apply.
- * @param array<string, mixed>|null $expected State the stored one must still be, or null to write anyway.
- * @return bool True on successful update, false on failure.
+ * @param array<string, mixed>|null $expected State the stored one must still be, or null to merge into the stored one.
+ * @return bool True when the stored state now holds the result, also when nothing changed; false when the stored state
+ *              changed first or a query failed.
  *
  * @phpstan-param StoryStateUpdate $updates
  * @phpstan-param StoryState|null $expected
@@ -300,63 +308,122 @@ function log( string $level, string $component, string $message, array $context 
 function update_story_state( int $post_id, array $updates = array(), ?array $expected = null ): bool {
 	global $wpdb;
 
-	$meta_value    = $expected ?? get_post_meta( $post_id, '_zw_knabbel_story_state', true );
-	$current_state = is_array( $meta_value ) ? $meta_value : array();
+	// A cached read followed by update_post_meta() loses a write in between. update_post_meta() also unslashes the
+	// value, and with a previous value it adds a deleted row back. So this reads and writes the stored row itself.
+	$key      = '_zw_knabbel_story_state';
+	$tries    = null === $expected ? 3 : 1;
+	$changed  = null;
+	$db_error = '';
+	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	do {
+		$row      = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT meta_id, meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s ORDER BY meta_id LIMIT 1",
+				$post_id,
+				$key
+			)
+		);
+		$previous = $row?->meta_value;
+		// The next query resets last_error, so keep the last failure for the log.
+		$db_error = '' !== $wpdb->last_error ? $wpdb->last_error : $db_error;
 
-	// Merge updates with current state. A sync-health-only update must not
-	// change the lifecycle status timestamp.
-	$new_state = array_merge(
-		$current_state,
-		$updates,
-		array(
-			'post_id' => $post_id,
-		)
-	);
-
-	if ( array_key_exists( 'status', $updates ) ) {
-		$new_state['status_changed_at'] = current_time( 'mysql' );
-	}
-
-	// Null is an update-only sentinel: remove the key instead of persisting it.
-	foreach ( array( 'last_sync_error', 'pending_update' ) as $key ) {
-		if ( array_key_exists( $key, $updates ) && null === $updates[ $key ] ) {
-			unset( $new_state[ $key ] );
+		if ( null !== $expected ) {
+			if ( maybe_serialize( $expected ) !== $previous ) {
+				// The stored state changed first.
+				$success = false;
+				continue;
+			}
+			$current_state = $expected;
+		} else {
+			$current_state = maybe_unserialize( $previous );
+			if ( ! is_array( $current_state ) ) {
+				if ( null !== $row ) {
+					log( 'error', 'StoryState', 'Stored story state is not an array, so it is replaced', array( 'post_id' => $post_id ) );
+				}
+				$current_state = array();
+			}
 		}
-	}
 
-	if ( null === $expected ) {
-		$success = update_post_meta( $post_id, '_zw_knabbel_story_state', $new_state );
-	} else {
-		// Compares bytes with the stored row, not the cache. update_post_meta() with a previous value would add a deleted row back.
-		$key      = '_zw_knabbel_story_state';
-		$previous = maybe_serialize( $expected );
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		if ( $new_state === $expected ) {
-			// MySQL counts an update to the same value as no changed row, so only check that the row still matches.
-			$success = '1' === $wpdb->get_var(
+		// Merge updates with current state. A sync-health-only update must not
+		// change the lifecycle status timestamp.
+		$new_state = array_merge(
+			$current_state,
+			$updates,
+			array(
+				'post_id' => $post_id,
+			)
+		);
+
+		if ( array_key_exists( 'status', $updates ) ) {
+			$new_state['status_changed_at'] = current_time( 'mysql' );
+		}
+
+		// Null is an update-only sentinel: remove the key instead of persisting it.
+		foreach ( array( 'last_sync_error', 'pending_update' ) as $null_key ) {
+			if ( array_key_exists( $null_key, $updates ) && null === $updates[ $null_key ] ) {
+				unset( $new_state[ $null_key ] );
+			}
+		}
+
+		$value = maybe_serialize( $new_state );
+		if ( $value === $previous ) {
+			// The row held the result when it was read.
+			$success = true;
+		} elseif ( null === $row ) {
+			// Inserts only when the post has no row, in one query. Under REPEATABLE READ (the default, and what
+			// production runs) a concurrent insert waits for the first one and then inserts nothing, or fails under
+			// heavy load; either way the next try merges into the row that won. Under READ COMMITTED both inserts can
+			// succeed, which leaves two rows.
+			$success = 1 === $wpdb->query(
 				$wpdb->prepare(
-					"SELECT 1 FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s AND meta_value = CAST(%s AS BINARY)",
+					"INSERT INTO {$wpdb->postmeta} (post_id, meta_key, meta_value) SELECT %d, %s, %s FROM DUAL"
+						. " WHERE NOT EXISTS (SELECT 1 FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s)",
 					$post_id,
 					$key,
-					$previous
+					$value,
+					$post_id,
+					$key
 				)
 			);
 		} else {
 			$success = 1 === $wpdb->query(
 				$wpdb->prepare(
-					"UPDATE {$wpdb->postmeta} SET meta_value = %s WHERE post_id = %d AND meta_key = %s AND meta_value = CAST(%s AS BINARY)",
-					maybe_serialize( $new_state ),
-					$post_id,
-					$key,
+					"UPDATE {$wpdb->postmeta} SET meta_value = %s WHERE meta_id = %d AND meta_value = CAST(%s AS BINARY)",
+					$value,
+					$row->meta_id,
 					$previous
 				)
 			);
 		}
-		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		wp_cache_delete( $post_id, 'post_meta' );
+		$db_error = '' !== $wpdb->last_error ? $wpdb->last_error : $db_error;
+		if ( $success && $value !== $previous ) {
+			$changed = array(
+				'new' => $new_state,
+				'old' => $current_state,
+			);
+		}
+	} while ( ! $success && --$tries > 0 );
+	// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	wp_cache_delete( $post_id, 'post_meta' );
+
+	// A miss on an expected state is by design; a merge that misses every try, or a failed query, is not.
+	if ( ! $success && ( null === $expected || '' !== $db_error ) ) {
+		log(
+			'error',
+			'StoryState',
+			'Story state could not be written',
+			array(
+				'post_id' => $post_id,
+				'fields'  => array_keys( $updates ),
+				'error'   => $db_error,
+			)
+		);
 	}
 
-	if ( $success ) {
+	if ( null !== $changed ) {
+		// As the added_post_meta and updated_post_meta hooks would, for cached queries on the meta key.
+		wp_cache_set_posts_last_changed();
+
 		/**
 		 * Fires when story state is changed.
 		 *
@@ -366,10 +433,10 @@ function update_story_state( int $post_id, array $updates = array(), ?array $exp
 		 * @param array $new_state     The new story state array.
 		 * @param array $current_state The previous story state array.
 		 */
-		do_action( 'knabbel_story_state_changed', $post_id, $new_state, $current_state );
+		do_action( 'knabbel_story_state_changed', $post_id, $changed['new'], $changed['old'] );
 	}
 
-	return (bool) $success;
+	return $success;
 }
 
 /**
