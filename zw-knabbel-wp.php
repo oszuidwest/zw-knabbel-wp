@@ -3,7 +3,7 @@
  * Plugin Name: ZuidWest Knabbel
  * Plugin URI: https://github.com/oszuidwest/zw-knabbel-wp
  * Description: WordPress plugin om berichten naar de Babbel API te sturen voor het radionieuws. Gebruikt de WordPress AI Client voor AI-gegenereerde content.
- * Version: 2.0.0
+ * Version: 2.1.0
  * Requires at least: 7.0
  * Requires PHP: 8.4
  * Author: Streekomroep ZuidWest
@@ -377,7 +377,7 @@ function update_story_state( int $post_id, array $updates = array(), ?array $exp
  *
  * Fires no delete_post_meta actions, like the compare-and-set write in update_story_state().
  *
- * @since 2.0.1
+ * @since 2.1.0
  * @param int                  $post_id  The post ID.
  * @param array<string, mixed> $expected The state the row must still hold.
  *
@@ -425,7 +425,7 @@ function get_story_state( int $post_id ): array {
  * Builds a bounded error for persistent story state.
  *
  * @since 0.5.0
- * @since 2.0.1 Records whether saving the post again can fix the error.
+ * @since 2.1.0 Records whether saving the post again can fix the error.
  * @param string $message   Error message to show to operators and editors.
  * @param string $operation Sync operation: create, update, restore, or delete.
  * @param bool   $retry     Whether saving the post again can fix the error; false when it would fail the same way.
@@ -450,7 +450,7 @@ function build_story_sync_error( string $message, string $operation, bool $retry
  *
  * @since 0.5.0
  * @since 0.8.0 Returns null for a blank message.
- * @since 2.0.1 Also returns whether saving the post again can fix the error.
+ * @since 2.1.0 Also returns whether saving the post again can fix the error.
  * @param array<string, mixed> $state Story state data.
  * @return array{message: string, occurred_at: string, operation: string, retry: bool}|null Sync error, or null when absent, malformed, or blank.
  *
@@ -472,7 +472,7 @@ function get_story_sync_error( array $state ): ?array {
 		'message'     => $error['message'],
 		'occurred_at' => $error['occurred_at'],
 		'operation'   => $error['operation'],
-		// Errors stored before 2.0.1 have no flag. Most of those can be fixed by saving again;
+		// Errors stored before 2.1.0 have no flag. Most of those can be fixed by saving again;
 		// an old deleted-story error then shows the button too, until the next save stores the flag.
 		// An update error without a pending update (older data) leaves a save nothing to resend.
 		'retry'       => false !== ( $error['retry'] ?? true ) && ( 'update' !== $error['operation'] || isset( $state['pending_update'] ) ),
@@ -529,7 +529,7 @@ function calculate_story_dates( string $base_date = 'now' ): array {
 /**
  * Returns the link a story is created with, which a lookup in Babbel compares.
  *
- * @since 2.0.1
+ * @since 2.1.0
  * @param int $post_id Post ID.
  * @return string The edit screen URL of the post.
  */
@@ -731,7 +731,7 @@ function ajax_test_api(): void {
  * @since 0.8.1 Reconciles the post with the new story after creating it.
  * @since 1.0.0 Sends the post ID as external ID and takes over the story of a create whose answer was lost.
  * @since 1.1.0 Records the generation input in the story metadata.
- * @since 2.0.1 Warns the editor when the AI step fails or is not available, unless the post went offline or was switched off meanwhile.
+ * @since 2.1.0 Warns the editor when the AI step fails or is not available, unless the post went offline or was switched off meanwhile.
  * @param int $post_id The WordPress post ID.
  */
 function process_story_async( int $post_id ): void {
