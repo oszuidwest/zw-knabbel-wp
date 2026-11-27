@@ -215,6 +215,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
  * trigger reconciliation after WordPress has persisted the relevant change.
  *
  * @since 0.5.0
+ * @since 2.0.1 Also clears an error without a known story ID when the post should not have a story.
  *
  * @param int           $post_id     Post ID.
  * @param \WP_Post|null $post_before Post state before a save, when available.
@@ -252,10 +253,11 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 			}
 
 			push_story_delete( $post_id, $story_id, $message, $context );
-		} elseif ( in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
-			// Only these states can have a pending processing action.
+		} elseif ( in_array( $status, array( StoryStatus::Scheduled->value, StoryStatus::Processing->value, StoryStatus::Error->value ), true ) ) {
+			// Cancel pending processing and clear the state. An error here has no known story ID, but a
+			// create whose answer was lost may still have left a story in Babbel (#141).
 			\as_unschedule_all_actions( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
-			// A running worker catches up after its create call, and deleting the state could drop the story ID it just wrote.
+			// A running worker catches up after a successful create, and deleting the state could drop the story ID it just wrote.
 			if ( \as_has_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' ) ) {
 				return;
 			}

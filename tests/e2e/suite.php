@@ -91,6 +91,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-022', 'the sync warning REST field is only in the edit context', $this->test_sync_warning_rest_field( ... ) );
 		$this->run_case( 'E2E-023', 'a REST save that changes Radio News calls Babbel once', $this->test_rest_save_syncs_once( ... ) );
 		$this->run_case( 'E2E-024', 'clearing the story state keeps a state written after it was read', $this->test_state_delete_keeps_newer_state( ... ) );
+		$this->run_case( 'E2E-025', 'a failed create leaves no error once the post should have no story', $this->test_create_error_cleared_offline( ... ) );
 		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
@@ -1419,6 +1420,32 @@ final class Knabbel_E2E_Suite {
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_same( 'E2E bewerking na verwijdering', $this->get_babbel_story( $story_id )['title'] ?? null, 'The toggle must restore the story.' );
 		$this->assert_story_window( $story_id, 'now', 'The toggle must give the story the current window.' );
+	}
+
+	/**
+	 * Verifies that switching off or unpublishing clears the error of a failed create.
+	 */
+	private function test_create_error_cleared_offline(): void {
+		$this->configure_plugin( 'wrong-create-password' );
+		foreach ( array( 'checkbox', 'unpublish' ) as $offline_via ) {
+			$post_id = $this->create_enabled_draft(
+				'E2E mislukte create ' . $offline_via,
+				'Een story die Babbel niet aanmaakte, laat geen fout achter als het bericht offline gaat.'
+			);
+			$this->publish_and_process( $post_id );
+			$state = KnabbelWP\get_story_state( $post_id );
+			$this->assert_same( StoryStatus::Error->value, $state['status'] ?? null, 'Precondition: the create must fail.' );
+			$this->assert_same( 'create', $state['last_sync_error']['operation'] ?? null, 'Precondition: the create failure must leave a sync error.' );
+
+			if ( 'checkbox' === $offline_via ) {
+				update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+			} else {
+				$this->update_post( $post_id, array( 'post_status' => 'draft' ) );
+			}
+
+			$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), $offline_via . ' must clear the error state and its sync error.' );
+		}
+		$this->configure_plugin();
 	}
 
 	/**
