@@ -4,7 +4,7 @@
  * includes/admin/block-editor.php.
  */
 (({ components, coreData, data, editor, element, plugins }) => {
-    const { createElement: el, Fragment, useEffect } = element;
+    const { createElement: el, Fragment, useEffect, useMemo } = element;
     const text = window.knabbelBlockEditor;
     const META_KEY = '_zw_knabbel_send_to_babbel';
     const NOTICE_ID = 'knabbel-sync-warning';
@@ -21,25 +21,39 @@
         const [syncWarning] = coreData.useEntityProp(
             'postType',
             'post',
-            'knabbel_sync_warning',
+            'knabbel_sync_error',
         );
         const { createWarningNotice, removeNotice } =
             data.useDispatch('core/notices');
+        const { savePost } = data.useDispatch('core/editor');
         const enabled = Boolean(meta?.[META_KEY]);
+        const message = syncWarning?.message;
+        // False when saving again would fail the same way; the message then
+        // says what to do instead.
+        const canRetry = Boolean(syncWarning?.retry);
+        // A published post only saves after a change; savePost() does not need one.
+        const actions = useMemo(
+            () =>
+                canRetry
+                    ? [{ label: text.tryAgain, onClick: () => savePost() }]
+                    : [],
+            [canRetry, savePost],
+        );
 
         // The sidebar can be closed or covered by the post-publish panel, so
         // the error also shows at the top of the editor.
         useEffect(() => {
-            if (syncWarning) {
+            if (message) {
                 // Not dismissible: a repeat of the same error would not bring it back.
-                createWarningNotice(
-                    `${text.syncWarningTitle}: ${syncWarning}`,
-                    { id: NOTICE_ID, isDismissible: false },
-                );
+                createWarningNotice(`${text.syncWarningTitle}: ${message}`, {
+                    id: NOTICE_ID,
+                    isDismissible: false,
+                    actions,
+                });
             } else {
                 removeNotice(NOTICE_ID);
             }
-        }, [syncWarning, createWarningNotice, removeNotice]);
+        }, [message, actions, createWarningNotice, removeNotice]);
 
         return el(
             Fragment,
@@ -76,7 +90,7 @@
                     ),
                 ),
             ),
-            syncWarning &&
+            message &&
                 el(
                     editor.PluginPostStatusInfo,
                     { className: 'knabbel-post-status' },
@@ -86,9 +100,10 @@
                             className: 'knabbel-sync-notice',
                             status: 'warning',
                             isDismissible: false,
+                            actions,
                         },
                         el('strong', null, text.syncWarningTitle),
-                        el('div', null, syncWarning),
+                        el('div', null, message),
                     ),
                 ),
         );

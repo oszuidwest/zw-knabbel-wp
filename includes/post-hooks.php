@@ -60,29 +60,45 @@ function register_post_hooks(): void {
  *
  * @since 2.0.0
  * @since 2.0.1 Leaves out the error while a retry is running or queued and not more than 10 minutes late.
+ * @since 2.0.1 Renamed from knabbel_sync_warning; gives the message and whether saving the post again can fix the error.
  */
 function register_sync_warning_field(): void {
 	register_rest_field(
 		'post',
-		'knabbel_sync_warning',
+		// A new name, so an editor tab opened before the update, which expects a string, finds nothing instead.
+		'knabbel_sync_error',
 		array(
-			'get_callback' => static function ( array $post ): ?string {
+			'get_callback' => static function ( array $post ): ?array {
 				// A request with _fields can leave out the id; the controller sets up the global post.
 				$post_id = (int) ( $post['id'] ?? get_the_ID() );
 				$state   = get_story_state( $post_id );
-				$message = get_story_sync_error( $state )['message'] ?? null;
-				if ( null === $message || ! in_array( $state['status'] ?? '', array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
-					return $message;
+				$error   = get_story_sync_error( $state );
+				if ( null === $error ) {
+					return null;
+				}
+				$warning = array(
+					'message' => $error['message'],
+					'retry'   => $error['retry'],
+				);
+				if ( ! in_array( $state['status'] ?? '', array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
+					return $warning;
 				}
 				// A running or queued retry has not failed yet, so its old error is hidden; it stays stored for the
 				// metabox and settings page. Without an action (a dead worker) or with one more than 10 minutes late
 				// (a stalled queue) the retry is not happening, so the error shows.
 				$next = \as_next_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
-				return true === $next || ( is_int( $next ) && $next > time() - 10 * MINUTE_IN_SECONDS ) ? null : $message;
+				return true === $next || ( is_int( $next ) && $next > time() - 10 * MINUTE_IN_SECONDS ) ? null : $warning;
 			},
 			'schema'       => array(
 				'description' => __( 'Last Babbel sync error of the post.', 'zw-knabbel-wp' ),
-				'type'        => array( 'string', 'null' ),
+				'type'        => array( 'object', 'null' ),
+				'properties'  => array(
+					'message' => array( 'type' => 'string' ),
+					'retry'   => array(
+						'description' => __( 'Whether saving the post again can fix the error.', 'zw-knabbel-wp' ),
+						'type'        => 'boolean',
+					),
+				),
 				'context'     => array( 'edit' ),
 				'readonly'    => true,
 			),
@@ -443,7 +459,8 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 		update_story_state(
 			$post_id,
 			array(
-				'last_sync_error' => build_story_sync_error( $result['message'], 'update' ),
+				// Saving again resends to the same deleted story.
+				'last_sync_error' => build_story_sync_error( $result['message'], 'update', ! ( $result['deleted'] ?? false ) ),
 				'pending_update'  => $update_data,
 			)
 		);

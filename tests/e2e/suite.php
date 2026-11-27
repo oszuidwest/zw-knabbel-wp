@@ -748,11 +748,13 @@ final class Knabbel_E2E_Suite {
 		}
 		$this->assert_story_status( $post_id, StoryStatus::Error, 'Unsupported text generation must mark processing as error.' );
 		$this->assert_same( 0, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Unsupported text generation must not call the provider.' );
+		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same(
 			'Speech text generation is not available. Ask an administrator to check the AI settings.',
-			KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) )['message'] ?? null,
+			$error['message'] ?? null,
 			'Unsupported text generation must tell the editor that it is not available, not that it failed.'
 		);
+		$this->assert_same( false, $error['retry'] ?? null, 'Without a working AI setup, saving again cannot fix it.' );
 
 		// Failed support checks (a short outage) are retried; only when all of them fail is it "not available".
 		// Each attempt runs the filter for its support check and, if supported, for its request.
@@ -807,6 +809,7 @@ final class Knabbel_E2E_Suite {
 		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same( 'create', $error['operation'] ?? null, 'AI provider failure must identify the operation.' );
 		$this->assert_same( 'Could not generate speech text', $error['message'] ?? null, 'The sync error must carry the AI failure message.' );
+		$this->assert_same( true, $error['retry'] ?? null, 'Saving again can fix a failed AI request.' );
 		$this->assert_same( 'Could not generate speech text', $this->get_sync_warning_field( $post_id ), 'An editor must get the AI failure warning.' );
 
 		// While a retry is queued or running the old warning is hidden, but it stays stored.
@@ -1492,8 +1495,32 @@ final class Knabbel_E2E_Suite {
 			'update',
 			'This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again.'
 		);
+		$error = KnabbelWP\get_story_state( $post_id )['last_sync_error'] ?? array();
+		$this->assert_same( false, $error['retry'] ?? null, 'Saving again cannot fix an update to a deleted story.' );
 
-		$this->assert_same( 'API error: HTTP 410 - Gone', KnabbelWP\babbel_error_message( 410, '{"detail":"Gone"}' ), 'Only story.deleted counts.' );
+		// Another HTTP error on the same update can go away, so saving again can fix it.
+		$story_url = self::BABBEL_BASE_URL . '/stories/' . $story_id;
+		$gone      = static fn( false|array|WP_Error $pre, array $args, string $url ): false|array|WP_Error => $story_url === $url && 'PUT' === $args['method']
+			? array(
+				'headers'  => array(),
+				'body'     => '{"detail":"Gone"}',
+				'response' => array(
+					'code'    => 410,
+					'message' => 'Gone',
+				),
+				'cookies'  => array(),
+				'filename' => null,
+			)
+			: $pre;
+		add_filter( 'pre_http_request', $gone, 10, 3 );
+		try {
+			$this->update_post( $post_id, array( 'post_title' => 'E2E bewerking na verwijdering' ) );
+		} finally {
+			remove_filter( 'pre_http_request', $gone, 10 );
+		}
+		$error = KnabbelWP\get_story_state( $post_id )['last_sync_error'] ?? array();
+		$this->assert_same( 'API error: HTTP 410 - Gone', $error['message'] ?? null, 'Precondition: the update must fail with the plain 410.' );
+		$this->assert_same( true, $error['retry'] ?? null, 'Only story.deleted makes saving again useless.' );
 
 		// The way back the message describes, which also deletes the already deleted story again.
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
@@ -1539,7 +1566,13 @@ final class Knabbel_E2E_Suite {
 				'post_status' => 'publish',
 			)
 		);
-		KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E REST failure', 'update' ) ) );
+		KnabbelWP\update_story_state(
+			$post_id,
+			array(
+				'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E REST failure', 'update' ),
+				'pending_update'  => array( 'title' => 'E2E syncfout in REST' ),
+			)
+		);
 
 		$get = static function ( string $context ) use ( $post_id ): WP_REST_Response {
 			$request = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
@@ -1550,18 +1583,33 @@ final class Knabbel_E2E_Suite {
 		$previous_user = get_current_user_id();
 		try {
 			wp_set_current_user( (int) get_user_by( 'login', 'admin' )->ID );
-			$this->assert_same( 'E2E REST failure', $get( 'edit' )->get_data()['knabbel_sync_warning'] ?? null, 'An editor must get the sync error.' );
+			$warning = array(
+				'message' => 'E2E REST failure',
+				'retry'   => true,
+			);
+			$this->assert_same( $warning, $get( 'edit' )->get_data()['knabbel_sync_error'] ?? null, 'An editor must get the error and its retry flag.' );
 			$only = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
 			$only->set_param( 'context', 'edit' );
-			$only->set_param( '_fields', 'knabbel_sync_warning' );
+			$only->set_param( '_fields', 'knabbel_sync_error' );
 			$only_data = rest_get_server()->response_to_data( rest_do_request( $only ), false );
-			$this->assert_same( 'E2E REST failure', $only_data['knabbel_sync_warning'] ?? null, 'Only asking for the field must still give the error.' );
+			$this->assert_same( $warning, $only_data['knabbel_sync_error'] ?? null, 'Only asking for the field must still give the error.' );
 			$view = $get( 'view' )->get_data();
-			$this->assert_same( false, array_key_exists( 'knabbel_sync_warning', $view ), 'The view context must not show the sync error.' );
+			$this->assert_same( false, array_key_exists( 'knabbel_sync_error', $view ), 'The view context must not show the sync error.' );
+
+			// An error stored before 2.0.1 has no flag; saving again can fix most of those.
+			$legacy = KnabbelWP\build_story_sync_error( 'E2E old failure', 'update' );
+			unset( $legacy['retry'] );
+			KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => $legacy ) );
+			$legacy_warning = $get( 'edit' )->get_data()['knabbel_sync_error'] ?? array();
+			$this->assert_same( true, $legacy_warning['retry'] ?? null, 'An error stored without a flag must count as fixable by saving again.' );
+			// Without a pending update, a save that changes nothing sends no update, so it cannot fix an update error.
+			KnabbelWP\update_story_state( $post_id, array( 'pending_update' => null ) );
+			$legacy_warning = $get( 'edit' )->get_data()['knabbel_sync_error'] ?? array();
+			$this->assert_same( false, $legacy_warning['retry'] ?? null, 'An update error without a pending update must not count as fixable.' );
 
 			wp_set_current_user( 0 );
 			$view = $get( 'view' )->get_data();
-			$this->assert_same( false, array_key_exists( 'knabbel_sync_warning', $view ), 'A visitor must not see the sync error.' );
+			$this->assert_same( false, array_key_exists( 'knabbel_sync_error', $view ), 'A visitor must not see the sync error.' );
 			$this->assert_same( 401, $get( 'edit' )->get_status(), 'A visitor must not get the edit context.' );
 		} finally {
 			wp_set_current_user( $previous_user );
@@ -1801,6 +1849,7 @@ final class Knabbel_E2E_Suite {
 		$state = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Error->value, $state['status'] ?? null, 'A story of another site must leave the post in error.' );
 		$this->assert_same( null, $state['story_id'] ?? null, 'A story of another site must not be taken over.' );
+		$this->assert_same( false, $state['last_sync_error']['retry'] ?? null, 'Saving again cannot fix a story of another site.' );
 
 		$this->update_post( $post_id, array() );
 		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
@@ -1822,6 +1871,7 @@ final class Knabbel_E2E_Suite {
 			$state['last_sync_error']['message'] ?? null,
 			'The editor must learn how to get the deleted story back.'
 		);
+		$this->assert_same( false, $state['last_sync_error']['retry'] ?? null, 'Saving again cannot fix a create that finds its story deleted.' );
 		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 	}
 
@@ -1966,10 +2016,10 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Returns the sync warning an editor gets from the REST API.
+	 * Returns the sync error message an editor gets from the REST API.
 	 *
 	 * @param int $post_id Post ID.
-	 * @return mixed The knabbel_sync_warning field.
+	 * @return mixed The message of the knabbel_sync_error field, or null when the field is null.
 	 */
 	private function get_sync_warning_field( int $post_id ): mixed {
 		$previous_user = get_current_user_id();
@@ -1980,8 +2030,8 @@ final class Knabbel_E2E_Suite {
 			$response = rest_do_request( $request );
 			$this->assert_same( 200, $response->get_status(), 'The editor must be able to read the post.' );
 			$data = $response->get_data();
-			$this->assert_same( true, array_key_exists( 'knabbel_sync_warning', $data ), 'The edit context must have the sync warning field.' );
-			return $data['knabbel_sync_warning'];
+			$this->assert_same( true, array_key_exists( 'knabbel_sync_error', $data ), 'The edit context must have the sync warning field.' );
+			return $data['knabbel_sync_error']['message'] ?? null;
 		} finally {
 			wp_set_current_user( $previous_user );
 		}

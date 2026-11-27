@@ -1,3 +1,4 @@
+import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import {
     BABBEL_ADMIN,
@@ -20,6 +21,36 @@ const originalContent =
     'Dit artikel wordt volledig via de WordPress-editor gepubliceerd en naar Babbel gestuurd.';
 // Keep in sync with the AI Client MU plugin and tests/e2e/suite.php.
 const generatedText = 'Deterministische E2E-radiospreektekst.';
+const tryAgain = { name: 'Try again' };
+
+const settingsURL = '/wp-admin/options-general.php?page=zw-knabbel-wp-settings';
+
+async function submitSettings(page: Page): Promise<void> {
+    await Promise.all([
+        page.waitForURL(
+            /\/wp-admin\/options-general\.php\?page=zw-knabbel-wp-settings/,
+        ),
+        page.locator('button[form="knabbel-settings-form"]').click(),
+    ]);
+}
+
+async function setBabbelPassword(page: Page, password: string): Promise<void> {
+    await page.goto(settingsURL);
+    await page
+        .locator('[name="knabbel_settings[api_password]"]')
+        .fill(password);
+    await submitSettings(page);
+}
+
+function syncNotices(page: Page): { inline: Locator; top: Locator } {
+    return {
+        inline: page.locator('.knabbel-sync-notice'),
+        // Core's notice at the top of the editor, outside the sidebar.
+        top: page
+            .locator('.components-notice:not(.knabbel-sync-notice)')
+            .filter({ hasText: 'Babbel was not updated' }),
+    };
+}
 
 test.describe
     .serial('WordPress redacteursflow', () => {
@@ -33,9 +64,7 @@ test.describe
         test('beheerder configureert en test de integratie via Instellingen', async ({
             page,
         }) => {
-            await page.goto(
-                '/wp-admin/options-general.php?page=zw-knabbel-wp-settings',
-            );
+            await page.goto(settingsURL);
 
             const settings = {
                 api_base_url: 'http://babbel:8080/api/v1',
@@ -60,12 +89,7 @@ test.describe
                     .click();
             }
 
-            await Promise.all([
-                page.waitForURL(
-                    /\/wp-admin\/options-general\.php\?page=zw-knabbel-wp-settings/,
-                ),
-                page.locator('button[form="knabbel-settings-form"]').click(),
-            ]);
+            await submitSettings(page);
             await expect(
                 page.locator('[name="knabbel_settings[api_base_url]"]'),
             ).toHaveValue('http://babbel:8080/api/v1');
@@ -169,11 +193,7 @@ test.describe
         test('redacteur ziet een Babbel-fout direct na opslaan en herstelt het verhaal', async ({
             page,
         }) => {
-            const inline = page.locator('.knabbel-sync-notice');
-            // Core's notice at the top of the editor, outside the sidebar.
-            const top = page
-                .locator('.components-notice:not(.knabbel-sync-notice)')
-                .filter({ hasText: 'Babbel was not updated' });
+            const { inline, top } = syncNotices(page);
 
             await openEditor(page, postID);
             await expect(radioNewsButton(page)).toBeVisible();
@@ -195,6 +215,8 @@ test.describe
             await expect(top).toContainText(
                 'This story was deleted in Babbel.',
             );
+            // Saving again would fail the same way, so there is no button.
+            await expect(top.getByRole('button', tryAgain)).toHaveCount(0);
 
             // A stored error shows when the editor opens, in both places.
             await openEditor(page, postID);
@@ -203,6 +225,7 @@ test.describe
             await expect(inline).toContainText(
                 'This story was deleted in Babbel.',
             );
+            await expect(inline.getByRole('button', tryAgain)).toHaveCount(0);
             await expect(top).toBeVisible();
 
             // The way back the warning describes.
@@ -216,6 +239,51 @@ test.describe
                 (await controlStory(page, postID, 'inspect')).state.status,
             ).toBe('sent');
             await getBabbelStory(storyID);
+        });
+
+        test('redacteur probeert een gewone Babbel-fout opnieuw met de knop', async ({
+            page,
+        }) => {
+            const { inline, top } = syncNotices(page);
+            const message =
+                'API connection failed: Login failed: API error: HTTP 401 - Invalid username or password';
+
+            await setBabbelPassword(page, 'definitely-wrong-password');
+            try {
+                await openEditor(page, postID);
+                await setSidebar(page, true);
+                await page.evaluate(() =>
+                    window.wp.data
+                        .dispatch('core/editor')
+                        .editPost({ title: 'Browser E2E titel tijdens fout' }),
+                );
+                await savePost(page);
+                await expect(inline).toContainText(message);
+                await expect(
+                    inline.getByRole('button', tryAgain),
+                ).toBeVisible();
+                await expect(top).toContainText(message);
+                await expect(top.getByRole('button', tryAgain)).toBeVisible();
+            } finally {
+                await setBabbelPassword(page, BABBEL_ADMIN.password);
+            }
+
+            // The stored error keeps its button. A published post without a
+            // change cannot be saved the usual way, but the button can.
+            await openEditor(page, postID);
+            await setSidebar(page, true);
+            await expect(top.getByRole('button', tryAgain)).toBeVisible();
+            expect(
+                await page.evaluate(() =>
+                    window.wp.data.select('core/editor').isEditedPostDirty(),
+                ),
+            ).toBe(false);
+            await inline.getByRole('button', tryAgain).click();
+            await expect(inline).toHaveCount(0);
+            await expect(top).toHaveCount(0);
+            expect((await getBabbelStory(storyID)).title).toBe(
+                'Browser E2E titel tijdens fout',
+            );
         });
 
         test('de Radionieuws-regel staat alleen bij berichten', async ({
