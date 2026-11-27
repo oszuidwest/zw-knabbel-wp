@@ -396,8 +396,11 @@ function delete_story_state( int $post_id, array $expected ): void {
 	);
 	wp_cache_delete( $post_id, 'post_meta' );
 
-	if ( ! $deleted ) {
+	if ( 0 === $deleted ) {
 		log( 'info', 'StoryState', 'Story state changed before it could be deleted, so it was kept', array( 'post_id' => $post_id ) );
+	} elseif ( $deleted ) {
+		// As the deleted_post_meta hook would, for cached queries on the meta key.
+		wp_cache_set_posts_last_changed();
 	}
 }
 

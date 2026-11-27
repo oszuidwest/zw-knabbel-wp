@@ -1494,6 +1494,8 @@ final class Knabbel_E2E_Suite {
 				remove_action( 'action_scheduler_canceled_action', $arm );
 			}
 			$this->assert_same( false, $armed, 'Precondition: the save must read the state again after canceling the action.' );
+			// The simulated write skips the meta cache, so read the stored row.
+			wp_cache_delete( $target, 'post_meta' );
 			$this->assert_same(
 				'e2e-written-meanwhile',
 				KnabbelWP\get_story_state( $target )['story_id'] ?? null,
@@ -1510,6 +1512,7 @@ final class Knabbel_E2E_Suite {
 				}
 			);
 			$this->assert_same( false, $armed, 'Precondition: the worker must read the state after generating.' );
+			wp_cache_delete( $post_id, 'post_meta' );
 			$this->assert_same(
 				'e2e-written-meanwhile',
 				KnabbelWP\get_story_state( $post_id )['story_id'] ?? null,
@@ -1519,21 +1522,11 @@ final class Knabbel_E2E_Suite {
 			remove_filter( 'get_post_metadata', $write_after_read, 10 );
 		}
 
-		// Stored as is, as update_story_state() does; delete_post_meta() with this value would unslash it and match nothing.
+		// The compare-and-set write stores it as is; delete_post_meta() with this value would unslash it and match nothing.
 		$post_id = $this->create_draft( 'E2E opruimen met backslash', 'Een state met een backslash in de melding wordt ook opgeruimd.' );
 		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
-		$state            = KnabbelWP\get_story_state( $post_id );
-		$state['message'] = 'E2E fout in C:\knabbel\babbel';
-		$GLOBALS['wpdb']->update(
-			$GLOBALS['wpdb']->postmeta,
-			array( 'meta_value' => maybe_serialize( $state ) ),
-			array(
-				'post_id'  => $post_id,
-				'meta_key' => '_zw_knabbel_story_state',
-			)
-		);
-		clean_post_cache( $post_id );
+		KnabbelWP\update_story_state( $post_id, array( 'message' => 'E2E fout in C:\knabbel\babbel' ), KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same(
 			'E2E fout in C:\knabbel\babbel',
 			KnabbelWP\get_story_state( $post_id )['message'] ?? null,
@@ -1541,6 +1534,27 @@ final class Knabbel_E2E_Suite {
 		);
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
 		$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), 'Switching off must delete a state with a backslash in its message.' );
+
+		// A delete refreshes cached queries on the meta key, as the deleted_post_meta hook does.
+		$post_id = $this->create_draft( 'E2E opruimen in query-cache', 'Een opgeruimde state verdwijnt ook uit een gecachete query.' );
+		KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Scheduled->value ) );
+		$with_state = static fn(): array => ( new WP_Query(
+			array(
+				'post_type'      => 'post',
+				'post_status'    => 'any',
+				'fields'         => 'ids',
+				'posts_per_page' => -1,
+				'meta_query'     => array(
+					array(
+						'key'     => '_zw_knabbel_story_state',
+						'compare' => 'EXISTS',
+					),
+				), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+			)
+		) )->posts;
+		$this->assert_same( true, in_array( $post_id, $with_state(), true ), 'Precondition: the query must list the post.' );
+		KnabbelWP\delete_story_state( $post_id, KnabbelWP\get_story_state( $post_id ) );
+		$this->assert_same( false, in_array( $post_id, $with_state(), true ), 'A cached query must not list the post after its state is deleted.' );
 	}
 
 	/**
