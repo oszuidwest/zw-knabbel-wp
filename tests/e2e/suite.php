@@ -1446,11 +1446,11 @@ final class Knabbel_E2E_Suite {
 
 	/**
 	 * Verifies that clearing the story state keeps a state another request wrote after it was read, in a save and in the
-	 * worker, and still clears a state with a backslash in its message.
+	 * worker, still clears a state with a backslash in its message, and refreshes cached post queries.
 	 */
 	private function test_state_delete_keeps_newer_state(): void {
 		$target = 0;
-		$armed  = false;
+		$armed  = null;
 		// Once armed, the next read of the target's state sees the old state while another request writes a sent one.
 		$write_after_read = static function ( mixed $value, int $object_id, string $meta_key ) use ( &$target, &$armed ): mixed {
 			if ( ! $armed || $target !== $object_id || '_zw_knabbel_story_state' !== $meta_key ) {
@@ -1494,8 +1494,6 @@ final class Knabbel_E2E_Suite {
 				remove_action( 'action_scheduler_canceled_action', $arm );
 			}
 			$this->assert_same( false, $armed, 'Precondition: the save must read the state again after canceling the action.' );
-			// The simulated write skips the meta cache, so read the stored row.
-			wp_cache_delete( $target, 'post_meta' );
 			$this->assert_same(
 				'e2e-written-meanwhile',
 				KnabbelWP\get_story_state( $target )['story_id'] ?? null,
@@ -1503,6 +1501,7 @@ final class Knabbel_E2E_Suite {
 			);
 
 			// The worker's freshness check after generating, for a post that went offline meanwhile.
+			$armed   = null;
 			$post_id = $this->process_with_edit_during_request(
 				'E2E worker ruimt op na nieuwe state',
 				static function ( int $id ) use ( &$target, &$armed ): void {
@@ -1512,7 +1511,6 @@ final class Knabbel_E2E_Suite {
 				}
 			);
 			$this->assert_same( false, $armed, 'Precondition: the worker must read the state after generating.' );
-			wp_cache_delete( $post_id, 'post_meta' );
 			$this->assert_same(
 				'e2e-written-meanwhile',
 				KnabbelWP\get_story_state( $post_id )['story_id'] ?? null,
@@ -1522,7 +1520,8 @@ final class Knabbel_E2E_Suite {
 			remove_filter( 'get_post_metadata', $write_after_read, 10 );
 		}
 
-		// The compare-and-set write stores it as is; delete_post_meta() with this value would unslash it and match nothing.
+		// update_story_state() with $expected stores the backslashes as is; delete_post_meta() would unslash the value and
+		// match nothing.
 		$post_id = $this->create_draft( 'E2E opruimen met backslash', 'Een state met een backslash in de melding wordt ook opgeruimd.' );
 		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
