@@ -89,6 +89,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-019', 'a story deleted in Babbel tells the editor what to do on update', $this->test_story_deleted_in_babbel( ... ) );
 		$this->run_case( 'E2E-021', 'a create whose answer was lost is taken over, unless it was deleted in Babbel', $this->test_lost_create_answer( ... ) );
 		$this->run_case( 'E2E-022', 'the sync warning REST field is only in the edit context', $this->test_sync_warning_rest_field( ... ) );
+		$this->run_case( 'E2E-023', 'a REST save that changes Radio News calls Babbel once', $this->test_rest_save_syncs_once( ... ) );
 		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
@@ -1342,6 +1343,87 @@ final class Knabbel_E2E_Suite {
 		} finally {
 			wp_set_current_user( $previous_user );
 		}
+	}
+
+	/**
+	 * Verifies that a block editor save syncs once, also when Babbel is down or the save fails after the meta update.
+	 */
+	private function test_rest_save_syncs_once(): void {
+		list( $post_id, $story_id ) = $this->create_sent_story(
+			'E2E REST-opslag synchroniseert eenmaal',
+			'Een opslag in de blokeditor die Radio News wijzigt, roept Babbel maar een keer aan.'
+		);
+
+		$calls = 0;
+		$count = static function ( false|array|WP_Error $pre, array $args, string $url ) use ( &$calls ): false|array|WP_Error {
+			if ( str_starts_with( $url, self::BABBEL_BASE_URL ) ) {
+				++$calls;
+			}
+			return $pre;
+		};
+		$down  = static fn( false|array|WP_Error $pre, array $args, string $url ): false|array|WP_Error => str_starts_with( $url, self::BABBEL_BASE_URL )
+			? new WP_Error( 'http_request_failed', 'E2E Babbel is down' )
+			: $pre;
+		// Counts the calls of one REST save of the Radio News meta and the given extra fields.
+		$save = static function ( bool $enabled, bool $babbel_down, array $fields = array() ) use ( $post_id, &$calls, $count, $down ): WP_REST_Response {
+			$request = new WP_REST_Request( 'PUT', '/wp/v2/posts/' . $post_id );
+			$request->set_body_params( array_merge( array( 'meta' => array( self::SEND_TO_BABBEL_META_KEY => $enabled ) ), $fields ) );
+			$calls = 0;
+			add_filter( 'pre_http_request', $count, 1, 3 );
+			if ( $babbel_down ) {
+				add_filter( 'pre_http_request', $down, 2, 3 );
+			}
+			try {
+				return rest_do_request( $request );
+			} finally {
+				remove_filter( 'pre_http_request', $count, 1 );
+				remove_filter( 'pre_http_request', $down, 2 );
+			}
+		};
+
+		$previous_user = get_current_user_id();
+		wp_set_current_user( (int) get_user_by( 'login', 'admin' )->ID );
+		try {
+			$this->assert_same( 200, $save( false, true )->get_status(), 'The REST save that disables Radio News must succeed.' );
+			$this->assert_same( 1, $calls, 'A REST save must try the delete once while Babbel is down.' );
+			$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
+
+			$this->assert_same( 200, $save( false, false )->get_status(), 'The REST save that retries the delete must succeed.' );
+			$this->assert_same( 1, $calls, 'A REST save must retry the delete once.' );
+			$this->assert_story_status( $post_id, StoryStatus::Deleted, 'The retried delete must mark the story deleted.' );
+
+			// A save that fails after the meta update never reaches wp_after_insert_post.
+			register_rest_field(
+				'post',
+				'knabbel_e2e_fail',
+				array( 'update_callback' => static fn(): WP_Error => new WP_Error( 'knabbel_e2e_fail', 'E2E field failure', array( 'status' => 500 ) ) )
+			);
+			try {
+				$failed = $save( true, false, array( 'knabbel_e2e_fail' => 1 ) );
+				$this->assert_same( 500, $failed->get_status(), 'The failing REST save must return the field error.' );
+			} finally {
+				unset( $GLOBALS['wp_rest_additional_fields']['post']['knabbel_e2e_fail'] );
+			}
+			$this->assert_same( 1, $calls, 'A failed REST save must still sync its meta change once.' );
+			$this->assert_story_status( $post_id, StoryStatus::Sent, 'A failed REST save must still restore the story.' );
+
+			// The failed save must not leave the post skipped: a direct meta write syncs at once.
+			update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+			$this->assert_story_status( $post_id, StoryStatus::Deleted, 'A direct meta write after a failed REST save must delete the story.' );
+			$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
+
+			$this->assert_same( 200, $save( true, true )->get_status(), 'The REST save that enables Radio News must succeed.' );
+			$this->assert_same( 1, $calls, 'A REST save must try the restore once while Babbel is down.' );
+			$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Deleted, 'restore' );
+		} finally {
+			wp_set_current_user( $previous_user );
+		}
+
+		// A direct meta write still syncs at once and retries the restore.
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_story_status( $post_id, StoryStatus::Sent, 'A direct meta write must retry the restore.' );
+		$this->assert_babbel_response_code( 200, 'GET', '/stories/' . $story_id );
 	}
 
 	/**
