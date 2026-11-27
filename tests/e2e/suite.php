@@ -1093,9 +1093,30 @@ final class Knabbel_E2E_Suite {
 			'Een processing-state met een lopende actie mag bij het inschakelen geen nieuwe actie krijgen.'
 		);
 		$this->update_post( $processing_id, array( 'post_status' => 'publish' ) );
-		$worker = as_schedule_single_action( time(), self::STORY_HOOK, array( 'post_id' => $processing_id ), self::ACTION_GROUP );
+		$run_at = time();
+		$worker = as_schedule_single_action( $run_at, self::STORY_HOOK, array( 'post_id' => $processing_id ), self::ACTION_GROUP );
+
+		// The debug metabox shows the date of a pending action. For a running one Action Scheduler gives true instead of a timestamp.
+		require_once KNABBEL_PLUGIN_DIR . 'includes/admin/metabox.php';
+		$metabox = static function () use ( $processing_id ): string {
+			ob_start();
+			try {
+				KnabbelWP\metabox_render_status( get_post( $processing_id ) );
+			} finally {
+				$html = (string) ob_get_clean();
+			}
+			return $html;
+		};
+		$pending = $metabox();
+		$this->assert_same( true, str_contains( $pending, 'Scheduled:' ), 'The debug metabox must show a pending action.' );
+		$this->assert_same( true, str_contains( $pending, KnabbelWP\format_stored_datetime( $run_at ) ), 'The debug metabox must show the pending date.' );
+		$this->assert_same( false, str_contains( $pending, 'Story action is running' ), 'The debug metabox must not call a pending action running.' );
+
 		ActionScheduler_Store::instance()->log_execution( $worker );
 		KnabbelWP\update_story_state( $processing_id, array( 'status' => StoryStatus::Processing->value ) );
+		$running = $metabox();
+		$this->assert_same( true, str_contains( $running, 'Story action is running' ), 'The debug metabox must say the story action is running.' );
+		$this->assert_same( false, str_contains( $running, 'Scheduled:' ), 'The debug metabox must not show a date for a running action.' );
 
 		update_post_meta( $processing_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_same( 0, $this->story_action_count( $processing_id ), 'Enabling processing state must not queue another action.' );
