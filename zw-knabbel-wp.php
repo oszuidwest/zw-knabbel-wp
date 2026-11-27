@@ -484,6 +484,18 @@ function calculate_story_dates( string $base_date = 'now' ): array {
 }
 
 /**
+ * Returns the link a story is created with, which a lookup in Babbel compares.
+ *
+ * @since 2.0.1
+ * @param int $post_id Post ID.
+ * @return string The edit screen URL of the post.
+ */
+function story_external_url( int $post_id ): string {
+	// The worker runs without a user, and get_edit_post_link() needs one who may edit the post.
+	return admin_url( 'post.php?post=' . $post_id . '&action=edit' );
+}
+
+/**
  * Returns the base date calculate_story_dates() should use for a post.
  *
  * @since 0.8.1
@@ -779,9 +791,8 @@ function process_story_async( int $post_id ): void {
 			'original_speech_text' => $speech_text,
 			'generation'           => $generated['generation'],
 		),
-		// The worker runs without a user, and get_edit_post_link() needs one who may edit the post.
 		'external_id'  => (string) $post_id,
-		'external_url' => admin_url( 'post.php?post=' . $post_id . '&action=edit' ),
+		'external_url' => story_external_url( $post_id ),
 	);
 
 	// Send to Babbel API.

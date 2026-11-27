@@ -215,7 +215,7 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
  * trigger reconciliation after WordPress has persisted the relevant change.
  *
  * @since 0.5.0
- * @since 2.0.1 Clears a delete or restore error that no longer applies.
+ * @since 2.0.1 Clears a delete or restore error that no longer applies, once Babbel confirms the story state.
  *
  * @param int           $post_id     Post ID.
  * @param \WP_Post|null $post_before Post state before a save, when available.
@@ -237,14 +237,22 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 	$should_remove = ! $send_to_babbel || ! $active_status;
 
 	// A failed delete leaves the story sent and a failed restore leaves it deleted. Once the post wants that state
-	// again, the failed delete or restore has nothing left to do, so its error goes. A pending update keeps the error:
-	// the next save sends it. Writes only if the stored state is still $state, so a newer write is kept.
+	// again, the failed delete or restore has nothing left to do, so its error goes once Babbel confirms that state.
+	// A pending update keeps the error: the next save sends it. Writes only if the stored state is still $state, so a
+	// newer write is kept.
 	$failed_operation = get_story_sync_error( $state )['operation'] ?? null;
 	if ( $should_remove
 		? 'restore' === $failed_operation && StoryStatus::Deleted->value === $status
 		: 'delete' === $failed_operation && StoryStatus::Sent->value === $status && ! isset( $state['pending_update'] )
 	) {
-		update_story_state( $post_id, array( 'last_sync_error' => null ), $state );
+		// A delete or restore whose answer was lost may still have gone through. A story Babbel cannot find, for
+		// example one made before stories had an external ID, keeps its error.
+		$found = babbel_find_story_by_external_id( (string) $post_id, story_external_url( $post_id ) );
+		if ( ! is_wp_error( $found ) && $story_id === $found['story_id'] && $should_remove === $found['deleted'] ) {
+			update_story_state( $post_id, array( 'last_sync_error' => null ), $state );
+		} else {
+			log( 'info', 'PostHooks', 'Babbel did not confirm the story state, so the sync error stays', array( 'post_id' => $post_id ) );
+		}
 	}
 
 	if ( $should_remove ) {

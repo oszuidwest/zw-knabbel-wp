@@ -1386,11 +1386,24 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( true, ! isset( $state['pending_update'] ), 'The save must send the pending update.' );
 		$this->assert_same( $pending_title, $this->get_babbel_story( $story_id )['title'] ?? null, 'The save must send the pending title.' );
 
-		// Without a pending update, switching on needs no Babbel call, so the delete error goes even while Babbel refuses.
+		// Without a pending update, switching on clears the delete error once Babbel confirms the story is still there.
 		$this->configure_plugin( 'wrong-delete-password' );
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
 		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
+		$this->configure_plugin();
+		// A delete whose answer was lost but that went through: Babbel has it deleted, so the error stays.
+		$this->assert_babbel_response_code( 204, 'DELETE', '/stories/' . $story_id );
+		KnabbelWP\sync_story_state( $post_id );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
+		$this->restore_babbel_story( $story_id );
+		// Babbel's story for this post has another ID than the stored one, so the error stays.
+		KnabbelWP\update_story_state( $post_id, array( 'story_id' => '999999' ) );
+		KnabbelWP\sync_story_state( $post_id );
+		$this->assert_sync_failure_preserved( $post_id, '999999', StoryStatus::Sent, 'delete' );
+		KnabbelWP\update_story_state( $post_id, array( 'story_id' => $story_id ) );
+		KnabbelWP\sync_story_state( $post_id );
 		$state = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Switching on must keep the story sent.' );
 		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Switching on must clear a delete error.' );
@@ -1410,11 +1423,21 @@ final class Knabbel_E2E_Suite {
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Deleted, 'restore' );
 		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
-		// Switching off leaves nothing to restore; switching on again fails the restore again.
+		// Switching off leaves nothing to restore, so the error goes once Babbel confirms the story is still deleted.
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Deleted, 'restore' );
+		$this->configure_plugin();
+		// A restore whose answer was lost but that went through: Babbel has it back, so the error stays.
+		$this->restore_babbel_story( $story_id );
+		KnabbelWP\sync_story_state( $post_id );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Deleted, 'restore' );
+		$this->assert_babbel_response_code( 204, 'DELETE', '/stories/' . $story_id );
+		KnabbelWP\sync_story_state( $post_id );
 		$state = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Deleted->value, $state['status'] ?? null, 'Switching off must keep the story deleted.' );
 		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Switching off must clear a restore error.' );
+		// Switching on again fails the restore again.
+		$this->configure_plugin( 'wrong-restore-password' );
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Deleted, 'restore' );
 
@@ -2028,6 +2051,16 @@ final class Knabbel_E2E_Suite {
 				static fn( array $story ): bool => ( $story['title'] ?? null ) === $title
 			)
 		);
+	}
+
+	/**
+	 * Restores a deleted story in Babbel, outside the plugin.
+	 *
+	 * @param string $story_id Story ID.
+	 */
+	private function restore_babbel_story( string $story_id ): void {
+		$response = $this->babbel_request( 'PATCH', '/stories/' . $story_id, array( 'deleted_at' => '' ) );
+		$this->assert_same( 200, wp_remote_retrieve_response_code( $response ), 'Babbel must restore the story.' );
 	}
 
 	/**
