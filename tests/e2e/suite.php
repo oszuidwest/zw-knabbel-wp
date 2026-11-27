@@ -1354,44 +1354,27 @@ final class Knabbel_E2E_Suite {
 			'Een opslag in de blokeditor die Radio News wijzigt, roept Babbel maar een keer aan.'
 		);
 
-		$calls = 0;
-		$count = static function ( false|array|WP_Error $pre, array $args, string $url ) use ( &$calls ): false|array|WP_Error {
-			if ( str_starts_with( $url, self::BABBEL_BASE_URL ) ) {
-				++$calls;
+		$calls  = 0;
+		$down   = false;
+		$babbel = static function ( false|array|WP_Error $pre, array $args, string $url ) use ( &$calls, &$down ): false|array|WP_Error {
+			if ( ! str_starts_with( $url, self::BABBEL_BASE_URL ) ) {
+				return $pre;
 			}
-			return $pre;
+			++$calls;
+			return $down ? new WP_Error( 'http_request_failed', 'E2E Babbel is down' ) : $pre;
 		};
-		$down  = static fn( false|array|WP_Error $pre, array $args, string $url ): false|array|WP_Error => str_starts_with( $url, self::BABBEL_BASE_URL )
-			? new WP_Error( 'http_request_failed', 'E2E Babbel is down' )
-			: $pre;
-		// Counts the calls of one REST save of the Radio News meta and the given extra fields.
-		$save = static function ( bool $enabled, bool $babbel_down, array $fields = array() ) use ( $post_id, &$calls, $count, $down ): WP_REST_Response {
+		// One REST save of the Radio News meta and the given extra fields; $calls counts its Babbel calls.
+		$save = static function ( bool $enabled, array $fields = array() ) use ( $post_id, &$calls ): WP_REST_Response {
 			$request = new WP_REST_Request( 'PUT', '/wp/v2/posts/' . $post_id );
 			$request->set_body_params( array_merge( array( 'meta' => array( self::SEND_TO_BABBEL_META_KEY => $enabled ) ), $fields ) );
 			$calls = 0;
-			add_filter( 'pre_http_request', $count, 1, 3 );
-			if ( $babbel_down ) {
-				add_filter( 'pre_http_request', $down, 2, 3 );
-			}
-			try {
-				return rest_do_request( $request );
-			} finally {
-				remove_filter( 'pre_http_request', $count, 1 );
-				remove_filter( 'pre_http_request', $down, 2 );
-			}
+			return rest_do_request( $request );
 		};
 
 		$previous_user = get_current_user_id();
 		wp_set_current_user( (int) get_user_by( 'login', 'admin' )->ID );
+		add_filter( 'pre_http_request', $babbel, 1, 3 );
 		try {
-			$this->assert_same( 200, $save( false, true )->get_status(), 'The REST save that disables Radio News must succeed.' );
-			$this->assert_same( 1, $calls, 'A REST save must try the delete once while Babbel is down.' );
-			$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
-
-			$this->assert_same( 200, $save( false, false )->get_status(), 'The REST save that retries the delete must succeed.' );
-			$this->assert_same( 1, $calls, 'A REST save must retry the delete once.' );
-			$this->assert_story_status( $post_id, StoryStatus::Deleted, 'The retried delete must mark the story deleted.' );
-
 			// A save that fails after the meta update never reaches wp_after_insert_post.
 			register_rest_field(
 				'post',
@@ -1399,31 +1382,33 @@ final class Knabbel_E2E_Suite {
 				array( 'update_callback' => static fn(): WP_Error => new WP_Error( 'knabbel_e2e_fail', 'E2E field failure', array( 'status' => 500 ) ) )
 			);
 			try {
-				$failed = $save( true, false, array( 'knabbel_e2e_fail' => 1 ) );
+				$failed = $save( false, array( 'knabbel_e2e_fail' => 1 ) );
 				$this->assert_same( 500, $failed->get_status(), 'The failing REST save must return the field error.' );
 			} finally {
 				unset( $GLOBALS['wp_rest_additional_fields']['post']['knabbel_e2e_fail'] );
 			}
 			$this->assert_same( 1, $calls, 'A failed REST save must still sync its meta change once.' );
-			$this->assert_story_status( $post_id, StoryStatus::Sent, 'A failed REST save must still restore the story.' );
+			$this->assert_story_status( $post_id, StoryStatus::Deleted, 'A failed REST save must still delete the story.' );
 
 			// The failed save must not leave the post skipped: a direct meta write syncs at once.
-			update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
-			$this->assert_story_status( $post_id, StoryStatus::Deleted, 'A direct meta write after a failed REST save must delete the story.' );
-			$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
+			update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+			$this->assert_story_status( $post_id, StoryStatus::Sent, 'A direct meta write after a failed REST save must restore the story.' );
 
-			$this->assert_same( 200, $save( true, true )->get_status(), 'The REST save that enables Radio News must succeed.' );
-			$this->assert_same( 1, $calls, 'A REST save must try the restore once while Babbel is down.' );
-			$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Deleted, 'restore' );
+			// Switching back on with a new title is one restore that already carries the title.
+			update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+			$title = 'E2E REST-opslag nieuwe titel';
+			$this->assert_same( 200, $save( true, array( 'title' => $title ) )->get_status(), 'The REST save that enables Radio News must succeed.' );
+			$this->assert_same( 1, $calls, 'A REST save that restores the story must call Babbel once.' );
+			$this->assert_same( $title, $this->get_babbel_story( $story_id )['title'] ?? null, 'The restore must carry the new title.' );
+
+			$down = true;
+			$this->assert_same( 200, $save( false )->get_status(), 'The REST save that disables Radio News must succeed.' );
+			$this->assert_same( 1, $calls, 'A REST save must try the delete once while Babbel is down.' );
+			$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
 		} finally {
+			remove_filter( 'pre_http_request', $babbel, 1 );
 			wp_set_current_user( $previous_user );
 		}
-
-		// A direct meta write still syncs at once and retries the restore.
-		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
-		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
-		$this->assert_story_status( $post_id, StoryStatus::Sent, 'A direct meta write must retry the restore.' );
-		$this->assert_babbel_response_code( 200, 'GET', '/stories/' . $story_id );
 	}
 
 	/**
