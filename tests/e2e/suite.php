@@ -1096,7 +1096,7 @@ final class Knabbel_E2E_Suite {
 		$run_at = time();
 		$worker = as_schedule_single_action( $run_at, self::STORY_HOOK, array( 'post_id' => $processing_id ), self::ACTION_GROUP );
 
-		// The debug metabox shows the date of a pending action. For a running one Action Scheduler gives true instead of a timestamp.
+		// Action Scheduler gives a pending action's timestamp but true for a running one.
 		require_once KNABBEL_PLUGIN_DIR . 'includes/admin/metabox.php';
 		$metabox = static function () use ( $processing_id ): string {
 			ob_start();
@@ -1118,6 +1118,7 @@ final class Knabbel_E2E_Suite {
 		$this->assert_same( 0, $this->story_action_count( $processing_id ), 'Enabling processing state must not queue another action.' );
 		$this->assert_story_status( $processing_id, StoryStatus::Processing, 'Enabling processing state must preserve its lifecycle status.' );
 		ActionScheduler_Store::instance()->mark_failure( $worker );
+		$this->assert_same( false, str_contains( $metabox(), 'Scheduled:' ), 'The debug metabox must not show a date without an action.' );
 		update_post_meta( $processing_id, self::SEND_TO_BABBEL_META_KEY, 0 );
 		$this->assert_same( array(), KnabbelWP\get_story_state( $processing_id ), 'Disabling must clear a processing state without a running action.' );
 
