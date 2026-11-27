@@ -1566,7 +1566,13 @@ final class Knabbel_E2E_Suite {
 				'post_status' => 'publish',
 			)
 		);
-		KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E REST failure', 'update' ) ) );
+		KnabbelWP\update_story_state(
+			$post_id,
+			array(
+				'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E REST failure', 'update' ),
+				'pending_update'  => array( 'title' => 'E2E syncfout in REST' ),
+			)
+		);
 
 		$get = static function ( string $context ) use ( $post_id ): WP_REST_Response {
 			$request = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
@@ -1596,6 +1602,10 @@ final class Knabbel_E2E_Suite {
 			KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => $legacy ) );
 			$legacy_warning = $get( 'edit' )->get_data()['knabbel_sync_error'] ?? array();
 			$this->assert_same( true, $legacy_warning['retry'] ?? null, 'An error stored without a flag must count as fixable by saving again.' );
+			// Without a pending update, a save that changes nothing sends no update, so it cannot fix an update error.
+			KnabbelWP\update_story_state( $post_id, array( 'pending_update' => null ) );
+			$legacy_warning = $get( 'edit' )->get_data()['knabbel_sync_error'] ?? array();
+			$this->assert_same( false, $legacy_warning['retry'] ?? null, 'An update error without a pending update must not count as fixable.' );
 
 			wp_set_current_user( 0 );
 			$view = $get( 'view' )->get_data();

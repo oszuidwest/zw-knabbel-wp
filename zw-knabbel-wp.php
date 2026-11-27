@@ -474,7 +474,8 @@ function get_story_sync_error( array $state ): ?array {
 		'operation'   => $error['operation'],
 		// Errors stored before 2.0.1 have no flag. Most of those can be fixed by saving again;
 		// an old deleted-story error then shows the button too, until the next save stores the flag.
-		'retry'       => false !== ( $error['retry'] ?? true ),
+		// An update error without a pending update (older data) leaves a save nothing to resend.
+		'retry'       => false !== ( $error['retry'] ?? true ) && ( 'update' !== $error['operation'] || isset( $state['pending_update'] ) ),
 	);
 }
 
