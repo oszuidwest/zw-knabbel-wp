@@ -737,6 +737,44 @@ final class Knabbel_E2E_Suite {
 			'Unsupported text generation must tell the editor that it is not set up, not that it failed.'
 		);
 
+		// Failed support checks (a short outage) are retried; only three in a row mean "not set up".
+		// Each attempt runs the filter for its support check and, if supported, for its request.
+		$post_id = $this->create_enabled_draft( $title . ' even weg', 'Een korte storing bij de support-check moet opnieuw geprobeerd worden.' );
+		$checks  = 0;
+		$block   = static function ( bool $prevent ) use ( &$checks ): bool {
+			return ++$checks <= 2 ? true : $prevent;
+		};
+		update_option( 'knabbel_e2e_ai_mode', 'success', false );
+		add_filter( 'wp_ai_client_prevent_prompt', $block );
+		try {
+			$this->publish_and_process( $post_id );
+		} finally {
+			remove_filter( 'wp_ai_client_prevent_prompt', $block );
+		}
+		$this->assert_story_status( $post_id, StoryStatus::Sent, 'Two failed support checks must be retried.' );
+		$this->assert_same( 1, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'The retry after failed support checks must call the provider once.' );
+
+		// A request that failed means it is set up, even if the later support checks fail.
+		$post_id = $this->create_enabled_draft( $title . ' eerst mislukt', 'Een mislukte aanvraag gevolgd door een storing is geen ontbrekende instelling.' );
+		$checks  = 0;
+		$block   = static function ( bool $prevent ) use ( &$checks ): bool {
+			return ++$checks > 2 ? true : $prevent;
+		};
+		update_option( 'knabbel_e2e_ai_mode', 'error', false );
+		update_option( 'knabbel_e2e_ai_call_count', 0, false );
+		add_filter( 'wp_ai_client_prevent_prompt', $block );
+		try {
+			$this->publish_and_process( $post_id );
+		} finally {
+			remove_filter( 'wp_ai_client_prevent_prompt', $block );
+		}
+		$this->assert_same( 1, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Only the first attempt may reach the provider.' );
+		$this->assert_same(
+			'Could not generate speech text',
+			KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) )['message'] ?? null,
+			'A failed request followed by failed support checks must not say "not set up".'
+		);
+
 		update_option( 'knabbel_e2e_ai_mode', 'error', false );
 		update_option( 'knabbel_e2e_ai_call_count', 0, false );
 

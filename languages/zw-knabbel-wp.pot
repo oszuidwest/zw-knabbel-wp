@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-27T11:05:44+00:00\n"
+"POT-Creation-Date: 2026-11-27T11:35:47+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: zw-knabbel-wp\n"
@@ -319,11 +319,11 @@ msgstr ""
 msgid "Refresh"
 msgstr ""
 
-#: includes/ai-handler.php:173
+#: includes/ai-handler.php:234
 msgid "Speech text generation is not set up. Ask an administrator."
 msgstr ""
 
-#: includes/ai-handler.php:232
+#: includes/ai-handler.php:236
 msgid "Could not generate speech text"
 msgstr ""
 
