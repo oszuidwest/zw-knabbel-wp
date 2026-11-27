@@ -722,7 +722,7 @@ final class Knabbel_E2E_Suite {
 	private function test_ai_failure(): void {
 		$title = 'E2E AI-providerfout';
 		update_option( 'knabbel_e2e_ai_call_count', 0, false );
-		$post_id = $this->create_enabled_draft( $title . ' niet ingesteld', 'Zonder werkende AI-instelling helpt opnieuw opslaan niet.' );
+		$post_id = $this->create_enabled_draft( $title . ' niet beschikbaar', 'Zonder werkende AI-instelling helpt opnieuw opslaan niet.' );
 		add_filter( 'wp_supports_ai', '__return_false' );
 		try {
 			$this->publish_and_process( $post_id );
@@ -732,12 +732,12 @@ final class Knabbel_E2E_Suite {
 		$this->assert_story_status( $post_id, StoryStatus::Error, 'Unsupported text generation must mark processing as error.' );
 		$this->assert_same( 0, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Unsupported text generation must not call the provider.' );
 		$this->assert_same(
-			'Speech text generation is not set up. Ask an administrator.',
+			'Speech text generation is not available. Ask an administrator to check the AI settings.',
 			KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) )['message'] ?? null,
-			'Unsupported text generation must tell the editor that it is not set up, not that it failed.'
+			'Unsupported text generation must tell the editor that it is not available, not that it failed.'
 		);
 
-		// Failed support checks (a short outage) are retried; only three in a row mean "not set up".
+		// Failed support checks (a short outage) are retried; only when all of them fail is it "not available".
 		// Each attempt runs the filter for its support check and, if supported, for its request.
 		$post_id = $this->create_enabled_draft( $title . ' even weg', 'Een korte storing bij de support-check moet opnieuw geprobeerd worden.' );
 		$checks  = 0;
@@ -753,12 +753,14 @@ final class Knabbel_E2E_Suite {
 		}
 		$this->assert_story_status( $post_id, StoryStatus::Sent, 'Two failed support checks must be retried.' );
 		$this->assert_same( 1, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'The retry after failed support checks must call the provider once.' );
+		$this->assert_same( 4, $checks, 'Two blocked checks, then one check and one request.' );
 
-		// A request that failed means it is set up, even if the later support checks fail.
+		// A request that failed means it is set up, even if the support checks before and after it fail.
 		$post_id = $this->create_enabled_draft( $title . ' eerst mislukt', 'Een mislukte aanvraag gevolgd door een storing is geen ontbrekende instelling.' );
 		$checks  = 0;
 		$block   = static function ( bool $prevent ) use ( &$checks ): bool {
-			return ++$checks > 2 ? true : $prevent;
+			$call = ++$checks;
+			return 1 === $call || $call >= 4 ? true : $prevent;
 		};
 		update_option( 'knabbel_e2e_ai_mode', 'error', false );
 		update_option( 'knabbel_e2e_ai_call_count', 0, false );
@@ -768,11 +770,12 @@ final class Knabbel_E2E_Suite {
 		} finally {
 			remove_filter( 'wp_ai_client_prevent_prompt', $block );
 		}
-		$this->assert_same( 1, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Only the first attempt may reach the provider.' );
+		$this->assert_same( 1, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Only the second attempt may reach the provider.' );
+		$this->assert_same( 4, $checks, 'A blocked check, a check and a failed request, then a blocked check.' );
 		$this->assert_same(
 			'Could not generate speech text',
 			KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) )['message'] ?? null,
-			'A failed request followed by failed support checks must not say "not set up".'
+			'A failed request followed by failed support checks must not say "not available".'
 		);
 
 		update_option( 'knabbel_e2e_ai_mode', 'error', false );

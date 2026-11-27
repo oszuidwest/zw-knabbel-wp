@@ -125,7 +125,7 @@ function ai_parse_model_setting( mixed $value ): ?array {
  * @since 0.7.0 Added the `$current_post_id` parameter and curated example mix.
  * @since 0.8.0 Omits the temperature parameter and rebuilds the prompt per attempt.
  * @since 1.1.0 Returns the text with a record of the input that produced it.
- * @since 2.0.1 Returns a WP_Error: ai_not_set_up when no attempt could run, ai_failed when the requests failed.
+ * @since 2.0.1 Returns a WP_Error: ai_unavailable when no support check passed, ai_failed otherwise.
  * @param string $content         The source content.
  * @param int    $current_post_id Current post ID to exclude from examples, 0 for none.
  * @return array{text: string, generation: array<string, mixed>}|\WP_Error The generated text and its generation record, or WP_Error on failure.
@@ -168,16 +168,16 @@ function ai_generate_content( string $content, int $current_post_id ): array|\WP
 		return null === $model_preference ? $prompt : $prompt->using_model_preference( $model_preference );
 	};
 
-	// A short provider outage can fail the support check too, so only "not set up" when every attempt says so.
-	$set_up       = false;
+	// A provider outage also fails the support check, so only "not available" when every attempt says so.
+	$available    = false;
 	$max_attempts = 3;
 	for ( $attempt = 1; $attempt <= $max_attempts; ++$attempt ) {
 		$supported = $build_prompt()->is_supported_for_text_generation();
-		$set_up    = $set_up || $supported;
+		$available = $available || $supported;
 		$result    = $supported ? $build_prompt()->generate_text_result() : null;
 
 		if ( null === $result ) {
-			log( 'error', 'AiHandler', 'WordPress AI Client does not support text generation for this prompt' );
+			log( 'error', 'AiHandler', 'WordPress AI Client does not support text generation for this prompt', array( 'post_id' => $current_post_id ) );
 		} elseif ( is_wp_error( $result ) ) {
 			log(
 				'error',
@@ -229,9 +229,20 @@ function ai_generate_content( string $content, int $current_post_id ): array|\WP
 		}
 	}
 
-	log( 'error', 'AiHandler', "All {$max_attempts} retry attempts failed" );
-	if ( ! $set_up ) {
-		return new \WP_Error( 'ai_not_set_up', __( 'Speech text generation is not set up. Ask an administrator.', 'zw-knabbel-wp' ) );
+	log(
+		'error',
+		'AiHandler',
+		"All {$max_attempts} retry attempts failed",
+		array(
+			'post_id'   => $current_post_id,
+			'available' => $available,
+		)
+	);
+	if ( ! $available ) {
+		return new \WP_Error(
+			'ai_unavailable',
+			__( 'Speech text generation is not available. Ask an administrator to check the AI settings.', 'zw-knabbel-wp' )
+		);
 	}
 	return new \WP_Error( 'ai_failed', __( 'Could not generate speech text', 'zw-knabbel-wp' ) );
 }
