@@ -22,6 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @since 0.2.0
  * @since 2.0.0 Registers the Radio News meta for REST and the sync warning REST field.
+ * @since 2.0.1 Syncs a REST save once.
  */
 function register_post_hooks(): void {
 	// The Radio News switch. The block editor saves it through REST.
@@ -42,8 +43,11 @@ function register_post_hooks(): void {
 	add_action( 'rest_api_init', __NAMESPACE__ . '\\register_sync_warning_field' );
 
 	add_action( 'wp_after_insert_post', __NAMESPACE__ . '\\handle_post_saved', 10, 4 );
+	add_action( 'rest_insert_post', __NAMESPACE__ . '\\handle_rest_insert_post', 10, 2 );
+	add_filter( 'rest_request_after_callbacks', __NAMESPACE__ . '\\handle_rest_request_done', 10, 3 );
+	add_action( 'shutdown', __NAMESPACE__ . '\\sync_marked_rest_saves', 10, 0 );
 
-	// Meta change hooks for REST API and CLI support.
+	// Meta changes outside a REST save, for example from WP-CLI or code.
 	add_action( 'updated_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_changed', 10, 3 );
 	add_action( 'added_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_changed', 10, 3 );
 	add_action( 'deleted_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_changed', 10, 3 );
@@ -87,6 +91,77 @@ function register_sync_warning_field(): void {
 }
 
 /**
+ * Returns the marked REST saves by reference.
+ *
+ * A mark lasts from rest_insert_post until wp_after_insert_post(), the end of
+ * the REST request, or shutdown.
+ *
+ * @since 2.0.1
+ *
+ * @return array<int, \WP_REST_Request> The saving request, keyed by post ID.
+ */
+function &rest_saves(): array {
+	static $saves = array();
+	return $saves;
+}
+
+/**
+ * Marks a REST save, so its sync runs once in handle_post_saved().
+ *
+ * The posts controller saves the meta after this action and calls
+ * wp_after_insert_post() last. Without this, a Radio News change would sync
+ * twice and, with Babbel down, try a delete or restore twice.
+ *
+ * @since 2.0.1
+ *
+ * @param \WP_Post         $post    The saved post.
+ * @param \WP_REST_Request $request The saving request.
+ */
+function handle_rest_insert_post( \WP_Post $post, \WP_REST_Request $request ): void {
+	$saves              = &rest_saves();
+	$saves[ $post->ID ] = $request;
+}
+
+/**
+ * Syncs a REST save that returned an error before wp_after_insert_post().
+ *
+ * The post is saved at that point, and its meta may be too.
+ *
+ * @since 2.0.1
+ *
+ * @param mixed                $response The response.
+ * @param array<string, mixed> $handler  The route handler.
+ * @param \WP_REST_Request     $request  The request.
+ * @return mixed The response, unchanged.
+ */
+function handle_rest_request_done( mixed $response, array $handler, \WP_REST_Request $request ): mixed {
+	sync_marked_rest_saves( $request );
+
+	return $response;
+}
+
+/**
+ * Syncs marked REST saves that never reached wp_after_insert_post().
+ *
+ * With a request, only that request's saves: a nested REST request can end
+ * while the outer save still runs. Without one, every mark that is left, which
+ * happens on shutdown when another plugin stopped the request with exit or die.
+ * After a fatal error this is best effort; a save it misses syncs on the next save.
+ *
+ * @since 2.0.1
+ *
+ * @param \WP_REST_Request|null $request The finished request, or null for all.
+ */
+function sync_marked_rest_saves( ?\WP_REST_Request $request = null ): void {
+	$saves    = &rest_saves();
+	$post_ids = null === $request ? array_keys( $saves ) : array_keys( $saves, $request, true );
+	foreach ( $post_ids as $post_id ) {
+		unset( $saves[ $post_id ] );
+		sync_story_state( $post_id );
+	}
+}
+
+/**
  * Reconciles state after a Radio News change.
  *
  * WordPress only fires the added/updated/deleted metadata actions after the
@@ -94,6 +169,7 @@ function register_sync_warning_field(): void {
  * Radio News value directly.
  *
  * @since 0.5.0
+ * @since 2.0.1 Skips a change made by a running REST save.
  *
  * @param int|int[] $meta_id  Meta ID, or deleted meta IDs.
  * @param int       $post_id  Post ID.
@@ -101,6 +177,10 @@ function register_sync_warning_field(): void {
  */
 function handle_checkbox_meta_changed( $meta_id, $post_id, $meta_key ): void {
 	if ( '_zw_knabbel_send_to_babbel' !== $meta_key ) {
+		return;
+	}
+
+	if ( array_key_exists( $post_id, rest_saves() ) ) {
 		return;
 	}
 
@@ -114,6 +194,7 @@ function handle_checkbox_meta_changed( $meta_id, $post_id, $meta_key ): void {
  * transitions from ordinary edits.
  *
  * @since 0.2.0
+ * @since 2.0.1 Clears the REST save mark of the post.
  *
  * @param int           $post_id     Post ID.
  * @param \WP_Post      $post        Post object.
@@ -121,6 +202,8 @@ function handle_checkbox_meta_changed( $meta_id, $post_id, $meta_key ): void {
  * @param \WP_Post|null $post_before Post object before the update, or null for new posts.
  */
 function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Post $post_before ): void {
+	$saves = &rest_saves();
+	unset( $saves[ $post_id ] );
 	sync_story_state( $post_id, $post_before );
 }
 
