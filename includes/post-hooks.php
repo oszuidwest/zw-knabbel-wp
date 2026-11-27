@@ -228,10 +228,11 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 
 	// A failed delete leaves the story sent and a failed restore leaves it deleted. Once the post wants that state
 	// again, there is nothing to retry, so the error goes. Compared with the state read, so a newer write stays.
-	$settled_status    = $should_remove ? StoryStatus::Deleted->value : StoryStatus::Sent->value;
-	$settled_operation = $should_remove ? 'restore' : 'delete';
-	$failed_operation  = get_story_sync_error( $state )['operation'] ?? null;
-	if ( $settled_status === $status && $settled_operation === $failed_operation ) {
+	$failed_operation = get_story_sync_error( $state )['operation'] ?? null;
+	if ( $should_remove
+		? 'restore' === $failed_operation && StoryStatus::Deleted->value === $status
+		: 'delete' === $failed_operation && StoryStatus::Sent->value === $status
+	) {
 		update_story_state( $post_id, array( 'last_sync_error' => null ), $state );
 	}
 
