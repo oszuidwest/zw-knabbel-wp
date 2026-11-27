@@ -373,6 +373,41 @@ function update_story_state( int $post_id, array $updates = array(), ?array $exp
 }
 
 /**
+ * Deletes the story state only if the stored row still holds exactly $expected.
+ *
+ * Fires no delete_post_meta actions, like the compare-and-set write in update_story_state().
+ *
+ * @since 2.0.1
+ * @param int                  $post_id  The post ID.
+ * @param array<string, mixed> $expected The state the row must still hold.
+ *
+ * @phpstan-param StoryState $expected
+ */
+function delete_story_state( int $post_id, array $expected ): void {
+	global $wpdb;
+
+	// One query on the stored bytes. delete_post_meta() with a value selects meta IDs and then deletes by ID, so a write
+	// in between is lost, and it unslashes the value.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	$deleted = $wpdb->query(
+		$wpdb->prepare(
+			"DELETE FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s AND meta_value = CAST(%s AS BINARY)",
+			$post_id,
+			'_zw_knabbel_story_state',
+			maybe_serialize( $expected )
+		)
+	);
+	wp_cache_delete( $post_id, 'post_meta' );
+
+	if ( 0 === $deleted ) {
+		log( 'info', 'StoryState', 'Story state no longer matched, so it was not deleted', array( 'post_id' => $post_id ) );
+	} elseif ( $deleted ) {
+		// As the deleted_post_meta hook would, for cached queries on the meta key.
+		wp_cache_set_posts_last_changed();
+	}
+}
+
+/**
  * Returns story state data for a post.
  *
  * @since 0.1.0
@@ -738,8 +773,9 @@ function process_story_async( int $post_id ): void {
 	$post = get_post( $post_id );
 	if ( ! $post || ! in_array( $post->post_status, array( 'publish', 'future' ), true ) || ! get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true ) ) {
 		// A save leaves Processing to the running worker, and one before this run wrote it found nothing to clean up.
-		if ( StoryStatus::Processing->value === ( get_story_state( $post_id )['status'] ?? null ) ) {
-			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
+		$current = get_story_state( $post_id );
+		if ( StoryStatus::Processing->value === ( $current['status'] ?? null ) ) {
+			delete_story_state( $post_id, $current );
 		}
 		return;
 	}
