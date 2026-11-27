@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ZuidWest Knabbel 2.0.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/zw-knabbel-wp\n"
-"POT-Creation-Date: 2026-11-27T11:59:55+00:00\n"
+"POT-Creation-Date: 2026-11-27T12:49:23+00:00\n"
 "PO-Revision-Date: 2026-08-11T14:51:44+00:00\n"
 "Last-Translator: Remon Mens\n"
 "Language-Team: Dutch\n"
@@ -59,8 +59,8 @@ msgid "Babbel was not updated"
 msgstr "Babbel is niet bijgewerkt"
 
 #: includes/admin/block-editor.php:62
-msgid "Save the post to try again."
-msgstr "Sla het bericht op om het opnieuw te proberen."
+msgid "Try again"
+msgstr "Opnieuw proberen"
 
 #: includes/admin/metabox.php:63
 msgid "Knabbel Status"
@@ -316,7 +316,7 @@ msgstr "Laatste statuswijziging"
 msgid "Babbel ID"
 msgstr "Babbel ID"
 
-#: includes/admin/settings.php:708 zw-knabbel-wp.php:733
+#: includes/admin/settings.php:708 zw-knabbel-wp.php:734
 msgid "Story is being processed..."
 msgstr "Verhaal wordt verwerkt..."
 
@@ -373,7 +373,7 @@ msgstr "Ongeldige API-respons"
 msgid "No story ID received from API"
 msgstr "Geen verhaal-ID ontvangen van API"
 
-#: includes/babbel-api.php:361 zw-knabbel-wp.php:844
+#: includes/babbel-api.php:361 zw-knabbel-wp.php:847
 msgid "Story created successfully"
 msgstr "Verhaal succesvol aangemaakt"
 
@@ -424,8 +424,8 @@ msgid "Last Babbel sync error of the post."
 msgstr "Laatste Babbel-synchronisatiefout van het bericht."
 
 #: includes/post-hooks.php:80
-msgid "Whether saving the post tries again."
-msgstr "Of opslaan van het bericht het opnieuw probeert."
+msgid "Whether saving the post again can fix the error."
+msgstr "Of opnieuw opslaan van het bericht de fout kan oplossen."
 
 #: includes/post-hooks.php:160
 msgid "Story deleted from Babbel"
@@ -479,30 +479,30 @@ msgstr "Fout"
 msgid "Deleted"
 msgstr "Verwijderd"
 
-#: zw-knabbel-wp.php:664
+#: zw-knabbel-wp.php:665
 msgid "Insufficient permissions"
 msgstr "Onvoldoende rechten"
 
-#: zw-knabbel-wp.php:709
+#: zw-knabbel-wp.php:710
 msgid "Post not found"
 msgstr "Bericht niet gevonden"
 
-#: zw-knabbel-wp.php:722
+#: zw-knabbel-wp.php:723
 msgid "Send to Babbel is disabled for this post"
 msgstr "Verzenden naar Babbel is uitgeschakeld voor dit bericht"
 
-#: zw-knabbel-wp.php:755
+#: zw-knabbel-wp.php:756
 msgid "Could not generate speech text"
 msgstr "Kon spreektekst niet genereren"
 
-#: zw-knabbel-wp.php:808
+#: zw-knabbel-wp.php:809
 msgid ""
 "Babbel already has a story with this post ID, but it could not be linked: "
 msgstr ""
 "Babbel heeft al een verhaal met dit bericht-ID, maar het kon niet worden "
 "gekoppeld: "
 
-#: zw-knabbel-wp.php:811
+#: zw-knabbel-wp.php:814
 msgid ""
 "The story for this post was deleted in Babbel. To send it again, restore it "
 "in Babbel first and then save the post."

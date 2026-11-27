@@ -59,7 +59,7 @@ function block_editor_enqueue_assets(): void {
 			'yes'              => __( 'Yes', 'zw-knabbel-wp' ),
 			'no'               => __( 'No', 'zw-knabbel-wp' ),
 			'syncWarningTitle' => __( 'Babbel was not updated', 'zw-knabbel-wp' ),
-			'syncRetry'        => __( 'Save the post to try again.', 'zw-knabbel-wp' ),
+			'tryAgain'         => __( 'Try again', 'zw-knabbel-wp' ),
 		)
 	);
 }

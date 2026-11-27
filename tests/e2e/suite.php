@@ -1315,9 +1315,31 @@ final class Knabbel_E2E_Suite {
 			'This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again.'
 		);
 		$error = KnabbelWP\get_story_state( $post_id )['last_sync_error'] ?? array();
-		$this->assert_same( false, $error['retry'] ?? null, 'Saving again does not help, so the editor must not be told it does.' );
+		$this->assert_same( false, $error['retry'] ?? null, 'Saving again cannot fix an update to a deleted story.' );
 
-		$this->assert_same( 'API error: HTTP 410 - Gone', KnabbelWP\babbel_error_message( 410, '{"detail":"Gone"}' ), 'Only story.deleted counts.' );
+		// Another HTTP error on the same update can go away, so saving again can fix it.
+		$story_url = self::BABBEL_BASE_URL . '/stories/' . $story_id;
+		$gone      = static fn( false|array|WP_Error $pre, array $args, string $url ): false|array|WP_Error => $story_url === $url && 'PUT' === $args['method']
+			? array(
+				'headers'  => array(),
+				'body'     => '{"detail":"Gone"}',
+				'response' => array(
+					'code'    => 410,
+					'message' => 'Gone',
+				),
+				'cookies'  => array(),
+				'filename' => null,
+			)
+			: $pre;
+		add_filter( 'pre_http_request', $gone, 10, 3 );
+		try {
+			$this->update_post( $post_id, array( 'post_title' => 'E2E bewerking na verwijdering' ) );
+		} finally {
+			remove_filter( 'pre_http_request', $gone, 10 );
+		}
+		$error = KnabbelWP\get_story_state( $post_id )['last_sync_error'] ?? array();
+		$this->assert_same( 'API error: HTTP 410 - Gone', $error['message'] ?? null, 'Precondition: the update must fail with the plain 410.' );
+		$this->assert_same( true, $error['retry'] ?? null, 'Only story.deleted makes saving again useless.' );
 
 		// The way back the message describes, which also deletes the already deleted story again.
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
@@ -1361,12 +1383,12 @@ final class Knabbel_E2E_Suite {
 			$view = $get( 'view' )->get_data();
 			$this->assert_same( false, array_key_exists( 'knabbel_sync_warning', $view ), 'The view context must not show the sync error.' );
 
-			// An error stored before 2.0.1 has no flag; most of those are retried.
+			// An error stored before 2.0.1 has no flag; saving again can fix most of those.
 			$legacy = KnabbelWP\build_story_sync_error( 'E2E old failure', 'update' );
 			unset( $legacy['retry'] );
 			KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => $legacy ) );
 			$legacy_warning = $get( 'edit' )->get_data()['knabbel_sync_warning'] ?? array();
-			$this->assert_same( true, $legacy_warning['retry'] ?? null, 'An error stored without a flag must offer the retry.' );
+			$this->assert_same( true, $legacy_warning['retry'] ?? null, 'An error stored without a flag must count as fixable by saving again.' );
 
 			wp_set_current_user( 0 );
 			$view = $get( 'view' )->get_data();
@@ -1420,6 +1442,7 @@ final class Knabbel_E2E_Suite {
 		$state = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Error->value, $state['status'] ?? null, 'A story of another site must leave the post in error.' );
 		$this->assert_same( null, $state['story_id'] ?? null, 'A story of another site must not be taken over.' );
+		$this->assert_same( false, $state['last_sync_error']['retry'] ?? null, 'Saving again cannot fix a story of another site.' );
 
 		$this->update_post( $post_id, array() );
 		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
@@ -1441,7 +1464,7 @@ final class Knabbel_E2E_Suite {
 			$state['last_sync_error']['message'] ?? null,
 			'The editor must learn how to get the deleted story back.'
 		);
-		$this->assert_same( false, $state['last_sync_error']['retry'] ?? null, 'Saving again does not help, so the editor must not be told it does.' );
+		$this->assert_same( false, $state['last_sync_error']['retry'] ?? null, 'Saving again cannot fix a create that finds its story deleted.' );
 		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 	}
 

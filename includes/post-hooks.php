@@ -55,7 +55,7 @@ function register_post_hooks(): void {
  * Only in the edit context, so the message is not public.
  *
  * @since 2.0.0
- * @since 2.0.1 Gives the message and whether saving the post tries again.
+ * @since 2.0.1 Gives the message and whether saving the post again can fix the error.
  */
 function register_sync_warning_field(): void {
 	register_rest_field(
@@ -68,7 +68,7 @@ function register_sync_warning_field(): void {
 				$error   = get_story_sync_error( get_story_state( $post_id ) );
 				return null === $error ? null : array(
 					'message' => $error['message'],
-					'retry'   => $error['retry'] ?? true,
+					'retry'   => $error['retry'],
 				);
 			},
 			'schema'       => array(
@@ -77,7 +77,7 @@ function register_sync_warning_field(): void {
 				'properties'  => array(
 					'message' => array( 'type' => 'string' ),
 					'retry'   => array(
-						'description' => __( 'Whether saving the post tries again.', 'zw-knabbel-wp' ),
+						'description' => __( 'Whether saving the post again can fix the error.', 'zw-knabbel-wp' ),
 						'type'        => 'boolean',
 					),
 				),
@@ -325,7 +325,7 @@ function push_story_update( int $post_id, string $story_id, array $update_data, 
 		update_story_state(
 			$post_id,
 			array(
-				// Saving again sends the same update to the same deleted story.
+				// Saving again resends to the same deleted story.
 				'last_sync_error' => build_story_sync_error( $result['message'], 'update', ! ( $result['deleted'] ?? false ) ),
 				'pending_update'  => $update_data,
 			)

@@ -390,13 +390,13 @@ function get_story_state( int $post_id ): array {
  * Builds a bounded error for persistent story state.
  *
  * @since 0.5.0
- * @since 2.0.1 Records whether saving the post tries again.
+ * @since 2.0.1 Records whether saving the post again can fix the error.
  * @param string $message   Error message to show to operators and editors.
  * @param string $operation Sync operation: create, update, restore, or delete.
- * @param bool   $retry     Whether saving the post tries again; false when the message says what to do instead.
+ * @param bool   $retry     Whether saving the post again can fix the error; false when it would fail the same way.
  * @return array{message: string, occurred_at: string, operation: string, retry: bool} Sync error data.
  *
- * @phpstan-return LastSyncError
+ * @phpstan-return array{message: string, occurred_at: string, operation: string, retry: bool}
  */
 function build_story_sync_error( string $message, string $operation, bool $retry = true ): array {
 	$allowed_operations = array( 'create', 'update', 'restore', 'delete' );
@@ -415,11 +415,11 @@ function build_story_sync_error( string $message, string $operation, bool $retry
  *
  * @since 0.5.0
  * @since 0.8.0 Returns null for a blank message.
- * @since 2.0.1 Also returns whether saving the post tries again.
+ * @since 2.0.1 Also returns whether saving the post again can fix the error.
  * @param array<string, mixed> $state Story state data.
  * @return array{message: string, occurred_at: string, operation: string, retry: bool}|null Sync error, or null when absent, malformed, or blank.
  *
- * @phpstan-return LastSyncError|null
+ * @phpstan-return array{message: string, occurred_at: string, operation: string, retry: bool}|null
  */
 function get_story_sync_error( array $state ): ?array {
 	$error = $state['last_sync_error'] ?? null;
@@ -437,7 +437,8 @@ function get_story_sync_error( array $state ): ?array {
 		'message'     => $error['message'],
 		'occurred_at' => $error['occurred_at'],
 		'operation'   => $error['operation'],
-		// Errors stored before 2.0.1 have no flag, and most of those are retried.
+		// Errors stored before 2.0.1 have no flag. Most of those can be fixed by saving again;
+		// an old deleted-story error then shows the button too, until the next save stores the flag.
 		'retry'       => false !== ( $error['retry'] ?? true ),
 	);
 }
@@ -806,6 +807,8 @@ function process_story_async( int $post_id ): void {
 		$found = babbel_find_story_by_external_id( $story_data['external_id'], $story_data['external_url'] );
 		if ( is_wp_error( $found ) ) {
 			$error = __( 'Babbel already has a story with this post ID, but it could not be linked: ', 'zw-knabbel-wp' ) . $found->get_error_message();
+			// A story of another site stays there, so saving again finds it again.
+			$retry = 'other_link' !== $found->get_error_code();
 		} elseif ( $found['deleted'] ) {
 			// Restoring it here could undo a delete someone made on purpose in Babbel.
 			$error = __(

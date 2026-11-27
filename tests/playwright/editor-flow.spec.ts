@@ -21,7 +21,7 @@ const originalContent =
     'Dit artikel wordt volledig via de WordPress-editor gepubliceerd en naar Babbel gestuurd.';
 // Keep in sync with the AI Client MU plugin and tests/e2e/suite.php.
 const generatedText = 'Deterministische E2E-radiospreektekst.';
-const retryHint = 'Save the post to try again.';
+const tryAgain = { name: 'Try again' };
 
 const settingsURL = '/wp-admin/options-general.php?page=zw-knabbel-wp-settings';
 
@@ -215,8 +215,8 @@ test.describe
             await expect(top).toContainText(
                 'This story was deleted in Babbel.',
             );
-            // The message says what to do, and saving again would not help.
-            await expect(top).not.toContainText(retryHint);
+            // Saving again would fail the same way, so there is no button.
+            await expect(top.getByRole('button', tryAgain)).toHaveCount(0);
 
             // A stored error shows when the editor opens, in both places.
             await openEditor(page, postID);
@@ -225,7 +225,7 @@ test.describe
             await expect(inline).toContainText(
                 'This story was deleted in Babbel.',
             );
-            await expect(inline).not.toContainText(retryHint);
+            await expect(inline.getByRole('button', tryAgain)).toHaveCount(0);
             await expect(top).toBeVisible();
 
             // The way back the warning describes.
@@ -241,7 +241,7 @@ test.describe
             await getBabbelStory(storyID);
         });
 
-        test('redacteur leest bij een gewone Babbel-fout dat opslaan het opnieuw probeert', async ({
+        test('redacteur probeert een gewone Babbel-fout opnieuw met de knop', async ({
             page,
         }) => {
             const { inline, top } = syncNotices(page);
@@ -259,21 +259,26 @@ test.describe
                 );
                 await savePost(page);
                 await expect(inline).toContainText(message);
-                await expect(inline).toContainText(retryHint);
-                // The message has no full stop of its own, so the notice adds one.
-                await expect(top).toContainText(`${message}. ${retryHint}`);
+                await expect(
+                    inline.getByRole('button', tryAgain),
+                ).toBeVisible();
+                await expect(top).toContainText(message);
+                await expect(top.getByRole('button', tryAgain)).toBeVisible();
             } finally {
                 await setBabbelPassword(page, BABBEL_ADMIN.password);
             }
 
-            // The retry the hint promises: any save resends the failed title.
+            // The stored error keeps its button. A published post without a
+            // change cannot be saved the usual way, but the button can.
             await openEditor(page, postID);
-            await page.evaluate(() =>
-                window.wp.data
-                    .dispatch('core/editor')
-                    .editPost({ excerpt: 'Een samenvatting na de fout.' }),
-            );
-            await savePost(page);
+            await setSidebar(page, true);
+            await expect(top.getByRole('button', tryAgain)).toBeVisible();
+            expect(
+                await page.evaluate(() =>
+                    window.wp.data.select('core/editor').isEditedPostDirty(),
+                ),
+            ).toBe(false);
+            await inline.getByRole('button', tryAgain).click();
             await expect(inline).toHaveCount(0);
             await expect(top).toHaveCount(0);
             expect((await getBabbelStory(storyID)).title).toBe(

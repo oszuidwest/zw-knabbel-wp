@@ -433,7 +433,7 @@ function babbel_test_connection(): array {
  * @since 2.0.1 Reports a story deleted in Babbel.
  * @param string                                                                        $story_id   The Babbel story ID.
  * @param array{title?: string, start_date?: string, end_date?: string, weekdays?: int} $story_data The story data to update.
- * @return array{success: bool, message: string, deleted?: bool} Response with success status and message.
+ * @return array{success: bool, message: string, deleted?: bool} Success status and message; on failure, deleted says whether Babbel deleted the story.
  *
  * @phpstan-param StoryUpdateData $story_data
  * @phpstan-return BabbelApiResponse
