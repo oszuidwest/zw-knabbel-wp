@@ -1346,7 +1346,8 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verifies that a block editor save syncs once, also when Babbel is down or the save fails after the meta update.
+	 * Verifies that a REST save of Radio News syncs once: a save that fails after the meta update, a request that never
+	 * finishes, a restore with a title change, and a delete while Babbel is down.
 	 */
 	private function test_rest_save_syncs_once(): void {
 		list( $post_id, $story_id ) = $this->create_sent_story(
@@ -1394,16 +1395,27 @@ final class Knabbel_E2E_Suite {
 			update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 			$this->assert_story_status( $post_id, StoryStatus::Sent, 'A direct meta write after a failed REST save must restore the story.' );
 
-			// Switching back on with a new title is one restore that already carries the title.
+			// Switch off directly, then on with a new title in one REST save: one restore that carries the title.
 			update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+			$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Precondition: the story must be deleted before the restoring save.' );
 			$title = 'E2E REST-opslag nieuwe titel';
 			$this->assert_same( 200, $save( true, array( 'title' => $title ) )->get_status(), 'The REST save that enables Radio News must succeed.' );
-			$this->assert_same( 1, $calls, 'A REST save that restores the story must call Babbel once.' );
+			$this->assert_same( 1, $calls, 'A REST save that restores the story must make one Babbel request.' );
 			$this->assert_same( $title, $this->get_babbel_story( $story_id )['title'] ?? null, 'The restore must carry the new title.' );
+
+			// A request stopped with exit or die reaches neither hook; shutdown syncs its mark.
+			$this->assert_same( 10, has_action( 'shutdown', 'KnabbelWP\\sync_marked_rest_saves' ), 'Leftover marks must sync on shutdown.' );
+			KnabbelWP\handle_rest_insert_post( get_post( $post_id ), new WP_REST_Request( 'PUT', '/wp/v2/posts/' . $post_id ) );
+			update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+			$this->assert_story_status( $post_id, StoryStatus::Sent, 'A marked save must leave the sync to its end.' );
+			KnabbelWP\sync_marked_rest_saves();
+			$this->assert_story_status( $post_id, StoryStatus::Deleted, 'Syncing the leftover marks must delete the story.' );
+			update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+			$this->assert_story_status( $post_id, StoryStatus::Sent, 'A direct meta write after the shutdown sync must restore the story.' );
 
 			$down = true;
 			$this->assert_same( 200, $save( false )->get_status(), 'The REST save that disables Radio News must succeed.' );
-			$this->assert_same( 1, $calls, 'A REST save must try the delete once while Babbel is down.' );
+			$this->assert_same( 1, $calls, 'A REST save must make one delete request while Babbel is down.' );
 			$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
 		} finally {
 			remove_filter( 'pre_http_request', $babbel, 1 );

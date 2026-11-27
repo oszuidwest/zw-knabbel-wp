@@ -45,6 +45,7 @@ function register_post_hooks(): void {
 	add_action( 'wp_after_insert_post', __NAMESPACE__ . '\\handle_post_saved', 10, 4 );
 	add_action( 'rest_insert_post', __NAMESPACE__ . '\\handle_rest_insert_post', 10, 2 );
 	add_filter( 'rest_request_after_callbacks', __NAMESPACE__ . '\\handle_rest_request_done', 10, 3 );
+	add_action( 'shutdown', __NAMESPACE__ . '\\sync_marked_rest_saves', 10, 0 );
 
 	// Meta changes outside a REST save, for example from WP-CLI or code.
 	add_action( 'updated_post_meta', __NAMESPACE__ . '\\handle_checkbox_meta_changed', 10, 3 );
@@ -80,7 +81,10 @@ function register_sync_warning_field(): void {
 }
 
 /**
- * Returns the posts whose REST save is running.
+ * Returns the marked REST saves by reference.
+ *
+ * A mark lasts from rest_insert_post until wp_after_insert_post(), the end of
+ * the REST request, or shutdown.
  *
  * @since 2.0.1
  *
@@ -92,7 +96,7 @@ function &rest_saves(): array {
 }
 
 /**
- * Leaves the sync of a REST save to handle_post_saved().
+ * Marks a REST save, so its sync runs once in handle_post_saved().
  *
  * The posts controller saves the meta after this action and calls
  * wp_after_insert_post() last. Without this, a Radio News change would sync
@@ -121,13 +125,30 @@ function handle_rest_insert_post( \WP_Post $post, \WP_REST_Request $request ): v
  * @return mixed The response, unchanged.
  */
 function handle_rest_request_done( mixed $response, array $handler, \WP_REST_Request $request ): mixed {
-	$saves = &rest_saves();
-	foreach ( array_keys( $saves, $request, true ) as $post_id ) {
+	sync_marked_rest_saves( $request );
+
+	return $response;
+}
+
+/**
+ * Syncs marked REST saves that never reached wp_after_insert_post().
+ *
+ * With a request, only that request's saves: a nested REST request can end
+ * while the outer save still runs. Without one, every mark that is left, which
+ * happens on shutdown when another plugin stopped the request with exit or die.
+ * After a fatal error this is best effort; a save it misses syncs on the next save.
+ *
+ * @since 2.0.1
+ *
+ * @param \WP_REST_Request|null $request The finished request, or null for all.
+ */
+function sync_marked_rest_saves( ?\WP_REST_Request $request = null ): void {
+	$saves    = &rest_saves();
+	$post_ids = null === $request ? array_keys( $saves ) : array_keys( $saves, $request, true );
+	foreach ( $post_ids as $post_id ) {
 		unset( $saves[ $post_id ] );
 		sync_story_state( $post_id );
 	}
-
-	return $response;
 }
 
 /**
@@ -163,7 +184,7 @@ function handle_checkbox_meta_changed( $meta_id, $post_id, $meta_key ): void {
  * transitions from ordinary edits.
  *
  * @since 0.2.0
- * @since 2.0.1 Ends a REST save of the post.
+ * @since 2.0.1 Clears the REST save mark of the post.
  *
  * @param int           $post_id     Post ID.
  * @param \WP_Post      $post        Post object.
