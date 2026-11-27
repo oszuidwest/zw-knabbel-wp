@@ -746,6 +746,30 @@ final class Knabbel_E2E_Suite {
 		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same( 'create', $error['operation'] ?? null, 'AI provider failure must identify the operation.' );
 		$this->assert_same( 'Could not generate speech text', $error['message'] ?? null, 'The sync error must carry the AI failure message.' );
+		$this->assert_same( 'Could not generate speech text', $this->get_sync_warning_field( $post_id ), 'An editor must get the AI failure warning.' );
+
+		// While a retry is queued or running the old warning is hidden, but it stays stored.
+		$this->update_post( $post_id, array() );
+		$this->assert_story_status( $post_id, StoryStatus::Scheduled, 'A save after an AI failure must queue a retry.' );
+		$this->assert_same( null, $this->get_sync_warning_field( $post_id ), 'A queued retry must hide the old warning.' );
+		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
+		$this->assert_same( 'Could not generate speech text', $error['message'] ?? null, 'A queued retry must keep the stored error.' );
+		$during_retry = array();
+		$capture      = function ( false|array|WP_Error $pre, array $args, string $url ) use ( &$during_retry, $post_id ): false|array|WP_Error {
+			if ( 'https://api.openai.com/v1/responses' === $url ) {
+				$during_retry[] = array( KnabbelWP\get_story_state( $post_id )['status'] ?? null, $this->get_sync_warning_field( $post_id ) );
+			}
+			return $pre;
+		};
+		add_filter( 'pre_http_request', $capture, 5, 3 );
+		try {
+			$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		} finally {
+			remove_filter( 'pre_http_request', $capture, 5 );
+		}
+		$this->assert_same( array( StoryStatus::Processing->value, null ), $during_retry[0] ?? null, 'A running retry must hide the old warning.' );
+		$this->assert_story_status( $post_id, StoryStatus::Error, 'A retry that fails again must mark error.' );
+		$this->assert_same( 'Could not generate speech text', $this->get_sync_warning_field( $post_id ), 'A failed retry must show the warning again.' );
 
 		update_option( 'knabbel_e2e_ai_mode', 'success', false );
 		$this->update_post( $post_id, array() );
@@ -1568,6 +1592,24 @@ final class Knabbel_E2E_Suite {
 		$result = wp_update_post( array_merge( array( 'ID' => $post_id ), $updates ), true );
 		if ( is_wp_error( $result ) ) {
 			throw new RuntimeException( 'Could not update test post: ' . $result->get_error_message() );
+		}
+	}
+
+	/**
+	 * Returns the sync warning an editor gets from the REST API.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return mixed The knabbel_sync_warning field.
+	 */
+	private function get_sync_warning_field( int $post_id ): mixed {
+		$previous_user = get_current_user_id();
+		wp_set_current_user( (int) get_user_by( 'login', 'admin' )->ID );
+		try {
+			$request = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
+			$request->set_param( 'context', 'edit' );
+			return rest_do_request( $request )->get_data()['knabbel_sync_warning'] ?? null;
+		} finally {
+			wp_set_current_user( $previous_user );
 		}
 	}
 

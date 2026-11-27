@@ -55,6 +55,7 @@ function register_post_hooks(): void {
  * Only in the edit context, so the message is not public.
  *
  * @since 2.0.0
+ * @since 2.0.1 Leaves out the error while a retry is queued or running.
  */
 function register_sync_warning_field(): void {
 	register_rest_field(
@@ -64,7 +65,12 @@ function register_sync_warning_field(): void {
 			'get_callback' => static function ( array $post ): ?string {
 				// A request with _fields can leave out the id; the controller sets up the global post.
 				$post_id = (int) ( $post['id'] ?? get_the_ID() );
-				return get_story_sync_error( get_story_state( $post_id ) )['message'] ?? null;
+				$state   = get_story_state( $post_id );
+				// The retry has not failed yet; the error stays stored for the metabox and settings page.
+				if ( in_array( $state['status'] ?? '', array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
+					return null;
+				}
+				return get_story_sync_error( $state )['message'] ?? null;
 			},
 			'schema'       => array(
 				'description' => __( 'Last Babbel sync error of the post.', 'zw-knabbel-wp' ),
