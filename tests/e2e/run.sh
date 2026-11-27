@@ -134,11 +134,27 @@ wp option update timezone_string Europe/Amsterdam
 wp plugin install ai-provider-for-openai --activate
 wp plugin activate zw-knabbel-wp
 wp option update connectors_ai_openai_api_key e2e-openai-key
+# Write the legacy settings and run the version gate in init() in this same process, so the gate
+# reads the values just written from this process's own cache. A separate wp eval would read the
+# database, where a healthcheck request (wp-login.php every 2 seconds) may already have run the
+# cleanup on a stale copy and stored the current version again.
 # The dollar-prefixed variables are evaluated by PHP inside the container.
 # shellcheck disable=SC2016
-wp eval '$settings = get_option( "knabbel_settings", array() ); $settings["title_prompt"] = "legacy"; $settings["openai_api_key"] = "legacy-secret"; $settings["openai_model"] = "legacy-model"; update_option( "knabbel_settings", $settings ); update_option( "knabbel_version", "0.6.0" );'
-# shellcheck disable=SC2016
-wp eval '$settings = get_option( "knabbel_settings", array() ); if ( array_intersect( array( "title_prompt", "openai_api_key", "openai_model" ), array_keys( $settings ) ) ) { throw new RuntimeException( "Legacy AI settings were not removed on init." ); } if ( 1 !== ( $settings["start_days_offset"] ?? null ) || "draft" !== ( $settings["default_status"] ?? null ) ) { throw new RuntimeException( "Plugin activation defaults are incorrect." ); }'
+wp eval '
+	$legacy = array( "title_prompt" => "legacy", "openai_api_key" => "legacy-secret", "openai_model" => "legacy-model" );
+	update_option( "knabbel_settings", $legacy + get_option( "knabbel_settings", array() ) );
+	update_option( "knabbel_version", "0.6.0" );
+	KnabbelWP\init();
+	$settings = get_option( "knabbel_settings", array() );
+	if ( array_intersect_key( $legacy, $settings ) ) {
+		throw new RuntimeException( "Legacy AI settings were not removed on init." );
+	}
+	if ( KNABBEL_VERSION !== get_option( "knabbel_version" ) ) {
+		throw new RuntimeException( "The version gate did not store the installed version." );
+	}
+	if ( 1 !== ( $settings["start_days_offset"] ?? null ) || "draft" !== ( $settings["default_status"] ?? null ) ) {
+		throw new RuntimeException( "Plugin activation defaults are incorrect." );
+	}'
 
 echo "Running browser E2E scenarios..."
 PLAYWRIGHT_BASE_URL="$wordpress_url" \
