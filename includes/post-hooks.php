@@ -220,8 +220,9 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
  *
  * @param int           $post_id     Post ID.
  * @param \WP_Post|null $post_before Post state before a save, when available.
+ * @param bool          $restarted   Whether this sync started again after a Babbel lookup, because the state changed or its clear failed.
  */
-function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
+function sync_story_state( int $post_id, ?\WP_Post $post_before = null, bool $restarted = false ): void {
 	$post = get_post( $post_id );
 	// Revisions and autosaves have post type 'revision', so this also excludes them.
 	if ( ! $post || 'post' !== $post->post_type ) {
@@ -248,10 +249,23 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 	) {
 		// A delete or restore whose answer was lost may still have gone through. A story Babbel cannot find, for
 		// example one made before stories had an external ID, keeps its error.
-		$found = babbel_find_story_by_external_id( (string) $post_id, story_external_url( $post_id ) );
-		if ( ! is_wp_error( $found ) && $story_id === $found['story_id'] && $should_remove === $found['deleted'] ) {
-			update_story_state( $post_id, array( 'last_sync_error' => null ), $state );
-		} else {
+		$found     = babbel_find_story_by_external_id( (string) $post_id, story_external_url( $post_id ) );
+		$confirmed = ! is_wp_error( $found ) && $story_id === $found['story_id'] && $should_remove === $found['deleted'];
+		// Another save can write a newer state during the lookup, such as a pending update. Going on with the post and
+		// state read before it would send an older post and drop that update, so the sync starts again, once.
+		wp_cache_delete( $post_id, 'post_meta' );
+		if ( get_story_state( $post_id ) !== $state
+			|| ( $confirmed && ! update_story_state( $post_id, array( 'last_sync_error' => null ), $state ) )
+		) {
+			if ( $restarted ) {
+				log( 'info', 'PostHooks', 'The story state changed again or could not be written, so this sync stops', array( 'post_id' => $post_id ) );
+				return;
+			}
+			wp_cache_delete( $post_id, 'posts' );
+			sync_story_state( $post_id, $post_before, true );
+			return;
+		}
+		if ( ! $confirmed ) {
 			log( 'info', 'PostHooks', 'Babbel did not confirm the story state, so the sync error stays', array( 'post_id' => $post_id ) );
 		}
 	}

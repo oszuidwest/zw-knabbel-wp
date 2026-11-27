@@ -1405,7 +1405,11 @@ final class Knabbel_E2E_Suite {
 		KnabbelWP\sync_story_state( $post_id );
 		$this->assert_sync_failure_preserved( $post_id, '999999', StoryStatus::Sent, 'delete' );
 		KnabbelWP\update_story_state( $post_id, array( 'story_id' => $story_id ) );
-		KnabbelWP\sync_story_state( $post_id );
+		// Another save stores a pending update during the lookup, so this sync starts again and sends both changes.
+		// Without an answer from Babbel the sync writes nothing, so only the state check sees the change.
+		$this->save_with_update_during_lookup( $post_id, $story_id, 'E2E titel zonder antwoord', '2030-01-01', true );
+		KnabbelWP\update_story_state( $post_id, array( 'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E verwijderfout', 'delete' ) ) );
+		$this->save_with_update_during_lookup( $post_id, $story_id, 'E2E titel tijdens het opzoeken', '2030-02-01', false );
 		$state = KnabbelWP\get_story_state( $post_id );
 		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Switching on must keep the story sent.' );
 		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Switching on must clear a delete error.' );
@@ -2191,6 +2195,41 @@ final class Knabbel_E2E_Suite {
 				static fn( array $story ): bool => ( $story['title'] ?? null ) === $title
 			)
 		);
+	}
+
+	/**
+	 * Saves a new title while another save stores a pending update during the Babbel lookup.
+	 *
+	 * @param int    $post_id     Post ID with a delete error on a sent story.
+	 * @param string $story_id    Story ID.
+	 * @param string $title       Title of this save.
+	 * @param string $start_date  Start date in the other save's pending update.
+	 * @param bool   $fail_lookup Whether the lookup gets no answer from Babbel.
+	 */
+	private function save_with_update_during_lookup( int $post_id, string $story_id, string $title, string $start_date, bool $fail_lookup ): void {
+		$pending = array(
+			'start_date' => $start_date,
+			'end_date'   => gmdate( 'Y-m-d', strtotime( $start_date . ' +1 day' ) ),
+		);
+		$lookup  = static function ( false|array|WP_Error $pre, array $args, string $url ) use ( &$lookup, $post_id, $pending, $fail_lookup ) {
+			if ( ! str_contains( $url, 'external_id' ) ) {
+				return $pre;
+			}
+			remove_filter( 'pre_http_request', $lookup, 5 );
+			KnabbelWP\update_story_state( $post_id, array( 'pending_update' => $pending ) );
+			return $fail_lookup ? new WP_Error( 'http_request_failed', 'E2E timeout' ) : $pre;
+		};
+		add_filter( 'pre_http_request', $lookup, 5, 3 );
+		try {
+			$this->update_post( $post_id, array( 'post_title' => $title ) );
+		} finally {
+			remove_filter( 'pre_http_request', $lookup, 5 );
+		}
+		$story = $this->get_babbel_story( $story_id );
+		$this->assert_same( $title, $story['title'] ?? null, 'The restarted sync must send the title of this save.' );
+		$this->assert_same( $start_date, $this->date_only( $story['start_date'] ?? '' ), 'The restarted sync must send the other pending update.' );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( true, ! isset( $state['pending_update'] ), 'The restarted sync must clear the pending update it sent.' );
 	}
 
 	/**
