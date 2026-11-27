@@ -25,20 +25,27 @@
         const { createWarningNotice, removeNotice } =
             data.useDispatch('core/notices');
         const enabled = Boolean(meta?.[META_KEY]);
+        const message = syncWarning?.message;
+        // Some messages say what to do instead, so the server leaves out the hint.
+        const retry = syncWarning?.retry ? text.syncRetry : '';
 
         // The sidebar can be closed or covered by the post-publish panel, so
         // the error also shows at the top of the editor.
         useEffect(() => {
-            if (syncWarning) {
+            if (message) {
+                // The hint is a new sentence, so the message gets a full stop.
+                const content = retry
+                    ? `${message.replace(/[^.!?]$/, '$&.')} ${retry}`
+                    : message;
                 // Not dismissible: a repeat of the same error would not bring it back.
-                createWarningNotice(
-                    `${text.syncWarningTitle}: ${syncWarning}`,
-                    { id: NOTICE_ID, isDismissible: false },
-                );
+                createWarningNotice(`${text.syncWarningTitle}: ${content}`, {
+                    id: NOTICE_ID,
+                    isDismissible: false,
+                });
             } else {
                 removeNotice(NOTICE_ID);
             }
-        }, [syncWarning, createWarningNotice, removeNotice]);
+        }, [message, retry, createWarningNotice, removeNotice]);
 
         return el(
             Fragment,
@@ -75,7 +82,7 @@
                     ),
                 ),
             ),
-            syncWarning &&
+            message &&
                 el(
                     editor.PluginPostStatusInfo,
                     { className: 'knabbel-post-status' },
@@ -87,7 +94,8 @@
                             isDismissible: false,
                         },
                         el('strong', null, text.syncWarningTitle),
-                        el('div', null, syncWarning),
+                        el('div', null, message),
+                        retry && el('div', null, retry),
                     ),
                 ),
         );

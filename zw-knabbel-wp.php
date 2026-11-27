@@ -387,12 +387,26 @@ function get_story_state( int $post_id ): array {
 }
 
 /**
+ * Returns the message for a create that finds its story deleted in Babbel.
+ *
+ * @since 2.0.1
+ * @return string Translated error message.
+ */
+function deleted_story_found_message(): string {
+	return __(
+		'The story for this post was deleted in Babbel. To send it again, restore it in Babbel first and then save the post.',
+		'zw-knabbel-wp'
+	);
+}
+
+/**
  * Builds a bounded error for persistent story state.
  *
  * @since 0.5.0
+ * @since 2.0.1 Records whether saving the post tries again.
  * @param string $message   Error message to show to operators and editors.
  * @param string $operation Sync operation: create, update, restore, or delete.
- * @return array{message: string, occurred_at: string, operation: string} Sync error data.
+ * @return array{message: string, occurred_at: string, operation: string, retry: bool} Sync error data.
  *
  * @phpstan-return LastSyncError
  */
@@ -404,6 +418,9 @@ function build_story_sync_error( string $message, string $operation ): array {
 		'message'     => wp_html_excerpt( sanitize_textarea_field( $message ), 500, '' ),
 		'occurred_at' => current_time( 'mysql' ),
 		'operation'   => in_array( $operation, $allowed_operations, true ) ? $operation : 'update',
+		// These messages say what to do instead, since saving again would fail the same way.
+		// Compared here, in the request that built them, so the translations match.
+		'retry'       => ! in_array( $message, array( babbel_story_deleted_message(), deleted_story_found_message() ), true ),
 	);
 }
 
@@ -412,8 +429,9 @@ function build_story_sync_error( string $message, string $operation ): array {
  *
  * @since 0.5.0
  * @since 0.8.0 Returns null for a blank message.
+ * @since 2.0.1 Also returns whether saving the post tries again.
  * @param array<string, mixed> $state Story state data.
- * @return array{message: string, occurred_at: string, operation: string}|null Sync error, or null when absent, malformed, or blank.
+ * @return array{message: string, occurred_at: string, operation: string, retry: bool}|null Sync error, or null when absent, malformed, or blank.
  *
  * @phpstan-return LastSyncError|null
  */
@@ -433,6 +451,8 @@ function get_story_sync_error( array $state ): ?array {
 		'message'     => $error['message'],
 		'occurred_at' => $error['occurred_at'],
 		'operation'   => $error['operation'],
+		// Errors stored before 2.0.1 have no flag, and most of those are retried.
+		'retry'       => false !== ( $error['retry'] ?? true ),
 	);
 }
 
@@ -801,10 +821,7 @@ function process_story_async( int $post_id ): void {
 			$error = __( 'Babbel already has a story with this post ID, but it could not be linked: ', 'zw-knabbel-wp' ) . $found->get_error_message();
 		} elseif ( $found['deleted'] ) {
 			// Restoring it here could undo a delete someone made on purpose in Babbel.
-			$error = __(
-				'The story for this post was deleted in Babbel. To send it again, restore it in Babbel first and then save the post.',
-				'zw-knabbel-wp'
-			);
+			$error = deleted_story_found_message();
 		} else {
 			$state = array(
 				'story_id'       => $found['story_id'],

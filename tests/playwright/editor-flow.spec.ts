@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import {
     BABBEL_ADMIN,
@@ -20,6 +21,22 @@ const originalContent =
     'Dit artikel wordt volledig via de WordPress-editor gepubliceerd en naar Babbel gestuurd.';
 // Keep in sync with the AI Client MU plugin and tests/e2e/suite.php.
 const generatedText = 'Deterministische E2E-radiospreektekst.';
+const retryHint = 'Save the post to try again.';
+
+async function setBabbelPassword(page: Page, password: string): Promise<void> {
+    await page.goto(
+        '/wp-admin/options-general.php?page=zw-knabbel-wp-settings',
+    );
+    await page
+        .locator('[name="knabbel_settings[api_password]"]')
+        .fill(password);
+    await Promise.all([
+        page.waitForURL(
+            /\/wp-admin\/options-general\.php\?page=zw-knabbel-wp-settings/,
+        ),
+        page.locator('button[form="knabbel-settings-form"]').click(),
+    ]);
+}
 
 test.describe
     .serial('WordPress redacteursflow', () => {
@@ -195,6 +212,8 @@ test.describe
             await expect(top).toContainText(
                 'This story was deleted in Babbel.',
             );
+            // The message says what to do, and saving again would not help.
+            await expect(top).not.toContainText(retryHint);
 
             // A stored error shows when the editor opens, in both places.
             await openEditor(page, postID);
@@ -203,6 +222,7 @@ test.describe
             await expect(inline).toContainText(
                 'This story was deleted in Babbel.',
             );
+            await expect(inline).not.toContainText(retryHint);
             await expect(top).toBeVisible();
 
             // The way back the warning describes.
@@ -216,6 +236,49 @@ test.describe
                 (await controlStory(page, postID, 'inspect')).state.status,
             ).toBe('sent');
             await getBabbelStory(storyID);
+        });
+
+        test('redacteur leest bij een gewone Babbel-fout dat opslaan het opnieuw probeert', async ({
+            page,
+        }) => {
+            const inline = page.locator('.knabbel-sync-notice');
+            const top = page
+                .locator('.components-notice:not(.knabbel-sync-notice)')
+                .filter({ hasText: 'Babbel was not updated' });
+            const message =
+                'API connection failed: Login failed: API error: HTTP 401 - Invalid username or password';
+
+            await setBabbelPassword(page, 'definitely-wrong-password');
+            try {
+                await openEditor(page, postID);
+                await setSidebar(page, true);
+                await page.evaluate(() =>
+                    window.wp.data
+                        .dispatch('core/editor')
+                        .editPost({ title: 'Browser E2E titel tijdens fout' }),
+                );
+                await savePost(page);
+                await expect(inline).toContainText(message);
+                await expect(inline).toContainText(retryHint);
+                // The message has no full stop of its own, so the notice adds one.
+                await expect(top).toContainText(`${message}. ${retryHint}`);
+            } finally {
+                await setBabbelPassword(page, BABBEL_ADMIN.password);
+            }
+
+            // The retry the hint promises: any save resends the failed title.
+            await openEditor(page, postID);
+            await page.evaluate(() =>
+                window.wp.data
+                    .dispatch('core/editor')
+                    .editPost({ excerpt: 'Een samenvatting na de fout.' }),
+            );
+            await savePost(page);
+            await expect(inline).toHaveCount(0);
+            await expect(top).toHaveCount(0);
+            expect((await getBabbelStory(storyID)).title).toBe(
+                'Browser E2E titel tijdens fout',
+            );
         });
 
         test('de Radionieuws-regel staat alleen bij berichten', async ({

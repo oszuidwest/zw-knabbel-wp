@@ -55,20 +55,32 @@ function register_post_hooks(): void {
  * Only in the edit context, so the message is not public.
  *
  * @since 2.0.0
+ * @since 2.0.1 Gives the message and whether saving the post tries again.
  */
 function register_sync_warning_field(): void {
 	register_rest_field(
 		'post',
 		'knabbel_sync_warning',
 		array(
-			'get_callback' => static function ( array $post ): ?string {
+			'get_callback' => static function ( array $post ): ?array {
 				// A request with _fields can leave out the id; the controller sets up the global post.
 				$post_id = (int) ( $post['id'] ?? get_the_ID() );
-				return get_story_sync_error( get_story_state( $post_id ) )['message'] ?? null;
+				$error   = get_story_sync_error( get_story_state( $post_id ) );
+				return null === $error ? null : array(
+					'message' => $error['message'],
+					'retry'   => $error['retry'] ?? true,
+				);
 			},
 			'schema'       => array(
 				'description' => __( 'Last Babbel sync error of the post.', 'zw-knabbel-wp' ),
-				'type'        => array( 'string', 'null' ),
+				'type'        => array( 'object', 'null' ),
+				'properties'  => array(
+					'message' => array( 'type' => 'string' ),
+					'retry'   => array(
+						'description' => __( 'Whether saving the post tries again.', 'zw-knabbel-wp' ),
+						'type'        => 'boolean',
+					),
+				),
 				'context'     => array( 'edit' ),
 				'readonly'    => true,
 			),

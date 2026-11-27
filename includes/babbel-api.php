@@ -129,6 +129,16 @@ function babbel_clear_session_cache(): void {
 }
 
 /**
+ * Returns the message for an update to a story deleted in Babbel.
+ *
+ * @since 2.0.1
+ * @return string Translated error message.
+ */
+function babbel_story_deleted_message(): string {
+	return __( 'This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again.', 'zw-knabbel-wp' );
+}
+
+/**
  * Formats a Babbel error response.
  *
  * Babbel reports errors as RFC 9457 Problem Details; field errors from
@@ -145,7 +155,7 @@ function babbel_clear_session_cache(): void {
 function babbel_error_message( int $code, string $body ): string {
 	$problem = json_decode( $body, true );
 	if ( 'story.deleted' === ( $problem['code'] ?? null ) ) {
-		return __( 'This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again.', 'zw-knabbel-wp' );
+		return babbel_story_deleted_message();
 	}
 	if ( is_array( $problem ) && is_string( $problem['detail'] ?? null ) ) {
 		$detail       = $problem['detail'];

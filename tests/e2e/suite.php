@@ -1314,6 +1314,8 @@ final class Knabbel_E2E_Suite {
 			'update',
 			'This story was deleted in Babbel. If you want it back, turn off Radio News, save, turn it on and save again.'
 		);
+		$error = KnabbelWP\get_story_state( $post_id )['last_sync_error'] ?? array();
+		$this->assert_same( false, $error['retry'] ?? null, 'Saving again does not help, so the editor must not be told it does.' );
 
 		$this->assert_same( 'API error: HTTP 410 - Gone', KnabbelWP\babbel_error_message( 410, '{"detail":"Gone"}' ), 'Only story.deleted counts.' );
 
@@ -1346,12 +1348,16 @@ final class Knabbel_E2E_Suite {
 		$previous_user = get_current_user_id();
 		try {
 			wp_set_current_user( (int) get_user_by( 'login', 'admin' )->ID );
-			$this->assert_same( 'E2E REST failure', $get( 'edit' )->get_data()['knabbel_sync_warning'] ?? null, 'An editor must get the sync error.' );
+			$warning = array(
+				'message' => 'E2E REST failure',
+				'retry'   => true,
+			);
+			$this->assert_same( $warning, $get( 'edit' )->get_data()['knabbel_sync_warning'] ?? null, 'An editor must get the error and its retry flag.' );
 			$only = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
 			$only->set_param( 'context', 'edit' );
 			$only->set_param( '_fields', 'knabbel_sync_warning' );
 			$only_data = rest_get_server()->response_to_data( rest_do_request( $only ), false );
-			$this->assert_same( 'E2E REST failure', $only_data['knabbel_sync_warning'] ?? null, 'Only asking for the field must still give the error.' );
+			$this->assert_same( $warning, $only_data['knabbel_sync_warning'] ?? null, 'Only asking for the field must still give the error.' );
 			$view = $get( 'view' )->get_data();
 			$this->assert_same( false, array_key_exists( 'knabbel_sync_warning', $view ), 'The view context must not show the sync error.' );
 
@@ -1428,6 +1434,7 @@ final class Knabbel_E2E_Suite {
 			$state['last_sync_error']['message'] ?? null,
 			'The editor must learn how to get the deleted story back.'
 		);
+		$this->assert_same( false, $state['last_sync_error']['retry'] ?? null, 'Saving again does not help, so the editor must not be told it does.' );
 		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 	}
 

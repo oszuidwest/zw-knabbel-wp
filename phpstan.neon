@@ -16,7 +16,7 @@ parameters:
     BabbelApiResponse: 'array{success: bool, message: string, story_id?: string, duplicate?: bool}'
     StoryData: 'array{title: string, text: string, start_date: string, end_date: string, status?: string, weekdays?: int, metadata?: array<string, mixed>, external_id: string, external_url: string}'
     StoryUpdateData: 'array{title?: string, start_date?: string, end_date?: string, weekdays?: int}'
-    LastSyncError: 'array{message: string, occurred_at: string, operation: string}'
+    LastSyncError: 'array{message: string, occurred_at: string, operation: string, retry?: bool}'
     StoryState: 'array{status?: string, story_id?: string, status_changed_at?: string, message?: string, generated_speech_text?: string, post_id?: int, last_sync_error?: LastSyncError, pending_update?: StoryUpdateData}'
     StoryStateUpdate: 'array{status?: string, story_id?: string, message?: string, generated_speech_text?: string, last_sync_error?: LastSyncError|null, pending_update?: StoryUpdateData|null}'
     RecentError: 'array{timestamp: string, component: string, message: string, context: array<string, mixed>}'
