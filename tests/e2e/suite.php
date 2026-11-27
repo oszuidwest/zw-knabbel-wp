@@ -554,7 +554,18 @@ final class Knabbel_E2E_Suite {
 			'API connection failed: Login failed: API error: HTTP 401 - Invalid username or password'
 		);
 		// A sync without a save sends nothing, and an update error still applies.
-		KnabbelWP\sync_story_state( $this->published_post_id );
+		$babbel_calls = 0;
+		$count_calls  = static function ( false|array|WP_Error $pre ) use ( &$babbel_calls ): false|array|WP_Error {
+			++$babbel_calls;
+			return $pre;
+		};
+		add_filter( 'pre_http_request', $count_calls );
+		try {
+			KnabbelWP\sync_story_state( $this->published_post_id );
+		} finally {
+			remove_filter( 'pre_http_request', $count_calls );
+		}
+		$this->assert_same( 0, $babbel_calls, 'A sync without a save must not call Babbel.' );
 		$this->assert_sync_failure_preserved( $this->published_post_id, $this->published_story_id, StoryStatus::Sent, 'update' );
 		$connection = KnabbelWP\babbel_test_connection();
 		$this->assert_same( false, $connection['success'], 'Connection test must fail with wrong credentials.' );
@@ -1260,14 +1271,25 @@ final class Knabbel_E2E_Suite {
 			'Mislukte synchronisatieovergangen moeten zonder verlies van lifecycle-state opnieuw uitvoerbaar blijven.'
 		);
 
+		// A failed update leaves a pending update; a failed delete then replaces its error.
+		$pending_title = 'E2E verwijder- en herstelfout bijgewerkt';
+		$this->configure_plugin( 'wrong-update-password' );
+		$this->update_post( $post_id, array( 'post_title' => $pending_title ) );
+		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'update' );
 		$this->configure_plugin( 'wrong-delete-password' );
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
 		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Sent, 'delete' );
 		$this->assert_babbel_response_code( 200, 'GET', '/stories/' . $story_id );
 
-		$this->configure_plugin();
+		// Switching on again needs no Babbel call, so the delete error goes even while Babbel refuses.
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
-		$this->assert_same( true, ! isset( KnabbelWP\get_story_state( $post_id )['last_sync_error'] ), 'Switching on must clear a delete error.' );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( StoryStatus::Sent->value, $state['status'] ?? null, 'Switching on must keep the story sent.' );
+		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Switching on must clear a delete error.' );
+		$this->assert_same( $pending_title, $state['pending_update']['title'] ?? null, 'Clearing the delete error must keep the pending update.' );
+		$this->assert_babbel_response_code( 200, 'GET', '/stories/' . $story_id );
+
+		$this->configure_plugin();
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
 		$this->assert_story_status( $post_id, StoryStatus::Deleted, 'A retried delete must reach deleted state.' );
 		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
@@ -1278,7 +1300,10 @@ final class Knabbel_E2E_Suite {
 		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 		// Switching off leaves nothing to restore; switching on again fails the restore again.
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
-		$this->assert_same( true, ! isset( KnabbelWP\get_story_state( $post_id )['last_sync_error'] ), 'Switching off must clear a restore error.' );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( StoryStatus::Deleted->value, $state['status'] ?? null, 'Switching off must keep the story deleted.' );
+		$this->assert_same( true, ! isset( $state['last_sync_error'] ), 'Switching off must clear a restore error.' );
+		$this->assert_babbel_response_code( 404, 'GET', '/stories/' . $story_id );
 		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
 		$this->assert_sync_failure_preserved( $post_id, $story_id, StoryStatus::Deleted, 'restore' );
 
