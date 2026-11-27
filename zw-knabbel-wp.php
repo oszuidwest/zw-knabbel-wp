@@ -731,6 +731,19 @@ function process_story_async( int $post_id ): void {
 
 	// Generate speech text.
 	$generated = ai_generate_content( $content, $post_id );
+
+	// Generating takes a while, and an editor may have rescheduled, unpublished or disabled the post meanwhile.
+	clean_post_cache( $post_id );
+	$post = get_post( $post_id );
+	if ( ! $post || ! in_array( $post->post_status, array( 'publish', 'future' ), true ) || ! get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true ) ) {
+		// A save leaves Processing to the running worker, and one before this run wrote it found nothing to clean up.
+		if ( StoryStatus::Processing->value === ( get_story_state( $post_id )['status'] ?? null ) ) {
+			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
+		}
+		return;
+	}
+
+	// Checked after the freshness check, so a post switched off meanwhile gets no warning.
 	if ( null === $generated ) {
 		$error = __( 'Could not generate speech text', 'zw-knabbel-wp' );
 		update_story_state(
@@ -744,17 +757,6 @@ function process_story_async( int $post_id ): void {
 		return;
 	}
 	$speech_text = $generated['text'];
-
-	// Generating takes a while, and an editor may have rescheduled, unpublished or disabled the post meanwhile.
-	clean_post_cache( $post_id );
-	$post = get_post( $post_id );
-	if ( ! $post || ! in_array( $post->post_status, array( 'publish', 'future' ), true ) || ! get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true ) ) {
-		// A save leaves Processing to the running worker, and one before this run wrote it found nothing to clean up.
-		if ( StoryStatus::Processing->value === ( get_story_state( $post_id )['status'] ?? null ) ) {
-			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
-		}
-		return;
-	}
 
 	// Use the raw post title directly (not get_the_title() which applies filters and prefixes).
 	$title = $post->post_title;
