@@ -78,9 +78,7 @@
                             {
                                 size: 'compact',
                                 variant: 'tertiary',
-                                // A switch: screen readers announce the name and
-                                // whether it is on. Not aria-pressed, which gives
-                                // the button core's dark pressed style.
+                                // Not aria-pressed: that turns the button black.
                                 role: 'switch',
                                 'aria-label': text.label,
                                 'aria-checked': enabled,
