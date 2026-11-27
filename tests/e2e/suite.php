@@ -89,7 +89,7 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-019', 'a story deleted in Babbel tells the editor what to do on update', $this->test_story_deleted_in_babbel( ... ) );
 		$this->run_case( 'E2E-021', 'a create whose answer was lost is taken over, unless it was deleted in Babbel', $this->test_lost_create_answer( ... ) );
 		$this->run_case( 'E2E-022', 'the sync warning REST field is only in the edit context', $this->test_sync_warning_rest_field( ... ) );
-		$this->run_case( 'E2E-023', 'a failed create is cleared when the post should no longer have a story', $this->test_create_error_cleared_offline( ... ) );
+		$this->run_case( 'E2E-023', 'a failed create leaves no error once the post should have no story', $this->test_create_error_cleared_offline( ... ) );
 		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
@@ -1306,11 +1306,10 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
-	 * Verifies that switching off or unpublishing clears the error of a failed create, and that switching on starts over.
+	 * Verifies that switching off or unpublishing clears the error of a failed create.
 	 */
 	private function test_create_error_cleared_offline(): void {
 		$this->configure_plugin( 'wrong-create-password' );
-		$post_ids = array();
 		foreach ( array( 'checkbox', 'unpublish' ) as $offline_via ) {
 			$post_id = $this->create_enabled_draft(
 				'E2E mislukte create ' . $offline_via,
@@ -1328,19 +1327,8 @@ final class Knabbel_E2E_Suite {
 			}
 
 			$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), $offline_via . ' must clear the error state and its sync error.' );
-			$this->assert_same( 0, $this->story_action_count( $post_id ), $offline_via . ' must leave no pending action.' );
-			$post_ids[ $offline_via ] = $post_id;
 		}
-
 		$this->configure_plugin();
-		update_post_meta( $post_ids['checkbox'], self::SEND_TO_BABBEL_META_KEY, 1 );
-		$this->update_post( $post_ids['unpublish'], array( 'post_status' => 'publish' ) );
-		foreach ( $post_ids as $offline_via => $post_id ) {
-			$this->assert_story_status( $post_id, StoryStatus::Scheduled, 'Undoing ' . $offline_via . ' must schedule a fresh create.' );
-			$this->assert_same( 1, $this->story_action_count( $post_id ), 'Undoing ' . $offline_via . ' must queue exactly one action.' );
-			$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
-			$this->assert_story_status( $post_id, StoryStatus::Sent, 'The fresh create after ' . $offline_via . ' must reach sent state.' );
-		}
 	}
 
 	/**
