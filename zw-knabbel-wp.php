@@ -373,6 +373,35 @@ function update_story_state( int $post_id, array $updates = array(), ?array $exp
 }
 
 /**
+ * Deletes the story state only while it is still the one that was read.
+ *
+ * @since 2.0.1
+ * @param int                  $post_id  The post ID.
+ * @param array<string, mixed> $expected State the stored one must still be.
+ *
+ * @phpstan-param StoryState $expected
+ */
+function delete_story_state( int $post_id, array $expected ): void {
+	global $wpdb;
+
+	// One query on the stored bytes. delete_post_meta() with a value selects and deletes in two, and unslashes the value.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	$deleted = $wpdb->query(
+		$wpdb->prepare(
+			"DELETE FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s AND meta_value = CAST(%s AS BINARY)",
+			$post_id,
+			'_zw_knabbel_story_state',
+			maybe_serialize( $expected )
+		)
+	);
+	wp_cache_delete( $post_id, 'post_meta' );
+
+	if ( ! $deleted ) {
+		log( 'info', 'StoryState', 'Story state changed before it could be deleted, so it was kept', array( 'post_id' => $post_id ) );
+	}
+}
+
+/**
  * Returns story state data for a post.
  *
  * @since 0.1.0
@@ -738,8 +767,9 @@ function process_story_async( int $post_id ): void {
 	$post = get_post( $post_id );
 	if ( ! $post || ! in_array( $post->post_status, array( 'publish', 'future' ), true ) || ! get_post_meta( $post_id, '_zw_knabbel_send_to_babbel', true ) ) {
 		// A save leaves Processing to the running worker, and one before this run wrote it found nothing to clean up.
-		if ( StoryStatus::Processing->value === ( get_story_state( $post_id )['status'] ?? null ) ) {
-			delete_post_meta( $post_id, '_zw_knabbel_story_state' );
+		$current = get_story_state( $post_id );
+		if ( StoryStatus::Processing->value === ( $current['status'] ?? null ) ) {
+			delete_story_state( $post_id, $current );
 		}
 		return;
 	}

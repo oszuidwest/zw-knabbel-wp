@@ -251,8 +251,9 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 			}
 			// A worker may have finished since the state was read.
 			wp_cache_delete( $post_id, 'post_meta' );
-			if ( ( get_story_state( $post_id )['status'] ?? '' ) === $status ) {
-				delete_post_meta( $post_id, '_zw_knabbel_story_state' );
+			$current = get_story_state( $post_id );
+			if ( ( $current['status'] ?? '' ) === $status ) {
+				delete_story_state( $post_id, $current );
 			}
 		}
 		return;
