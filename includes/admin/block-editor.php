@@ -4,7 +4,7 @@
  *
  * Adds a Radio News row to the Summary panel of posts and shows the last
  * Babbel sync error under it and as an editor notice. The script edits the post
- * meta and reads the knabbel_sync_warning REST field, both registered in
+ * meta and reads the knabbel_sync_error REST field, both registered in
  * includes/post-hooks.php. Its styles are in assets/admin.css, loaded by
  * metabox_enqueue_assets().
  *

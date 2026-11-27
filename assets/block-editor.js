@@ -16,11 +16,12 @@
             'meta',
         );
         // Every save response carries this field, so the warning shows the
-        // error stored after that save, without a reload.
+        // error stored after that save, without a reload. While a retry is on
+        // its way the field is empty; a failed retry shows after a reload.
         const [syncWarning] = coreData.useEntityProp(
             'postType',
             'post',
-            'knabbel_sync_warning',
+            'knabbel_sync_error',
         );
         const { createWarningNotice, removeNotice } =
             data.useDispatch('core/notices');
