@@ -90,7 +90,8 @@ final class Knabbel_E2E_Suite {
 		$this->run_case( 'E2E-021', 'a create whose answer was lost is taken over, unless it was deleted in Babbel', $this->test_lost_create_answer( ... ) );
 		$this->run_case( 'E2E-022', 'the sync warning REST field is only in the edit context', $this->test_sync_warning_rest_field( ... ) );
 		$this->run_case( 'E2E-023', 'a REST save that changes Radio News calls Babbel once', $this->test_rest_save_syncs_once( ... ) );
-		$this->run_case( 'E2E-024', 'a failed create leaves no error once the post should have no story', $this->test_create_error_cleared_offline( ... ) );
+		$this->run_case( 'E2E-024', 'clearing the story state keeps a state written after it was read', $this->test_state_delete_keeps_newer_state( ... ) );
+		$this->run_case( 'E2E-025', 'a failed create leaves no error once the post should have no story', $this->test_create_error_cleared_offline( ... ) );
 		$this->run_case( 'E2E-020', 'deactivation clears sessions, caches and scheduled actions', $this->test_deactivation_cleanup( ... ) );
 
 		WP_CLI::success( sprintf( '%d E2E scenarios passed with %d assertions.', $this->case_count, $this->assertion_count ) );
@@ -724,17 +725,61 @@ final class Knabbel_E2E_Suite {
 	private function test_ai_failure(): void {
 		$title = 'E2E AI-providerfout';
 		update_option( 'knabbel_e2e_ai_call_count', 0, false );
+		$post_id = $this->create_enabled_draft( $title . ' niet beschikbaar', 'Zonder werkende AI-instelling helpt opnieuw opslaan niet.' );
 		add_filter( 'wp_supports_ai', '__return_false' );
 		try {
-			$this->assert_same(
-				null,
-				KnabbelWP\ai_generate_content( 'Unsupported AI must fail without a provider request.', 0 ),
-				'Unsupported text generation must fail immediately.'
-			);
-			$this->assert_same( 0, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Unsupported text generation must not call the provider.' );
+			$this->publish_and_process( $post_id );
 		} finally {
 			remove_filter( 'wp_supports_ai', '__return_false' );
 		}
+		$this->assert_story_status( $post_id, StoryStatus::Error, 'Unsupported text generation must mark processing as error.' );
+		$this->assert_same( 0, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Unsupported text generation must not call the provider.' );
+		$this->assert_same(
+			'Speech text generation is not available. Ask an administrator to check the AI settings.',
+			KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) )['message'] ?? null,
+			'Unsupported text generation must tell the editor that it is not available, not that it failed.'
+		);
+
+		// Failed support checks (a short outage) are retried; only when all of them fail is it "not available".
+		// Each attempt runs the filter for its support check and, if supported, for its request.
+		$post_id = $this->create_enabled_draft( $title . ' even weg', 'Een korte storing bij de support-check moet opnieuw geprobeerd worden.' );
+		$checks  = 0;
+		$block   = static function ( bool $prevent ) use ( &$checks ): bool {
+			return ++$checks <= 2 ? true : $prevent;
+		};
+		update_option( 'knabbel_e2e_ai_mode', 'success', false );
+		add_filter( 'wp_ai_client_prevent_prompt', $block );
+		try {
+			$this->publish_and_process( $post_id );
+		} finally {
+			remove_filter( 'wp_ai_client_prevent_prompt', $block );
+		}
+		$this->assert_story_status( $post_id, StoryStatus::Sent, 'Two failed support checks must be retried.' );
+		$this->assert_same( 1, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'The retry after failed support checks must call the provider once.' );
+		$this->assert_same( 4, $checks, 'Two blocked checks, then one check and one request.' );
+
+		// One support check passed, so the error is a failed request, even if the checks before and after it fail.
+		$post_id = $this->create_enabled_draft( $title . ' eerst mislukt', 'Een mislukte aanvraag gevolgd door een storing is geen ontbrekende instelling.' );
+		$checks  = 0;
+		$block   = static function ( bool $prevent ) use ( &$checks ): bool {
+			$call = ++$checks;
+			return 1 === $call || $call >= 4 ? true : $prevent;
+		};
+		update_option( 'knabbel_e2e_ai_mode', 'error', false );
+		update_option( 'knabbel_e2e_ai_call_count', 0, false );
+		add_filter( 'wp_ai_client_prevent_prompt', $block );
+		try {
+			$this->publish_and_process( $post_id );
+		} finally {
+			remove_filter( 'wp_ai_client_prevent_prompt', $block );
+		}
+		$this->assert_same( 1, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'Only the second attempt may reach the provider.' );
+		$this->assert_same( 4, $checks, 'A blocked check, a check and a failed request, then a blocked check.' );
+		$this->assert_same(
+			'Could not generate speech text',
+			KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) )['message'] ?? null,
+			'A failed request followed by failed support checks must not say "not available".'
+		);
 
 		update_option( 'knabbel_e2e_ai_mode', 'error', false );
 		update_option( 'knabbel_e2e_ai_call_count', 0, false );
@@ -748,13 +793,64 @@ final class Knabbel_E2E_Suite {
 		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same( 'create', $error['operation'] ?? null, 'AI provider failure must identify the operation.' );
 		$this->assert_same( 'Could not generate speech text', $error['message'] ?? null, 'The sync error must carry the AI failure message.' );
+		$this->assert_same( 'Could not generate speech text', $this->get_sync_warning_field( $post_id ), 'An editor must get the AI failure warning.' );
 
-		update_option( 'knabbel_e2e_ai_mode', 'success', false );
+		// While a retry is queued or running the old warning is hidden, but it stays stored.
 		$this->update_post( $post_id, array() );
-		$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		$this->assert_story_status( $post_id, StoryStatus::Scheduled, 'A save after an AI failure must queue a retry.' );
+		$this->assert_same( null, $this->get_sync_warning_field( $post_id ), 'A queued retry must hide the old warning.' );
+		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
+		$this->assert_same( 'Could not generate speech text', $error['message'] ?? null, 'A queued retry must keep the stored error.' );
+		// The retry succeeds; the capture runs before the AI stub answers.
+		update_option( 'knabbel_e2e_ai_mode', 'success', false );
+		$during_retry = array();
+		$capture      = function ( false|array|WP_Error $pre, array $args, string $url ) use ( &$during_retry, $post_id ): false|array|WP_Error {
+			if ( 'https://api.openai.com/v1/responses' === $url ) {
+				$during_retry[] = array( KnabbelWP\get_story_state( $post_id )['status'] ?? null, $this->get_sync_warning_field( $post_id ) );
+			}
+			return $pre;
+		};
+		add_filter( 'pre_http_request', $capture, 5, 3 );
+		try {
+			$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+		} finally {
+			remove_filter( 'pre_http_request', $capture, 5 );
+		}
+		$this->assert_same( array( StoryStatus::Processing->value, null ), $during_retry[0] ?? null, 'A running retry must hide the old warning.' );
 		$this->assert_story_status( $post_id, StoryStatus::Sent, 'A save after an AI failure must retry the story.' );
 		$error = KnabbelWP\get_story_sync_error( KnabbelWP\get_story_state( $post_id ) );
 		$this->assert_same( null, $error, 'A successful retry must clear the AI failure warning.' );
+
+		// A scheduled or processing state without a pending or running action is stale (a dead worker), so its error shows.
+		$args = array( 'post_id' => $post_id );
+		foreach ( array( StoryStatus::Scheduled, StoryStatus::Processing ) as $stale_status ) {
+			KnabbelWP\update_story_state(
+				$post_id,
+				array(
+					'status'          => $stale_status->value,
+					'last_sync_error' => KnabbelWP\build_story_sync_error( 'E2E stale failure', 'create' ),
+				)
+			);
+			$this->assert_same( false, as_has_scheduled_action( self::STORY_HOOK, $args, self::ACTION_GROUP ), 'Precondition: no action.' );
+			$this->assert_same( 'E2E stale failure', $this->get_sync_warning_field( $post_id ), "A stale {$stale_status->value} state must show its error." );
+		}
+
+		// A retry more than 10 minutes late means a stalled queue, so the error shows.
+		as_schedule_single_action( time() - HOUR_IN_SECONDS, self::STORY_HOOK, $args, self::ACTION_GROUP );
+		try {
+			$this->assert_same( 'E2E stale failure', $this->get_sync_warning_field( $post_id ), 'A retry that is an hour late must show the error.' );
+		} finally {
+			as_unschedule_all_actions( self::STORY_HOOK, $args, self::ACTION_GROUP );
+		}
+
+		// Only a retry hides the error: a sent story with an error and a pending action still shows it.
+		KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Sent->value ) );
+		as_schedule_single_action( time() + HOUR_IN_SECONDS, self::STORY_HOOK, $args, self::ACTION_GROUP );
+		try {
+			$this->assert_same( 'E2E stale failure', $this->get_sync_warning_field( $post_id ), 'A sent story must show its error with an action queued.' );
+		} finally {
+			as_unschedule_all_actions( self::STORY_HOOK, $args, self::ACTION_GROUP );
+		}
 
 		// Radio News switched off during the AI step: a failure then leaves no state, so no warning.
 		update_option( 'knabbel_e2e_ai_mode', 'error', false );
@@ -1471,6 +1567,118 @@ final class Knabbel_E2E_Suite {
 	}
 
 	/**
+	 * Verifies that clearing the story state keeps a state another request wrote after it was read, in a save and in the
+	 * worker, still clears a state with a backslash in its message, and refreshes cached post queries.
+	 */
+	private function test_state_delete_keeps_newer_state(): void {
+		$target = 0;
+		$armed  = null;
+		// Once armed, the next read of the target's state sees the old state while another request writes a sent one.
+		$write_after_read = static function ( mixed $value, int $object_id, string $meta_key ) use ( &$target, &$armed ): mixed {
+			if ( ! $armed || $target !== $object_id || '_zw_knabbel_story_state' !== $meta_key ) {
+				return $value;
+			}
+			$armed = false;
+			$read  = get_post_meta( $object_id, $meta_key, true );
+			$GLOBALS['wpdb']->update(
+				$GLOBALS['wpdb']->postmeta,
+				array(
+					'meta_value' => maybe_serialize(
+						array(
+							'status'   => StoryStatus::Sent->value,
+							'story_id' => 'e2e-written-meanwhile',
+						)
+					),
+				),
+				array(
+					'post_id'  => $object_id,
+					'meta_key' => $meta_key,
+				)
+			);
+			return array( $read );
+		};
+
+		$arm = static function () use ( &$armed ): void {
+			$armed = true;
+		};
+
+		add_filter( 'get_post_metadata', $write_after_read, 10, 3 );
+		try {
+			// A save that switches off a scheduled story reads the state again after it cancels the action.
+			$target = $this->create_draft( 'E2E opruimen na nieuwe state', 'Een state die een worker net schreef, blijft staan als een opslag opruimt.' );
+			$this->update_post( $target, array( 'post_status' => 'publish' ) );
+			update_post_meta( $target, self::SEND_TO_BABBEL_META_KEY, 1 );
+			$this->assert_story_status( $target, StoryStatus::Scheduled, 'Precondition: enabling must schedule the story.' );
+			add_action( 'action_scheduler_canceled_action', $arm );
+			try {
+				update_post_meta( $target, self::SEND_TO_BABBEL_META_KEY, 0 );
+			} finally {
+				remove_action( 'action_scheduler_canceled_action', $arm );
+			}
+			$this->assert_same( false, $armed, 'Precondition: the save must read the state again after canceling the action.' );
+			$this->assert_same(
+				'e2e-written-meanwhile',
+				KnabbelWP\get_story_state( $target )['story_id'] ?? null,
+				'A save must keep a state written after it read the state.'
+			);
+
+			// The worker's freshness check after generating, for a post that went offline meanwhile.
+			$armed   = null;
+			$post_id = $this->process_with_edit_during_request(
+				'E2E worker ruimt op na nieuwe state',
+				static function ( int $id ) use ( &$target, &$armed ): void {
+					$GLOBALS['wpdb']->update( $GLOBALS['wpdb']->posts, array( 'post_status' => 'draft' ), array( 'ID' => $id ) );
+					$target = $id;
+					$armed  = true;
+				}
+			);
+			$this->assert_same( false, $armed, 'Precondition: the worker must read the state after generating.' );
+			$this->assert_same(
+				'e2e-written-meanwhile',
+				KnabbelWP\get_story_state( $post_id )['story_id'] ?? null,
+				'The worker must keep a state written after it read the state.'
+			);
+		} finally {
+			remove_filter( 'get_post_metadata', $write_after_read, 10 );
+		}
+
+		// update_story_state() with $expected stores the backslashes as is; delete_post_meta() would unslash the value and
+		// match nothing.
+		$post_id = $this->create_draft( 'E2E opruimen met backslash', 'Een state met een backslash in de melding wordt ook opgeruimd.' );
+		$this->update_post( $post_id, array( 'post_status' => 'publish' ) );
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 1 );
+		KnabbelWP\update_story_state( $post_id, array( 'message' => 'E2E fout in C:\knabbel\babbel' ), KnabbelWP\get_story_state( $post_id ) );
+		$this->assert_same(
+			'E2E fout in C:\knabbel\babbel',
+			KnabbelWP\get_story_state( $post_id )['message'] ?? null,
+			'Precondition: the message must keep its backslashes.'
+		);
+		update_post_meta( $post_id, self::SEND_TO_BABBEL_META_KEY, 0 );
+		$this->assert_same( array(), KnabbelWP\get_story_state( $post_id ), 'Switching off must delete a state with a backslash in its message.' );
+
+		// A delete refreshes cached queries on the meta key, as the deleted_post_meta hook does.
+		$post_id = $this->create_draft( 'E2E opruimen in query-cache', 'Een opgeruimde state verdwijnt ook uit een gecachete query.' );
+		KnabbelWP\update_story_state( $post_id, array( 'status' => StoryStatus::Scheduled->value ) );
+		$with_state = static fn(): array => ( new WP_Query(
+			array(
+				'post_type'      => 'post',
+				'post_status'    => 'any',
+				'fields'         => 'ids',
+				'posts_per_page' => -1,
+				'meta_query'     => array(
+					array(
+						'key'     => '_zw_knabbel_story_state',
+						'compare' => 'EXISTS',
+					),
+				), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+			)
+		) )->posts;
+		$this->assert_same( true, in_array( $post_id, $with_state(), true ), 'Precondition: the query must list the post.' );
+		KnabbelWP\delete_story_state( $post_id, KnabbelWP\get_story_state( $post_id ) );
+		$this->assert_same( false, in_array( $post_id, $with_state(), true ), 'A cached query must not list the post after its state is deleted.' );
+	}
+
+	/**
 	 * Verifies that a story created by a create whose answer was lost is taken over, or left deleted.
 	 */
 	private function test_lost_create_answer(): void {
@@ -1674,6 +1882,28 @@ final class Knabbel_E2E_Suite {
 		$result = wp_update_post( array_merge( array( 'ID' => $post_id ), $updates ), true );
 		if ( is_wp_error( $result ) ) {
 			throw new RuntimeException( 'Could not update test post: ' . $result->get_error_message() );
+		}
+	}
+
+	/**
+	 * Returns the sync warning an editor gets from the REST API.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return mixed The knabbel_sync_warning field.
+	 */
+	private function get_sync_warning_field( int $post_id ): mixed {
+		$previous_user = get_current_user_id();
+		wp_set_current_user( (int) get_user_by( 'login', 'admin' )->ID );
+		try {
+			$request = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
+			$request->set_param( 'context', 'edit' );
+			$response = rest_do_request( $request );
+			$this->assert_same( 200, $response->get_status(), 'The editor must be able to read the post.' );
+			$data = $response->get_data();
+			$this->assert_same( true, array_key_exists( 'knabbel_sync_warning', $data ), 'The edit context must have the sync warning field.' );
+			return $data['knabbel_sync_warning'];
+		} finally {
+			wp_set_current_user( $previous_user );
 		}
 	}
 

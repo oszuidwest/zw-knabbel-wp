@@ -39,7 +39,7 @@ function register_post_hooks(): void {
 		)
 	);
 
-	// The block editor shows the last sync error; it comes back with every save response.
+	// The block editor shows the last sync error; it comes back with every save response, empty while a retry is on its way.
 	add_action( 'rest_api_init', __NAMESPACE__ . '\\register_sync_warning_field' );
 
 	add_action( 'wp_after_insert_post', __NAMESPACE__ . '\\handle_post_saved', 10, 4 );
@@ -59,6 +59,7 @@ function register_post_hooks(): void {
  * Only in the edit context, so the message is not public.
  *
  * @since 2.0.0
+ * @since 2.0.1 Leaves out the error while a retry is running or queued and not more than 10 minutes late.
  */
 function register_sync_warning_field(): void {
 	register_rest_field(
@@ -68,7 +69,16 @@ function register_sync_warning_field(): void {
 			'get_callback' => static function ( array $post ): ?string {
 				// A request with _fields can leave out the id; the controller sets up the global post.
 				$post_id = (int) ( $post['id'] ?? get_the_ID() );
-				return get_story_sync_error( get_story_state( $post_id ) )['message'] ?? null;
+				$state   = get_story_state( $post_id );
+				$message = get_story_sync_error( $state )['message'] ?? null;
+				if ( null === $message || ! in_array( $state['status'] ?? '', array( StoryStatus::Scheduled->value, StoryStatus::Processing->value ), true ) ) {
+					return $message;
+				}
+				// A running or queued retry has not failed yet, so its old error is hidden; it stays stored for the
+				// metabox and settings page. Without an action (a dead worker) or with one more than 10 minutes late
+				// (a stalled queue) the retry is not happening, so the error shows.
+				$next = \as_next_scheduled_action( 'knabbel_process_story', array( 'post_id' => $post_id ), 'zw-knabbel-wp' );
+				return true === $next || ( is_int( $next ) && $next > time() - 10 * MINUTE_IN_SECONDS ) ? null : $message;
 			},
 			'schema'       => array(
 				'description' => __( 'Last Babbel sync error of the post.', 'zw-knabbel-wp' ),
@@ -253,8 +263,9 @@ function sync_story_state( int $post_id, ?\WP_Post $post_before = null ): void {
 			}
 			// A worker may have finished since the state was read.
 			wp_cache_delete( $post_id, 'post_meta' );
-			if ( ( get_story_state( $post_id )['status'] ?? '' ) === $status ) {
-				delete_post_meta( $post_id, '_zw_knabbel_story_state' );
+			$current = get_story_state( $post_id );
+			if ( ( $current['status'] ?? '' ) === $status ) {
+				delete_story_state( $post_id, $current );
 			}
 		}
 		return;
