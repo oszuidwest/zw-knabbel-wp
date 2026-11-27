@@ -732,11 +732,13 @@ function process_story_async( int $post_id ): void {
 	// Generate speech text.
 	$generated = ai_generate_content( $content, $post_id );
 	if ( null === $generated ) {
+		$error = __( 'Could not generate speech text', 'zw-knabbel-wp' );
 		update_story_state(
 			$post_id,
 			array(
-				'status'  => \KnabbelWP\StoryStatus::Error->value,
-				'message' => __( 'Could not generate speech text', 'zw-knabbel-wp' ),
+				'status'          => \KnabbelWP\StoryStatus::Error->value,
+				'message'         => $error,
+				'last_sync_error' => build_story_sync_error( $error, 'create' ),
 			)
 		);
 		return;

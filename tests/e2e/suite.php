@@ -743,8 +743,29 @@ final class Knabbel_E2E_Suite {
 		$this->assert_story_status( $post_id, StoryStatus::Error, 'AI provider exhaustion must mark processing as error.' );
 		$this->assert_same( 3, (int) get_option( 'knabbel_e2e_ai_call_count', 0 ), 'The AI provider must be attempted exactly three times.' );
 		$this->assert_same( 0, $this->count_babbel_stories_by_title( $title ), 'AI provider failure must not create a Babbel story.' );
+		$state = KnabbelWP\get_story_state( $post_id );
+		$this->assert_same( 'create', $state['last_sync_error']['operation'] ?? null, 'AI provider failure must identify the operation.' );
 
-		update_option( 'knabbel_e2e_ai_mode', 'success', false );
+		$sync_warning  = static function () use ( $post_id ): ?string {
+			$request = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
+			$request->set_param( 'context', 'edit' );
+			return rest_do_request( $request )->get_data()['knabbel_sync_warning'] ?? null;
+		};
+		$previous_user = get_current_user_id();
+		wp_set_current_user( (int) get_user_by( 'login', 'admin' )->ID );
+		try {
+			$this->assert_same( 'Could not generate speech text', $sync_warning(), 'An editor must be warned that the AI step failed.' );
+
+			update_option( 'knabbel_e2e_ai_mode', 'success', false );
+			$this->update_post( $post_id, array( 'post_title' => $title ) );
+			$this->run_action_scheduler( self::STORY_HOOK, 1, array( 'post_id' => $post_id ) );
+
+			$this->assert_story_status( $post_id, StoryStatus::Sent, 'A save after an AI failure must retry the story.' );
+			$this->assert_same( null, $sync_warning(), 'A successful retry must clear the AI failure warning.' );
+		} finally {
+			wp_set_current_user( $previous_user );
+			update_option( 'knabbel_e2e_ai_mode', 'success', false );
+		}
 	}
 
 	/**
