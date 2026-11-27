@@ -683,7 +683,7 @@ function ajax_test_api(): void {
  * @since 0.8.1 Reconciles the post with the new story after creating it.
  * @since 1.0.0 Sends the post ID as external ID and takes over the story of a create whose answer was lost.
  * @since 1.1.0 Records the generation input in the story metadata.
- * @since 2.0.1 Warns the editor when the AI step fails, unless the post went offline or was switched off meanwhile.
+ * @since 2.0.1 Warns the editor when the AI step fails or is not available, unless the post went offline or was switched off meanwhile.
  * @param int $post_id The WordPress post ID.
  */
 function process_story_async( int $post_id ): void {
@@ -752,14 +752,15 @@ function process_story_async( int $post_id ): void {
 	}
 
 	// After the freshness check, so a post that went offline or was switched off meanwhile gets no warning.
-	if ( null === $generated ) {
-		$error = __( 'Could not generate speech text', 'zw-knabbel-wp' );
+	if ( is_wp_error( $generated ) ) {
+		$error = $generated->get_error_message();
 		update_story_state(
 			$post_id,
 			array(
 				'status'          => \KnabbelWP\StoryStatus::Error->value,
 				'message'         => $error,
-				'last_sync_error' => build_story_sync_error( $error, 'create' ),
+				// Without a working AI setup, saving again fails the same way.
+				'last_sync_error' => build_story_sync_error( $error, 'create', 'ai_unavailable' !== $generated->get_error_code() ),
 			)
 		);
 		return;

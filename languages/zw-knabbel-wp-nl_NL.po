@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ZuidWest Knabbel 2.0.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/zw-knabbel-wp\n"
-"POT-Creation-Date: 2026-11-27T12:59:55+00:00\n"
+"POT-Creation-Date: 2026-11-27T13:09:11+00:00\n"
 "PO-Revision-Date: 2026-08-11T14:51:44+00:00\n"
 "Last-Translator: Remon Mens\n"
 "Language-Team: Dutch\n"
@@ -328,6 +328,18 @@ msgstr "Opgetreden"
 msgid "Refresh"
 msgstr "Vernieuwen"
 
+#: includes/ai-handler.php:244
+msgid ""
+"Speech text generation is not available. Ask an administrator to check the "
+"AI settings."
+msgstr ""
+"Het maken van spreektekst is niet beschikbaar. Vraag een beheerder de AI-"
+"instellingen te controleren."
+
+#: includes/ai-handler.php:247
+msgid "Could not generate speech text"
+msgstr "Kon spreektekst niet genereren"
+
 #: includes/babbel-api.php:51 includes/babbel-api.php:380
 msgid "Username and password are required"
 msgstr "Gebruikersnaam en wachtwoord zijn vereist"
@@ -373,7 +385,7 @@ msgstr "Ongeldige API-respons"
 msgid "No story ID received from API"
 msgstr "Geen verhaal-ID ontvangen van API"
 
-#: includes/babbel-api.php:361 zw-knabbel-wp.php:847
+#: includes/babbel-api.php:361 zw-knabbel-wp.php:848
 msgid "Story created successfully"
 msgstr "Verhaal succesvol aangemaakt"
 
@@ -491,18 +503,14 @@ msgstr "Bericht niet gevonden"
 msgid "Send to Babbel is disabled for this post"
 msgstr "Verzenden naar Babbel is uitgeschakeld voor dit bericht"
 
-#: zw-knabbel-wp.php:756
-msgid "Could not generate speech text"
-msgstr "Kon spreektekst niet genereren"
-
-#: zw-knabbel-wp.php:809
+#: zw-knabbel-wp.php:810
 msgid ""
 "Babbel already has a story with this post ID, but it could not be linked: "
 msgstr ""
 "Babbel heeft al een verhaal met dit bericht-ID, maar het kon niet worden "
 "gekoppeld: "
 
-#: zw-knabbel-wp.php:814
+#: zw-knabbel-wp.php:815
 msgid ""
 "The story for this post was deleted in Babbel. To send it again, restore it "
 "in Babbel first and then save the post."
