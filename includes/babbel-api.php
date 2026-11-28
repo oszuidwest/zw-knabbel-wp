@@ -221,6 +221,7 @@ function babbel_make_authenticated_request( string $url, array $args = array() )
  * @since 0.1.0
  * @since 0.8.0 Reports Problem Details errors and requires an integer story ID.
  * @since 1.0.0 Sends the external ID and link, and reports a duplicate external ID.
+ * @since 2.1.1 Logs errors with the post ID.
  * @param array<string, mixed> $story_data The story data to send.
  * @return array{success: bool, message: string, story_id?: string, duplicate?: bool} Response with success status and message.
  *
@@ -250,12 +251,29 @@ function babbel_create_story( array $story_data ): array {
 	try {
 		$json_body = wp_json_encode( $payload );
 		if ( false === $json_body ) {
+			log(
+				'error',
+				'BabbelApi',
+				'Could not encode story data',
+				array(
+					'post_id' => $story_data['external_id'],
+				)
+			);
 			return array(
 				'success' => false,
 				'message' => __( 'Could not encode story data', 'zw-knabbel-wp' ),
 			);
 		}
 	} catch ( \JsonException $e ) {
+		log(
+			'error',
+			'BabbelApi',
+			'Could not encode story data',
+			array(
+				'post_id'    => $story_data['external_id'],
+				'json_error' => $e->getMessage(),
+			)
+		);
 		return array(
 			'success' => false,
 			'message' => __( 'Could not encode story data', 'zw-knabbel-wp' ),
@@ -277,6 +295,7 @@ function babbel_create_story( array $story_data ): array {
 			'BabbelApi',
 			'Babbel API request failed',
 			array(
+				'post_id'  => $story_data['external_id'],
 				'endpoint' => $endpoint,
 				'error'    => $response->get_error_message(),
 			)
@@ -296,6 +315,7 @@ function babbel_create_story( array $story_data ): array {
 			'BabbelApi',
 			'Babbel API HTTP error',
 			array(
+				'post_id'       => $story_data['external_id'],
 				'endpoint'      => $endpoint,
 				'response_code' => $response_code,
 				'response_body' => substr( $body, 0, 500 ),
@@ -317,6 +337,7 @@ function babbel_create_story( array $story_data ): array {
 			'BabbelApi',
 			'Invalid JSON response from Babbel API',
 			array(
+				'post_id'       => $story_data['external_id'],
 				'endpoint'      => $endpoint,
 				'response_body' => substr( $body, 0, 500 ),
 				'json_error'    => $e->getMessage(),
@@ -334,6 +355,7 @@ function babbel_create_story( array $story_data ): array {
 			'BabbelApi',
 			'No story ID in Babbel API response',
 			array(
+				'post_id'  => $story_data['external_id'],
 				'endpoint' => $endpoint,
 				'response' => $decoded,
 			)
