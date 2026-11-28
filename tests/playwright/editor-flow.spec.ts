@@ -154,7 +154,7 @@ test.describe
                 page.locator('.knabbel-status-badge.sent'),
             ).toBeAttached();
             await expect(radioNewsButton(page)).toHaveAttribute(
-                'aria-pressed',
+                'aria-checked',
                 'true',
             );
 
@@ -178,7 +178,7 @@ test.describe
 
             await openEditor(page, postID);
             await expect(radioNewsButton(page)).toHaveAttribute(
-                'aria-pressed',
+                'aria-checked',
                 'false',
             );
             await setBabbelEnabled(page, true);
