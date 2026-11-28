@@ -78,10 +78,10 @@
                             {
                                 size: 'compact',
                                 variant: 'tertiary',
-                                // A toggle button: screen readers announce the
-                                // name and whether it is pressed.
+                                // Not aria-pressed: that turns the button black.
+                                role: 'switch',
                                 'aria-label': text.label,
-                                'aria-pressed': enabled,
+                                'aria-checked': enabled,
                                 onClick: () =>
                                     setMeta({ [META_KEY]: !enabled }),
                             },

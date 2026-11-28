@@ -142,10 +142,10 @@ export async function setBabbelEnabled(
     const button = radioNewsButton(page);
 
     await expect(button).toBeVisible();
-    if ((await button.getAttribute('aria-pressed')) !== String(enabled)) {
+    if ((await button.getAttribute('aria-checked')) !== String(enabled)) {
         await button.click();
     }
-    await expect(button).toHaveAttribute('aria-pressed', String(enabled));
+    await expect(button).toHaveAttribute('aria-checked', String(enabled));
     await expect(button).toHaveText(enabled ? 'Yes' : 'No');
 }
 
@@ -165,7 +165,7 @@ export async function setSidebar(page: Page, open: boolean): Promise<void> {
 }
 
 export function radioNewsButton(page: Page): Locator {
-    return page.getByRole('button', { name: 'Radio News', exact: true });
+    return page.getByRole('switch', { name: 'Radio News', exact: true });
 }
 
 /**

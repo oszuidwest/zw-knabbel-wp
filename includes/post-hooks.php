@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @since 0.2.0
  * @since 2.0.0 Registers the Radio News meta for REST and the sync warning REST field.
- * @since 2.0.1 Syncs a REST save once.
+ * @since 2.1.0 Syncs a REST save once.
  */
 function register_post_hooks(): void {
 	// The Radio News switch. The block editor saves it through REST.
@@ -59,8 +59,8 @@ function register_post_hooks(): void {
  * Only in the edit context, so the message is not public.
  *
  * @since 2.0.0
- * @since 2.0.1 Leaves out the error while a retry is running or queued and not more than 10 minutes late.
- * @since 2.0.1 Renamed from knabbel_sync_warning; gives the message and whether saving the post again can fix the error.
+ * @since 2.1.0 Leaves out the error while a retry is running or queued and not more than 10 minutes late.
+ * @since 2.1.0 Renamed from knabbel_sync_warning; gives the message and whether saving the post again can fix the error.
  */
 function register_sync_warning_field(): void {
 	register_rest_field(
@@ -112,7 +112,7 @@ function register_sync_warning_field(): void {
  * A mark lasts from rest_insert_post until wp_after_insert_post(), the end of
  * the REST request, or shutdown.
  *
- * @since 2.0.1
+ * @since 2.1.0
  *
  * @return array<int, \WP_REST_Request> The saving request, keyed by post ID.
  */
@@ -128,7 +128,7 @@ function &rest_saves(): array {
  * wp_after_insert_post() last. Without this, a Radio News change would sync
  * twice and, with Babbel down, try a delete or restore twice.
  *
- * @since 2.0.1
+ * @since 2.1.0
  *
  * @param \WP_Post         $post    The saved post.
  * @param \WP_REST_Request $request The saving request.
@@ -143,7 +143,7 @@ function handle_rest_insert_post( \WP_Post $post, \WP_REST_Request $request ): v
  *
  * The post is saved at that point, and its meta may be too.
  *
- * @since 2.0.1
+ * @since 2.1.0
  *
  * @param mixed                $response The response.
  * @param array<string, mixed> $handler  The route handler.
@@ -164,7 +164,7 @@ function handle_rest_request_done( mixed $response, array $handler, \WP_REST_Req
  * happens on shutdown when another plugin stopped the request with exit or die.
  * After a fatal error this is best effort; a save it misses syncs on the next save.
  *
- * @since 2.0.1
+ * @since 2.1.0
  *
  * @param \WP_REST_Request|null $request The finished request, or null for all.
  */
@@ -185,7 +185,7 @@ function sync_marked_rest_saves( ?\WP_REST_Request $request = null ): void {
  * Radio News value directly.
  *
  * @since 0.5.0
- * @since 2.0.1 Skips a change made by a running REST save.
+ * @since 2.1.0 Skips a change made by a running REST save.
  *
  * @param int|int[] $meta_id  Meta ID, or deleted meta IDs.
  * @param int       $post_id  Post ID.
@@ -210,7 +210,7 @@ function handle_checkbox_meta_changed( $meta_id, $post_id, $meta_key ): void {
  * transitions from ordinary edits.
  *
  * @since 0.2.0
- * @since 2.0.1 Clears the REST save mark of the post.
+ * @since 2.1.0 Clears the REST save mark of the post.
  *
  * @param int           $post_id     Post ID.
  * @param \WP_Post      $post        Post object.
@@ -231,8 +231,8 @@ function handle_post_saved( int $post_id, \WP_Post $post, bool $update, ?\WP_Pos
  * trigger reconciliation after WordPress has persisted the relevant change.
  *
  * @since 0.5.0
- * @since 2.0.1 Also clears an error without a known story ID when the post should not have a story.
- * @since 2.0.1 Clears a delete or restore error that no longer applies, once Babbel confirms the story state.
+ * @since 2.1.0 Also clears an error without a known story ID when the post should not have a story.
+ * @since 2.1.0 Clears a delete or restore error that no longer applies, once Babbel confirms the story state.
  *
  * @param int           $post_id     Post ID.
  * @param \WP_Post|null $post_before Post state before a save, when available.
